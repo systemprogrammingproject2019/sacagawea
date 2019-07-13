@@ -22,8 +22,8 @@ di testo che può anche essere vuota che indica "mandami la lista di quello che 
 piccolo esempio \t sta per il TAB
 ```
  0About internet Gopher\t\tStuff:About us\trawBits.micro.umn.edu\t70
- 1Around University of Minnesota\tZ,5692,AUMFunderdog.micro.umn.edu\t70
- 1Departmental Publications\tStuff:DP:FrawBits.micro.umn.edu\t70
+ 1Around University of Minnesota\tZ,5692,AUM\tunderdog.micro.umn.edu\t70
+ 1Departmental Publications\tStuff:DP:\trawBits.micro.umn.edu\t70
  .
 ```
 * Il primo carattere di ogni riga descrive il tipo di file ( documento , directory etc... )
