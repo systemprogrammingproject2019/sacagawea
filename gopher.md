@@ -1,4 +1,4 @@
-### Gopher 
+# Gopher 
 è un protocollo TCP/IP di livello applicazione, nato in concomitanza con HTTP ma senza prendere piede.
 Il suo funzionamento rimanda alla gerarchia di un file system. In effetti l'accesso ad un server gopher permette di montare 
 il suo file system sul client.
@@ -6,7 +6,7 @@ il suo file system sul client.
 ---
 ---
 
-### Caratteristiche
+# Caratteristiche
 * Nato per essere utilizzato su computer di bassa potenza (1 MB Macs and DOS machines) è pertanto molto semplice
 * E' stateless
 * 
@@ -14,7 +14,7 @@ il suo file system sul client.
 ---
 ---
 
-### Funzionamento
+# Funzionamento
 * Inizia con una richiesta di connessione da parte del client al server via TCP, contenente un SELECTOR ( ovvero una linea 
 di testo che può anche essere vuota che indica "mandami la lista di quello che hai"). 
 * Il server risponde con un blocco di testo terminato da una riga contenete un solo punto ".".
