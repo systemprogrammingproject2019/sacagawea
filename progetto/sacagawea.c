@@ -12,24 +12,59 @@
 #include <signal.h>
 #include <arpa/inet.h>
 
-
+#include <getopt.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #define true     1
 #define false    0
-
+int SERVER_PORT=7070
+int MODE_CLIENT_PROCESSING=0 // 0=thread 1=subProcess
 /*
+if command line is wrong the program will exit with status 20
 if a system call failed the program exit with status 5
 */
 
-void openConnection(int IP, int PORT){
-
+void checkConf(){
+  fp = fopen("conf/sacagawea.conf", "r");
+  if (fp != NULL)
+  {
+    //scrivi lettura conf
+    
+  }else{
+    fprintf( stderr,"System call fopen() failed because of %s", strerror(errno));
+   	exit(5);
+  }
 }
 
 
 int main(int argc, char *argv[])
 {
+  // check the sacagawea.conf
+  checkConf();
   // check if some variable are setted by command line
-  //fprintf( stdout,"Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to process 1 client connection]" );
+  opterr=0;
+	while ( ( c = getopt(argc, argv, "ptP:") ) != -1 ) {
+		switch (c){
+			case 'p':
+				MODE_CLIENT_PROCESSING=1;
+	      break;
+
+	    case 'P':
+				SERVER_PORT = atoi(optarg);
+	    	break;
+
+	    case 't':
+			MODE_CLIENT_PROCESSING=0;
+	    	break;
+
+			case '?':
+        fprintf( stdout,"Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to process 1 client connection]" );
+				exit(20);
+				break;
+		}
+	}
+
 
   int i, num_fd_ready, check;
   int    close_conn;
@@ -45,7 +80,7 @@ int main(int argc, char *argv[])
     address family with the TCP transport (SOCK_STREAM) is used for this socket.*/
   if ( (internal_s = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
   {
-		fprintf( stderr,"System call socket socket() failed because of %s", strerror(errno));
+		fprintf( stderr,"System call socket() failed because of %s", strerror(errno));
    	exit(5);
 	}
 
@@ -54,7 +89,7 @@ int main(int argc, char *argv[])
   All of the sockets for the incoming connections are also nonblocking because they inherit that state from the listening socket. */
   if ( (ioctl(internal_s, FIONBIO, (char *)&on)) < 0 )
   {
-    fprintf( stderr,"System call socket ioctl() failed because of %s", strerror(errno));
+    fprintf( stderr,"System call ioctl() failed because of %s", strerror(errno));
     close(internal_s);
     exit(5);
   }
@@ -63,19 +98,19 @@ int main(int argc, char *argv[])
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serv_addr.sin_port = htons( atoi( "7070" ) );
+	serv_addr.sin_port = htons( SERVER_PORT );
 
 	// bind to join the unamed socket with sockaddr_in and become named socket
 	if( bind( internal_s , (struct sockaddr*)&serv_addr ,  sizeof(serv_addr)) == -1 )
   {
-		fprintf( stderr,"System call socket bind() failed because of %s", strerror(errno) );
+		fprintf( stderr,"System call bind() failed because of %s", strerror(errno) );
 		exit(5);
 	}
 
   /* listen allows the server to accept incoming client connection  */
   if ( (listen( internal_s, 32)) < 0)
   {
-    fprintf( stderr,"System call socket listen() failed because of %s", strerror(errno) );
+    fprintf( stderr,"System call listen() failed because of %s", strerror(errno) );
 		exit(5);
   }
 
@@ -91,7 +126,7 @@ int main(int argc, char *argv[])
 
   /* Initialize the timeval struct to 3 minutes.  If no        
   activity after 3 minutes this program will end.           */
-  timeout.tv_sec  = 3 * 60;
+  timeout.tv_sec  = 13 * 60;
   timeout.tv_usec = 0;
 
   /* Loop waiting for incoming connects or for incoming data
@@ -106,12 +141,12 @@ int main(int argc, char *argv[])
     check = select( max_num_s+1, &working_set, NULL, NULL, &timeout);
     if (check < 0)
     {
-      fprintf( stderr,"System call socket select() failed because of %s", strerror(errno) );
+      fprintf( stderr,"System call select() failed because of %s", strerror(errno) );
       exit(5);
     }// Chek if select timed out
     if (check == 0)
     {
-      printf("  select() timed out.  End program.\n");
+      printf("select() timed out. End program.\n");
       break;
     }
     /* 1 or more descriptors are readable we have to check which they are */
@@ -120,6 +155,7 @@ int main(int argc, char *argv[])
     // for, for check all ready FD in fds_set until, FD are finish or we check all the ready fd
     for (i=0;  i <= max_num_s && num_fd_ready > 0; ++i)
     {
+      close_conn = false;
       //Check to see if the i-esimo descriptor is ready
       if (FD_ISSET(i, &working_set))
       {
@@ -166,8 +202,8 @@ int main(int argc, char *argv[])
 
           //provo per vedere se funziona mono thread "non eliminare"
           printf("  Descriptor %d is readable\n", i);
-          do
-          {
+          /* do
+          {*/
             /* Receive data on this connection until the recv fails with EWOULDBLOCK.
             If any other failure occurs, we will close the connection.    */
             check = recv(i, input, sizeof(input), 0);
@@ -181,6 +217,7 @@ int main(int argc, char *argv[])
                 // or can be a client error so we have only to close connection
                 close_conn = true;
               }
+              fprintf( stdout,"System call recv() of sd - %d EWOULDBLOCK", i );
               break;
             }
             /* Check to see if the connection has been closed by the client, so recv return 0  */
@@ -203,7 +240,7 @@ int main(int argc, char *argv[])
               close_conn = true;
             }
             // fai la parte del rimuovi connessioni chiuse,aggiungi i check saltati prima
-            } while (true);
+          //} while (true);
 
             /* we check if we have to close the connection of the sd and if is the max_num_s
             we have to determinate the new max */
