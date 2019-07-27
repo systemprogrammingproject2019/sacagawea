@@ -16,7 +16,30 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-#include "sacagawea.h"
+
+#define true     1
+#define false    0
+#define PATH_MAX        4096 // in Linux the max path is 4096 chars
+
+int SERVER_PORT=7070;
+int MODE_CLIENT_PROCESSING=0; // 0=thread 1=subProcess
+int SERVER_SOCKET; // the socket descriptor of the server
+fd_set fds_set;
+int max_num_s;
+
+
+void open_socket();
+int check_if_conf(char line[]);
+int read_and_check_conf();
+void config_handler(int signum);
+int listen_descriptor();
+int load_file_memory_linux( char *path);
+int load_file_memory_posix( char *path);
+/*
+if command line is wrong the program will exit with status 20
+if a system call failed the program exit with status 5
+*/
+
 
 int load_file_memory_posix( char *path)
 {
@@ -359,40 +382,17 @@ void config_handler(int signum)
   }
 }
 
-// this function spawn process to management the new client request 
-int process_management( client_args client_info )
-{
-
-}
-
-void thread_function( void *client_info )
-{
-  
-}
-// this function spawn thread to management the new client request 
-int thread_management(  client_args client_info )
-{
-  pthread_t tid;
-  pthread_create(&tid, NULL, thread_function, (void*) &client_info );
-
-  pthread_join( tid, NULL);
-}
-
 // this function call the select() and check the FDS_SET if some socket is readable
 int listen_descriptor()
 {
   // Some declaretion of usefull variable
-  struct sockaddr_in client_addr;
-  int i, num_fd_ready, check, client_addr_len;
+  int i, num_fd_ready, check;
   struct timeval timeout;
   fd_set working_set;
   int close_conn;
   char input[80]; // momentanio per vedere se arriva l'input
-  char str_client_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
   int new_s;
-  // struct defined in sacagawea.h for contain client information
-  client_args client_info;
-  memset( client_info, 0, sizeof(client_info));
+    
   /* Initialize the timeval struct to 13 minutes.  If no        
   activity after 13 minutes this program will end.           */
   timeout.tv_sec  = 13 * 60;
@@ -436,13 +436,10 @@ int listen_descriptor()
         loop back and call select again. */
         do
         {
-          
           /*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
           then we have accepted all of them.
           Any other failure on accept will cause us to end the server.  */
-          memset(&client_addr, 0, sizeof(client_addr));
-          client_addr_len=sizeof(client_addr);
-          new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
+          new_s = accept(SERVER_SOCKET, NULL, NULL);
           if (new_s < 0)
           {
             if (errno != EWOULDBLOCK)
@@ -452,17 +449,13 @@ int listen_descriptor()
             }
             break;
           }
-          /* we create a t/p for management the incoming connection, call the right function with socket + client_addr as argument */
-          snprintf( client_info.client_addr, 16, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-          printf("New connection stabilished at fd - %d from %s\n", new_s, str_client_addr);
-          client_info.socket=new_s;
-          
-          if ( MODE_CLIENT_PROCESSING == 0)
-          {
-            thread_management( client_info );
-          }else{
-            process_management( client_info );
-          }
+          /* we save all incoming connection, so we can check if a input come with the system call select */
+          printf("New connection stabilished at fd - %d\n", new_s);
+          FD_SET(new_s, &fds_set);
+          /* check if the socket of the new accepted connection is greater then max_num_s, otherwise
+          the biggest socket open */
+          if (new_s > max_num_s)
+            max_num_s = new_s;
 
         }while (new_s != -1);
           
@@ -472,7 +465,12 @@ int listen_descriptor()
         poiche a questo punto abbiamo un socket di una connessione leggibile. lo passiamo al "figlio"
         e lo gestisce. a me piace piu cosi perche cosi ha senso l'uso della select, altrimenti 
         è come fare listen e accept bloccanti */
-        
+        /* if ( MODE_CLIENT_PROCESSING == 0)
+        {
+          thread_gesture();
+        }else{
+          process_gesture();
+        }*/
         
         //provo per vedere se funziona mono thread "non eliminare"
         printf("  Descriptor %d is readable\n", i);
@@ -491,12 +489,13 @@ int listen_descriptor()
           fprintf( stdout,"System call recv() of sd - %d EWOULDBLOCK", i );
           break;
         }
-        /* Check to see if the connection has been closed by the client, so recv return 0  */
-        if (check == 0)
-        {
-          printf("  Connection closed %d\n",i);
-          close_conn = true;
-        }
+          /* Check to see if the connection has been closed by the client, so recv return 0  */
+          if (check == 0)
+          {
+            printf("  Connection closed %d\n",i);
+            close_conn = true;
+            //---break;
+          }
           // if we are there check is the number of bytes read from client, print that message
           printf("  %d bytes received\n", check);
           // stampo indietro il messaggio sempre prova per vedere il funzionamento "non eliminare"
@@ -530,4 +529,95 @@ int listen_descriptor()
       }
   } // End of select loop
   return false; 
+}
+
+int main(int argc, char *argv[])
+{
+
+  load_file_memory_posix( "conf/sacagawea.conf");
+  // check the sacagawea.conf
+  read_and_check_conf();
+  // check if some variable are setted by command line
+  int c;
+  opterr=0;
+	while ( ( c = getopt(argc, argv, "ptP:") ) != -1 ) {
+		switch (c){
+			case 'p':
+				MODE_CLIENT_PROCESSING=1;
+        fprintf(stdout,"mode change p: %d\n", MODE_CLIENT_PROCESSING);
+	      break;
+
+	    case 'P':
+				SERVER_PORT = atoi(optarg);
+        fprintf(stdout,"port change: %d\n", SERVER_PORT);
+	    	break;
+
+	    case 't':
+			  MODE_CLIENT_PROCESSING=0;
+        fprintf(stdout,"mode change t: %d\n", MODE_CLIENT_PROCESSING);
+	    	break;
+
+			case '?':
+        fprintf( stdout,"Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to process 1 client connection]" );
+				exit(20);
+				break;
+		}
+	}
+
+  fprintf( stdout, "Server port: %d, mode: %d\n", SERVER_PORT , MODE_CLIENT_PROCESSING);
+
+  // Creating sigaction for SIGHUP
+  struct sigaction new_action;
+  /* Block other SIGHUP signals while handler runs. */
+  sigset_t block_mask;
+  sigemptyset (&block_mask);
+  sigaddset (&block_mask, SIGHUP);
+  /* Set up the structure to specify the new action. */
+  new_action.sa_handler = config_handler;
+  new_action.sa_mask = block_mask;
+  sigemptyset (&new_action.sa_mask);
+  /* set SA_RESTART flag, so If a signal handler is invoked meanwhile a system call 
+  is running like read/recv etc.. after the handler,
+  the system call is restarted and can give EINTR error if fail */ 
+  new_action.sa_flags = SA_RESTART;
+  /* The sigaction() API change the action taken by a process on receipt of SIGHUP signal. */
+  if( sigaction (SIGHUP, &new_action, NULL) < 0 )
+  {
+    fprintf( stderr,"System call sigaction() failed because of %s", strerror(errno));
+   	exit(5);
+  }
+    
+  // open socket call
+  open_socket();
+
+  int i;
+  
+  /* declare FD_SET and initialize it */
+  FD_ZERO(&fds_set);
+  max_num_s = SERVER_SOCKET;
+  FD_SET( SERVER_SOCKET, &fds_set);
+  //per controlare roba da me "non eliminare"
+  for (i=0;  i <= max_num_s ; ++i)
+  {
+    fprintf( stdout,"i: %d  is set:  %d\n",i,FD_ISSET(i, &fds_set));
+  }
+
+  /* Loop waiting for incoming connects or for incoming data
+    on any of the connected sockets.   */
+  do
+  {
+    if( listen_descriptor() ){
+      break;
+    }
+  }while(true);
+
+  // we are out of select loop so we have to close all connection
+  for (i=0; i <= max_num_s; ++i)
+  {
+    if (FD_ISSET(i, &fds_set))
+    {
+      close(i);
+    }
+  }
+
 }
