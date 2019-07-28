@@ -18,6 +18,20 @@
 
 #include "sacagawea.h"
 
+
+struct struct_client_args
+{
+  char client_addr[16];
+  int socket;
+};
+
+typedef struct struct_client_args client_args;
+
+void print_client_args( client_args *client)
+{
+    fprintf( stdout, "SOCKET: %d\nIP:PORT: %s\n PATH:%s", client->socket, client->client_addr, client->path);
+}
+
 int load_file_memory_posix( char *path)
 {
   
@@ -359,24 +373,99 @@ void config_handler(int signum)
   }
 }
 
-// this function spawn process to management the new client request 
-int process_management( client_args client_info )
+char check_type( char *selector_path, int sd)
 {
-
+  FILE *fp =popen( selector_path, "r");
+  if (fp == NULL)
+  {
+    fprintf( stderr,"System call popen() of sd - %d, failed because of %s we close that connection\n", sd, strerror(errno) );
+    return;
+  }
+  
 }
 
-void thread_function( void *client_info )
+void read_line_from_socket( int sd )
+{
+  int check;
+  int read_byte=0;
+  char selector_path[PATH_MAX]; // becouse the request is a path and the max path is 4096 
+                                // char length we create a string of 4096 char
+  /* Receive data on this connection until the recv \n of finish line.
+  If any other failure occurs, we will close the connection.    */
+  int stop=true;
+  while( stop ){
+    check = recv(sd, &selector_path[read_byte], (PATH_MAX-read_byte), 0);
+    if (check < 0)
+    {
+      if (errno != EWOULDBLOCK)
+      {
+        // if recv fail the error can be server side or client side so we close the connection and go on 
+        fprintf( stderr,"System call recv() of sd - %d, failed because of %s we close that connection\n", sd, strerror(errno) );
+        return;
+      }
+      fprintf( stdout,"<0 errore\n" );
+      //fprintf( stdout,"System call recv() of sd - %d EWOULDBLOCK", sd );
+      continue;
+    }
+    /* Check to see if the connection has been closed by the client, so recv return 0  */
+    if (check == 0)
+    {
+      printf("  Connection closed %d\n", sd );
+      stop = false;
+    }
+    if( check > 0)
+    {
+      fprintf( stdout, "READ: %s ,byte: %d\n", &selector_path[read_byte] , check );
+      read_byte += check;
+      if(selector_path[ (read_byte-1) ]=='\n')
+      {
+        selector_path[read_byte]='\0';
+        stop = false;
+      }
+    }
+  }
+  return selector_path;
+}
+// this function spawn process to management the new client request 
+int process_management( client_args *client_info )
 {
   
 }
+
+
+void *thread_function( void* c )
+{
+  client_args *client_info;
+  client_info = (client_args*) c;
+  char selector_path[PATH_MAX];
+  // call 
+  selector_path = read_line_from_socket( client_info->socket );
+  // check type
+  char type = check_type( selector_path , client_info->socket );
+
+  // if we are there check is the number of bytes read from client, print that message
+  printf("%d bytes received\n", read_byte);
+  // stampo indietro il messaggio sempre prova per vedere il funzionamento "non eliminare"
+  check = send(sd, selector_path, read_byte, 0);
+  if (check < 0)
+  {
+    // same of recv
+    fprintf( stderr,"System call send() of sd - %d, failed because of %s", sd, strerror(errno) );
+    //exit(5);
+    // or can be a client error so we have only to close connection
+    //close_conn = true;
+  }
+
+}
 // this function spawn thread to management the new client request 
-int thread_management(  client_args client_info )
+int thread_management( client_args *client_info )
 {
   pthread_t tid;
-  pthread_create(&tid, NULL, thread_function, (void*) &client_info );
-
-  pthread_join( tid, NULL);
+  print_client_args( client_info );
+  pthread_create(&tid, NULL, thread_function, (void *) client_info );
 }
+
+
 
 // this function call the select() and check the FDS_SET if some socket is readable
 int listen_descriptor()
@@ -391,7 +480,8 @@ int listen_descriptor()
   char str_client_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
   int new_s;
   // struct defined in sacagawea.h for contain client information
-  client_args client_info;
+  client_args *client_info;
+  client_info = (client_args*) malloc( sizeof(client_args));
   memset( client_info, 0, sizeof(client_info));
   /* Initialize the timeval struct to 13 minutes.  If no        
   activity after 13 minutes this program will end.           */
@@ -399,7 +489,7 @@ int listen_descriptor()
   timeout.tv_usec = 0;
 
   /* create a copy of fds_set called working_set, is a FD_SET to work on  */
-  memcpy(&working_set, &fds_set, sizeof(fds_set));
+  memcpy( &working_set, &fds_set, sizeof(fds_set));
 
   // start select and check if failed
   printf("Waiting on select()...\n");
@@ -453,9 +543,9 @@ int listen_descriptor()
             break;
           }
           /* we create a t/p for management the incoming connection, call the right function with socket + client_addr as argument */
-          snprintf( client_info.client_addr, 16, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
+          snprintf( client_info->client_addr, 16, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
           printf("New connection stabilished at fd - %d from %s\n", new_s, str_client_addr);
-          client_info.socket=new_s;
+          client_info->socket=new_s;
           
           if ( MODE_CLIENT_PROCESSING == 0)
           {
@@ -466,68 +556,8 @@ int listen_descriptor()
 
         }while (new_s != -1);
           
-      }else{ //This is not the listening socket, therefore an existing connection must be readable
-
-        /* oppure qui possiamo creare il thread/processo che gestisce la connessione,
-        poiche a questo punto abbiamo un socket di una connessione leggibile. lo passiamo al "figlio"
-        e lo gestisce. a me piace piu cosi perche cosi ha senso l'uso della select, altrimenti 
-        è come fare listen e accept bloccanti */
-        
-        
-        //provo per vedere se funziona mono thread "non eliminare"
-        printf("  Descriptor %d is readable\n", i);
-          
-        /* Receive data on this connection until the recv fails with EWOULDBLOCK.
-        If any other failure occurs, we will close the connection.    */
-        check = recv(i, input, sizeof(input), 0);
-        if (check < 0)
-        {
-          if (errno != EWOULDBLOCK)
-          {
-            // if recv fail the error can be server side or client side so we close the connection and go on 
-            fprintf( stderr,"System call recv() of sd - %d, failed because of %s we close that connection", i, strerror(errno) );
-            close_conn = true;
-          }
-          fprintf( stdout,"System call recv() of sd - %d EWOULDBLOCK", i );
-          break;
-        }
-        /* Check to see if the connection has been closed by the client, so recv return 0  */
-        if (check == 0)
-        {
-          printf("  Connection closed %d\n",i);
-          close_conn = true;
-        }
-          // if we are there check is the number of bytes read from client, print that message
-          printf("  %d bytes received\n", check);
-          // stampo indietro il messaggio sempre prova per vedere il funzionamento "non eliminare"
-          check = send(i, input, check, 0);
-          if (check < 0)
-          {
-            // same of recv
-            fprintf( stderr,"System call recv() of sd - %d, failed because of %s", i, strerror(errno) );
-            //exit(5);
-            // or can be a client error so we have only to close connection
-            close_conn = true;
-          }
-          // fai la parte del rimuovi connessioni chiuse,aggiungi i check saltati prima
-
-          /* we check if we have to close the connection of the sd and if is the max_num_s
-          we have to determinate the new max */
-          if(close_conn)
-          {
-            close(i);
-            FD_CLR( i, &fds_set);
-            if( i==max_num_s)
-            {
-              while ( FD_ISSET(max_num_s , &fds_set) ==false )
-              {
-                max_num_s--;
-              }
-            }
-
-          }
-        } // End else
       }
-  } // End of select loop
+    } // End of select loop
+  }
   return false; 
 }

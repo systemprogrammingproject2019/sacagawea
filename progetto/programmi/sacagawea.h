@@ -8,13 +8,6 @@ int SERVER_SOCKET; // the socket descriptor of the server
 fd_set fds_set;
 int max_num_s;
 
-struct client_args
-{
-    char path[PATH_MAX];
-    char client_addr[16];
-    int socket;
-};
-
 
 void open_socket();
 int check_if_conf(char line[]);
@@ -23,5 +16,4 @@ void config_handler(int signum);
 int listen_descriptor();
 int load_file_memory_linux( char *path);
 int load_file_memory_posix( char *path);
-int process_management();
-int thread_management();
+
