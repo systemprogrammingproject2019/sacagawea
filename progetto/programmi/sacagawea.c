@@ -12,7 +12,9 @@
 
 int main(int argc, char *argv[]){
 
-	load_file_memory_posix( "conf/sacagawea.conf");
+	// chiamo load file in memory per testare se funzionava
+	//load_file_memory_posix( "conf/sacagawea.conf");
+
 	// check the sacagawea.conf
 	read_and_check_conf();
 	// check if some variable are setted by command line

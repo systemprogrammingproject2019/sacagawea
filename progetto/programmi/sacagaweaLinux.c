@@ -28,7 +28,7 @@ struct struct_client_args{
 typedef struct struct_client_args client_args;
 
 void print_client_args( client_args *client){
-		fprintf( stdout, "SOCKET: %d\nIP:PORT: %s\n PATH:%s", client->socket, client->client_addr, client->path);
+		fprintf( stdout, "SOCKET: %d\nIP:PORT: %s\n", client->socket, client->client_addr );
 }
 
 int load_file_memory_posix( char *path){
@@ -345,10 +345,8 @@ int process_management( client_args *client_info ){
 void *thread_function( void* c ){
 	// declare a variable of STRUCT client_args
 	client_args *client_info;
-	print_client_args( c );
 	client_info = (client_args*) c;
 	
-	print_client_args( client_info);// serviva a me per un check "cancella se vuoi"
 	int check;
 	int read_byte=0;
 	int sd = (*client_info).socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
