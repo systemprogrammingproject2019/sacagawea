@@ -21,8 +21,9 @@
 
 struct struct_client_args
 {
-  char client_addr[16];
-  int socket;
+    char path[PATH_MAX];
+    char client_addr[16];
+    int socket;
 };
 
 typedef struct struct_client_args client_args;
@@ -373,28 +374,34 @@ void config_handler(int signum)
   }
 }
 
-char check_type( char *selector_path, int sd)
+// this function spawn process to management the new client request 
+int process_management( client_args *client_info )
 {
-  FILE *fp =popen( selector_path, "r");
-  if (fp == NULL)
-  {
-    fprintf( stderr,"System call popen() of sd - %d, failed because of %s we close that connection\n", sd, strerror(errno) );
-    return;
-  }
-  
+
 }
 
-void read_line_from_socket( int sd )
+
+void *thread_function( void* c )
 {
+  client_args *client_info;
+  print_client_args( c );
+  client_info = (client_args*) c;
+  
+  print_client_args( client_info);
+  fprintf( stdout,"qua\nqua\nqua\nqua\nqua\nqua\nqua\n" );
   int check;
   int read_byte=0;
-  char selector_path[PATH_MAX]; // becouse the request is a path and the max path is 4096 
-                                // char length we create a string of 4096 char
+  int sd = (*client_info).socket;
+  char input[PATH_MAX]; // becouse the request is a path and the max path is 4096 
+                      // char length we create a string of 4096 char
   /* Receive data on this connection until the recv \n of finish line.
   If any other failure occurs, we will close the connection.    */
   int stop=true;
   while( stop ){
-    check = recv(sd, &selector_path[read_byte], (PATH_MAX-read_byte), 0);
+    sleep(1);
+    fprintf( stdout,"qua1\n" );
+    check = recv(sd, &input[read_byte], (PATH_MAX-read_byte), 0);
+    fprintf( stdout,"qua1\n" );
     if (check < 0)
     {
       if (errno != EWOULDBLOCK)
@@ -413,47 +420,29 @@ void read_line_from_socket( int sd )
       printf("  Connection closed %d\n", sd );
       stop = false;
     }
+    fprintf( stdout,"qua1 %d %s\n", check, input);
     if( check > 0)
     {
-      fprintf( stdout, "READ: %s ,byte: %d\n", &selector_path[read_byte] , check );
+      fprintf( stdout, "READ: %s ,byte: %d\n", &input[read_byte] , check );
       read_byte += check;
-      if(selector_path[ (read_byte-1) ]=='\n')
+      if(input[ (read_byte-1) ]=='\n')
       {
-        selector_path[read_byte]='\0';
         stop = false;
       }
     }
   }
-  return selector_path;
-}
-// this function spawn process to management the new client request 
-int process_management( client_args *client_info )
-{
-  
-}
-
-
-void *thread_function( void* c )
-{
-  client_args *client_info;
-  client_info = (client_args*) c;
-  char selector_path[PATH_MAX];
-  // call 
-  selector_path = read_line_from_socket( client_info->socket );
-  // check type
-  char type = check_type( selector_path , client_info->socket );
 
   // if we are there check is the number of bytes read from client, print that message
-  printf("%d bytes received\n", read_byte);
+  printf("  %d bytes received YAya\n", read_byte);
   // stampo indietro il messaggio sempre prova per vedere il funzionamento "non eliminare"
-  check = send(sd, selector_path, read_byte, 0);
+  check = send(sd, input, read_byte, 0);
   if (check < 0)
   {
     // same of recv
     fprintf( stderr,"System call send() of sd - %d, failed because of %s", sd, strerror(errno) );
-    //exit(5);
-    // or can be a client error so we have only to close connection
-    //close_conn = true;
+            //exit(5);
+            // or can be a client error so we have only to close connection
+            //close_conn = true;
   }
 
 }
@@ -463,6 +452,7 @@ int thread_management( client_args *client_info )
   pthread_t tid;
   print_client_args( client_info );
   pthread_create(&tid, NULL, thread_function, (void *) client_info );
+  fprintf( stdout,"spawned\nspawned\nspawned\nspawned\nspawned\nspawned\nspawned\n" );
 }
 
 
@@ -547,6 +537,7 @@ int listen_descriptor()
           printf("New connection stabilished at fd - %d from %s\n", new_s, str_client_addr);
           client_info->socket=new_s;
           
+          print_client_args( client_info );
           if ( MODE_CLIENT_PROCESSING == 0)
           {
             thread_management( client_info );
