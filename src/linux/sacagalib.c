@@ -16,8 +16,12 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-#include "sacagaweaLinux.h"
-
+#include "sacagawea.h"
+#ifdef _WIN32
+#include "win32/sacagalib.h"
+#else
+#include "linux/sacagalib.h"
+#endif
 
 struct struct_client_args{
 		char path[PATH_MAX];

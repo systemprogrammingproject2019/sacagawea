@@ -5,8 +5,9 @@ BUILD    = ./build
 BIN      = ./bin
 
 CFLAGS  = -Wall -O3
-LINC = -I$(SRC)/linux/headers
-WINC = -I$(SRC)/win32/headers
+
+#included by both Linux and windows
+INC  = -I$(SRC)/headers
 
 L_SOURCES = $(wildcard ${SRC}/linux/*.c)
 L_OBJS    = $(patsubst ${SRC}%.c, ${BUILD}%.o, $(L_SOURCES))
@@ -30,16 +31,16 @@ makedirs:
 
 
 linux: $(L_OBJS)
-	$(CC) $(CFLAGS) $(LINC) -shared -o ${BIN}/libsacagawea.so ${L_OBJS}
+	$(CC) $(CFLAGS) $(LINC) $(INC) -shared -o ${BIN}/libsacagawea.so ${L_OBJS}
 
 $(L_OBJS): $(L_SOURCES)
-	$(CC) $(CFLAGS) $(LINC) -c -fpic $< -o $@
+	$(CC) $(CFLAGS) $(LINC) $(INC) -c -fpic $< -o $@
 
 
 server: $(SVR_OBJS)
 
 $(SVR_OBJS): $(SVR_SOURCES)
-	$(CC) $(CFLAGS) $(LINC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread
+	$(CC) $(CFLAGS) $(LINC) $(INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread
 
 
 win32: 

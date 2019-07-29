@@ -7,8 +7,15 @@
 #include <getopt.h>
 #include <unistd.h> // for close
 
-#include "sacagaweaLinux.h"
+#include "sacagawea.h"
 
+#ifdef _WIN32
+#include "win32/sacagalib.h"
+#else
+#include "linux/sacagalib.h"
+#endif
+
+#define _GNU_SOURCE
 
 int main(int argc, char *argv[]){
 
