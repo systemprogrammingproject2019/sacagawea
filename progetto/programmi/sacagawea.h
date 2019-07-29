@@ -1,6 +1,7 @@
 #define true     1
 #define false    0
 #define PATH_MAX        4096 // in Linux the max path is 4096 chars
+#define SACAGAWEACONF_PATH "conf/sacagawea.conf"
 
 int SERVER_PORT=7070;
 int MODE_CLIENT_PROCESSING=0; // 0=thread 1=subProcess
