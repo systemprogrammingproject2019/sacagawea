@@ -17,11 +17,7 @@
 #include <pthread.h>
 
 #include "sacagawea.h"
-#ifdef _WIN32
-#include "win32/sacagalib.h"
-#else
 #include "linux/sacagalib.h"
-#endif
 
 struct struct_client_args{
 		char path[PATH_MAX];
@@ -224,23 +220,23 @@ void open_socket(){
 // this function check if a line contain a new config
 int check_if_conf(char line[]){
 
-	fprintf(stdout,"linea letta da conf:\n%s", line);
+	fprintf(stdout, S_LINE_READ_FROM_CONF_FILE, line);
 	int port_change=false;
 	// if line is type "mode [t/p]"
-	if( strncmp("mode",line,4)==0 ){
+	if( strncmp(S_MODE ,line,4)==0 ){
 		char mode;
 		memcpy( &mode, &line[5], 1 );
-		if(mode=='t'){
+		if(mode == S_MODE_THREADED){
 			MODE_CLIENT_PROCESSING=0;
 		}
-		if(mode=='p'){
+		if(mode == S_MODE_MULTIPROCESS){
 			MODE_CLIENT_PROCESSING=1;
 		}
 		//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
 	}
 	
 	// if line is "port XXX" with XXX a port number
-	if( strncmp("port",line,4)==0 ){
+	if( strncmp(S_PORT,line,4)==0 ){
 		long int val;
 		val=strtol( &line[5], NULL, 10 );
 		if( val != SERVER_PORT){
@@ -257,12 +253,12 @@ int read_and_check_conf(){
 	FILE *fp;
 	const size_t max_line_size=100;
 	char line[max_line_size];
-	int end_while=true;
+	int keep_going=true;
 	int port_change=false;
 	//open config file and check if an error occured
 	fp = fopen( SACAGAWEACONF_PATH , "r");
 	if(fp==NULL){
-		fprintf( stderr,"System call fopen() failed because of %s", strerror(errno));
+		fprintf(stderr, S_ERROR_FOPEN, strerror(errno));
 	 	exit(5);
 	}
 
@@ -270,9 +266,9 @@ int read_and_check_conf(){
 	do{
 		if( fgets( line, max_line_size, fp)==NULL){
 			if(feof(fp)){
-				end_while=false;
+				keep_going=false;
 			}else{
-				fprintf( stderr,"System call fgets() failed because of %s", strerror(errno));
+				fprintf(stderr, S_ERROR_FGETS, strerror(errno));
 				exit(5);
 			}
 		}
@@ -280,7 +276,7 @@ int read_and_check_conf(){
 		if( (strlen(line)!=100) && (check_if_conf(line)) ){
 			port_change=true;
 		}
-	}while(end_while);
+	}while(keep_going);
 
 	return port_change;
 }

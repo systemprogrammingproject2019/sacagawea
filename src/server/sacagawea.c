@@ -15,7 +15,6 @@
 #include "linux/sacagalib.h"
 #endif
 
-#define _GNU_SOURCE
 
 int main(int argc, char *argv[]){
 
@@ -53,6 +52,7 @@ int main(int argc, char *argv[]){
 
 	fprintf( stdout, "Server port: %d, mode: %d\n", SERVER_PORT , MODE_CLIENT_PROCESSING);
 
+	#ifndef _WIN32
 	// Creating sigaction for SIGHUP
 	struct sigaction new_action;
 	/* Block other SIGHUP signals while handler runs. */
@@ -72,18 +72,19 @@ int main(int argc, char *argv[]){
 		fprintf( stderr,"System call sigaction() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-		
+	#endif
+
 	// open socket call
 	open_socket();
 
-	int i;
-	
+	// TODO: remove the ifndef and implement these functions under win32
+	#ifndef _WIN32
 	/* declare FD_SET and initialize it */
 	FD_ZERO(&fds_set);
 	max_num_s = SERVER_SOCKET;
 	FD_SET( SERVER_SOCKET, &fds_set);
 	//per controlare roba da me "non eliminare"
-	for (i=0;  i <= max_num_s ; ++i){
+	for (int i=0; i <= max_num_s ; ++i){
 		fprintf( stdout,"i: %d  is set:  %d\n",i,FD_ISSET(i, &fds_set));
 	}
 
@@ -96,10 +97,10 @@ int main(int argc, char *argv[]){
 	}while(true);
 
 	// we are out of select loop so we have to close all connection
-	for (i=0; i <= max_num_s; ++i){
+	for (int i=0; i <= max_num_s; ++i){
 		if (FD_ISSET(i, &fds_set)){
 			close(i);
 		}
 	}
-
+	#endif
 }

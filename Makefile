@@ -1,4 +1,5 @@
 CC = gcc
+CC = mingw64-gcc
 
 SRC      = ./src
 BUILD    = ./build
@@ -44,3 +45,4 @@ $(SVR_OBJS): $(SVR_SOURCES)
 
 
 win32: 
+	$(CC) $(CFLAGS) $(LINC) $(INC) -shared -o ${BIN}/libsacagawea.so ${L_OBJS}
