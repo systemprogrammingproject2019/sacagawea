@@ -19,6 +19,9 @@
 #include "sacagawea.h"
 #include "linux/sacagalib.h"
 
+int SERVER_PORT = DEFAULT_SERVER_PORT;
+
+
 struct struct_client_args{
 		char path[PATH_MAX];
 		char client_addr[16];

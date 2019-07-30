@@ -1,15 +1,20 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 #include "sacagawea.h"
 #include "win32/sacagalib.h"
+
+int SERVER_PORT = DEFAULT_SERVER_PORT;
+
 
 // this function check if a line contain a new config
 int check_if_conf(char line[]) {
 	fprintf(stdout, S_LINE_READ_FROM_CONF_FILE, line);
 	int port_change = false;
 	// if line is type "mode [t/p]"
-	if(strncmp(S_MODE, line,4) == 0) {
+	if(strncmp(S_MODE, line, 4) == 0) {
 		char mode;
 		memcpy(&mode, &line[5], 1);
 		if(mode == S_MODE_THREADED) {
