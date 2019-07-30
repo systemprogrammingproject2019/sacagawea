@@ -8,15 +8,15 @@ BIN      = ./bin
 CFLAGS  = -Wall -O3
 
 #included by both Linux and windows
-INC  = -I$(SRC)/headers
+INC  = -I$(SRC)/include
 
-HEADERS = $(wildcard ${SRC}/headers/*.h)
+HEADERS = $(wildcard ${SRC}/include/*.h)
 
-L_HEADERS = $(wildcard ${SRC}/headers/linux/*.h)
+L_HEADERS = $(wildcard ${SRC}/include/linux/*.h)
 L_SOURCES = $(wildcard ${SRC}/linux/*.c)
 L_OBJS    = $(patsubst ${SRC}%.c, ${BUILD}%.o, $(L_SOURCES))
 
-W_HEADERS = $(wildcard ${SRC}/headers/win32/*.h)
+W_HEADERS = $(wildcard ${SRC}/include/win32/*.h)
 W_SOURCES = $(wildcard ${SRC}/win32/*.c)
 W_OBJS    = $(patsubst ${SRC}%.c, ${BUILD}%.o, $(W_SOURCES))
 
