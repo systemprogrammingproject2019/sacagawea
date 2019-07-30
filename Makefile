@@ -61,7 +61,7 @@ $(SVR_OBJS): $(SVR_SOURCES)
 
 
 win32: $(W_OBJS)
-	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(W_OBJS) -Wl,--out-implib,sacagawea_dll.a
+	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(W_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a
 
 $(W_OBJS): $(W_SOURCES) $(HEADERS) $(W_HEADERS)
 	$(WCC) $(CFLAGS) $(INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@
