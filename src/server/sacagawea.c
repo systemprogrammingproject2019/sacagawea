@@ -7,8 +7,6 @@
 #include <getopt.h>
 #include <unistd.h> // for close
 
-#define _GNU_SOURCE
-
 #include "sacagawea.h"
 
 #ifdef _WIN32
