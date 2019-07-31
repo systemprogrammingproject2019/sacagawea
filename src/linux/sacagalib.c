@@ -20,7 +20,7 @@
 #include "linux/sacagalib.h"
 
 int SERVER_PORT = DEFAULT_SERVER_PORT;
-
+char MODE_CLIENT_PROCESSING = 0; // 0=thread 1=subProcess
 
 struct struct_client_args{
 		char path[PATH_MAX];

@@ -10,6 +10,7 @@
 #include "win32/sacagalib.h"
 
 int SERVER_PORT = DEFAULT_SERVER_PORT;
+char MODE_CLIENT_PROCESSING = 0; // 0=thread 1=subProcess
 
 // this function check if a line contain a new config
 int check_if_conf(char line[]) {

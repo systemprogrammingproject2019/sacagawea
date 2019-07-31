@@ -26,7 +26,7 @@
 #define S_SOCK_RECVBUF_LEN "65536"
 
 extern int SERVER_PORT;
-char MODE_CLIENT_PROCESSING = 0; // 0=thread 1=subProcess
+extern char MODE_CLIENT_PROCESSING;
 int SERVER_SOCKET; // the socket descriptor of the server
 
 EXPORTED int check_if_conf(char line[]);
