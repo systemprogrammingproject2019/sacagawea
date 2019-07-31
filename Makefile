@@ -2,21 +2,22 @@ CC = gcc
 WCC = x86_64-w64-mingw32-gcc
 
 SRC      = ./src
+INCLUDE  = $(SRC)/include
 BUILD    = ./build
 BIN      = ./bin
 
 CFLAGS  = -Wall -O3
 
 #included by both Linux and windows
-INC  = -I$(SRC)/include
+INC  = -I$(INCLUDE)
 
-HEADERS = $(wildcard ${SRC}/include/*.h)
+HEADERS = $(wildcard ${INCLUDE}/*.h)
 
-L_HEADERS = $(wildcard ${SRC}/include/linux/*.h)
+L_HEADERS = $(wildcard ${INCLUDE}/linux/*.h)
 L_SOURCES = $(wildcard ${SRC}/linux/*.c)
 L_OBJS    = $(patsubst ${SRC}%.c, ${BUILD}%.o, $(L_SOURCES))
 
-W_HEADERS = $(wildcard ${SRC}/include/win32/*.h)
+W_HEADERS = $(wildcard ${INCLUDE}/win32/*.h)
 W_SOURCES = $(wildcard ${SRC}/win32/*.c)
 W_OBJS    = $(patsubst ${SRC}%.c, ${BUILD}%.o, $(W_SOURCES))
 
@@ -49,22 +50,21 @@ $(SVR_OBJS): $(SVR_SOURCES)
 	@echo "#####################"
 	@echo "Building Linux Server"
 	@echo "#####################"
-	
-	$(CC) $(CFLAGS) $(INC) -L${BIN} -lsacagawea -lpthread -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES)
-	
+
+	$(CC) $(CFLAGS) $(INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread
+
 	@echo 
 	@echo "#####################"
 	@echo "Building Win32 Server"
 	@echo "#####################"
-	
-	$(WCC) $(CFLAGS) $(INC) -L${BIN} -lsacagawea -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES)
 
+	$(WCC) $(CFLAGS) $(INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea
 
 win32: $(W_OBJS)
-	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(W_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a
+	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(W_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a -lws2_32
 
 $(W_OBJS): $(W_SOURCES) $(HEADERS) $(W_HEADERS)
-	$(WCC) $(CFLAGS) $(INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@
+	$(WCC) $(CFLAGS) $(INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
 
 .PHONY: clean
 

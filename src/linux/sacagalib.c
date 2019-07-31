@@ -39,13 +39,13 @@ int load_file_memory_posix( char *path){
 	// open get file descriptor associated to file
 	int fd = open ( path , O_RDWR );
 	if ( fd < 0 ){ 
-		fprintf( stderr,"System call fdopen() failed because of %s", strerror(errno));
+		fprintf( stderr,"fdopen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	// declare struct for 3th argument for fcntl and memset it to 0
 	struct flock lck;
 	if( memset(&lck, 0, sizeof(lck)) == NULL ){ 
-		fprintf( stderr,"System call memset() failed because of %s", strerror(errno));
+		fprintf( stderr,"memset() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 
@@ -71,7 +71,7 @@ int load_file_memory_posix( char *path){
 	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
 	FILE* fp = fdopen(fd, "r");
 	if ( fp == NULL ){ 
-		fprintf( stderr,"System call fdopen() failed because of %s", strerror(errno));
+		fprintf( stderr,"fdopen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	fseek(fp, 0, SEEK_END);
@@ -86,7 +86,7 @@ int load_file_memory_posix( char *path){
 	command = strcat( "file", path );
 	FILE* popen_output_stream = popen( command , "r" )
 	if ( popen_output_stream == NULL ){ 
-		fprintf( stderr,"System call popen() failed because of %s", strerror(errno));
+		fprintf( stderr,"popen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	char* popen_output = malloc( Pat );
@@ -109,13 +109,13 @@ int load_file_memory_linux( char *path){
 	// open get file descriptor associated to file
 	int fd = open ( path , O_RDWR );
 	if ( fd < 0 ){ 
-		fprintf( stderr,"System call fdopen() failed because of %s", strerror(errno));
+		fprintf( stderr,"fdopen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	// declare struct for 3th argument for fcntl and memset it to 0
 	struct flock lck;
 	if( memset(&lck, 0, sizeof(lck)) == NULL ){ 
-		fprintf( stderr,"System call memset() failed because of %s", strerror(errno));
+		fprintf( stderr,"memset() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	// F_WRLCK mean exclusive lock and not shared lock
@@ -147,7 +147,7 @@ int load_file_memory_linux( char *path){
 	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
 	FILE* fp = fdopen(fd, "r");
 	if ( fp == NULL ){ 
-		fprintf( stderr,"System call fdopen() failed because of %s", strerror(errno));
+		fprintf( stderr,"fdopen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	fseek(fp, 0, SEEK_END);
@@ -162,7 +162,7 @@ int load_file_memory_linux( char *path){
 	command = strcat( "file", path );
 	FILE* popen_output_stream = popen( command , "r" )
 	if ( popen_output_stream == NULL ){ 
-		fprintf( stderr,"System call popen() failed because of %s", strerror(errno));
+		fprintf( stderr,"popen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	char* popen_output = malloc( Pat );
@@ -179,7 +179,7 @@ int load_file_memory_linux( char *path){
 	free(file_content);
 }
 
-// this fuction open a listener socket
+// this fuction opens a listening socket
 void open_socket(){
 	int on=1;
 	struct sockaddr_in serv_addr;
@@ -187,7 +187,7 @@ void open_socket(){
 		The statement also identifies that the INET (Internet Protocol) 
 		address family with the TCP transport (SOCK_STREAM) is used for this socket.*/
 	if ( (SERVER_SOCKET = socket(AF_INET, SOCK_STREAM, 0)) < 0 ){
-		fprintf( stderr,"System call socket() failed because of %s", strerror(errno));
+		fprintf( stderr,"socket failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 
@@ -195,12 +195,17 @@ void open_socket(){
 	before the required wait time expires. In this case, it sets the socket to be nonblocking. 
 	All of the sockets for the incoming connections are also nonblocking because they inherit that state from the listening socket. */
 	if ( (ioctl(SERVER_SOCKET, FIONBIO, (char *)&on)) < 0 ){
-		fprintf( stderr,"System call ioctl() failed because of %s", strerror(errno));
+		fprintf( stderr,"ioctl failed: %s\n", strerror(errno));
 		close(SERVER_SOCKET);
 		exit(5);
 	}
 
-	/*declare sockaddr_in */   
+	/* Set max recvbuf to match windows version's */
+	if (setsockopt(SERVER_SOCKET, SOL_SOCKET, SO_RCVBUF, S_SOCK_RECVBUF_LEN, sizeof(S_SOCK_RECVBUF_LEN))) {
+		fprintf(stderr, "setsockopt failed: %s\n", strerror(errno));
+	}
+
+	/*declare sockaddr_in */
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -208,13 +213,13 @@ void open_socket(){
 
 	// bind to join the unamed socket with sockaddr_in and become named socket
 	if( bind( SERVER_SOCKET , (struct sockaddr*)&serv_addr ,  sizeof(serv_addr)) == -1 ){
-		fprintf( stderr,"System call bind() failed because of %s", strerror(errno) );
+		fprintf( stderr,"bind failed: %s\n", strerror(errno) );
 		exit(5);
 	}
 
 	/* listen allows the server to accept incoming client connection  */
 	if ( (listen( SERVER_SOCKET, 32)) < 0){
-		fprintf( stderr,"System call listen() failed because of %s", strerror(errno) );
+		fprintf( stderr,"listen failed: %s\n", strerror(errno) );
 		exit(5);
 	}
 
@@ -294,7 +299,7 @@ void config_handler(int signum){
 		/* shutdown with SHUT_WR stop the socket response, he don't send data anymore on that socket.
 		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */
 		if ( shutdown(SERVER_SOCKET, SHUT_WR) < 0 ){
-			fprintf( stderr,"System call shutdown() failed because of %s\n", strerror(errno) );
+			fprintf( stderr,"shutdown() failed: %s\n", strerror(errno) );
 			exit(5);
 		}
 		// now we accept all remaining connected comunication which did 3WHS
@@ -306,7 +311,7 @@ void config_handler(int signum){
 				/* remember, we do a NON BLOCK socket, so if we have finished the waiting connections,
 				accept will return -1 with EWOULDBLOCK errno */
 				if (errno != EWOULDBLOCK){
-					fprintf( stderr,"System call accept() failed because of %s\n", strerror(errno) );
+					fprintf( stderr,"accept() failed: %s\n", strerror(errno) );
 					exit(5);
 				}else{
 					break;
@@ -364,10 +369,10 @@ void *thread_function( void* c ){
 		if (check < 0){
 			if (errno != EWOULDBLOCK){
 				// if recv fail the error can be server side or client side so we close the connection and go on 
-				fprintf( stderr,"System call recv() of sd - %d, failed because of %s we close that connection\n", sd, strerror(errno) );
+				fprintf( stderr,"recv() of sd - %d, failed: %s we close that connection\n", sd, strerror(errno) );
 				return;
 			}
-			fprintf( stderr,"System call recv() of sd - %d EWOULDBLOCK", sd );
+			fprintf( stderr,"recv() of sd - %d EWOULDBLOCK", sd );
 			continue;
 		}
 		/* Check to see if the connection has been closed by the client, so recv return 0  */
@@ -390,7 +395,7 @@ void *thread_function( void* c ){
 	check = send(sd, input, read_byte, 0);
 	if (check < 0){
 		// same of recv
-		fprintf( stderr,"System call send() of sd - %d, failed because of %s", sd, strerror(errno) );
+		fprintf( stderr,"send() of sd - %d, failed: %s\n", sd, strerror(errno) );
 						//exit(5);
 						// or can be a client error so we have only to close connection
 						//close_conn = true;
@@ -434,7 +439,7 @@ int listen_descriptor(){
 	/* if errno==EINTR the select is interrupted becouse of sigaction 
 	so we have to repeat select, not exit(5) */
 	if ( (check < 0) && (errno != EINTR) ){
-		fprintf( stderr,"System call select() failed because of %s", strerror(errno) );
+		fprintf( stderr,"select() failed: %s\n", strerror(errno) );
 		exit(5);
 	}// Chek if select timed out
 	if (check == 0){
@@ -471,7 +476,7 @@ int listen_descriptor(){
 					new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
 					if (new_s < 0){
 						if (errno != EWOULDBLOCK){
-							fprintf( stderr,"System call socket accept() failed because of %s", strerror(errno) );
+							fprintf( stderr,"socket accept() failed: %s\n", strerror(errno) );
 							exit(5);
 						}
 						break;

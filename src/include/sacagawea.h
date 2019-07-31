@@ -5,7 +5,6 @@
  * (Linux doesn't need an equivalent for the .so file because)
  * all the functions are imported by default
  */
-#pragma once // exported.h
 #ifdef _WIN32
 # ifdef WIN_EXPORT
 #   define EXPORTED  __declspec(dllexport)
@@ -22,6 +21,10 @@
 #define SACAGAWEACONF_PATH "sacagawea.conf"
 #define DEFAULT_SERVER_PORT 7070
 
+// windows needs it as a number, linux as a string
+#define SOCK_RECVBUF_LEN   65536
+#define S_SOCK_RECVBUF_LEN "65536"
+
 extern int SERVER_PORT;
 char MODE_CLIENT_PROCESSING = 0; // 0=thread 1=subProcess
 int SERVER_SOCKET; // the socket descriptor of the server
@@ -36,7 +39,7 @@ EXPORTED int read_and_check_conf();
 #define S_MODE_THREADED     't'
 #define S_MODE_MULTIPROCESS 'p'
 #define S_PORT "port"
-#define S_ERROR_FOPEN "System call fopen() failed because of %s"
-#define S_ERROR_FGETS "System call fgets() failed because of %s"
+#define S_ERROR_FOPEN "fopen() failed: %s\n"
+#define S_ERROR_FGETS "fgets() failed: %s\n"
 
 #endif
