@@ -66,7 +66,13 @@ win32: $(W_OBJS)
 $(W_OBJS): $(W_SOURCES) $(HEADERS) $(W_HEADERS)
 	$(WCC) $(CFLAGS) $(INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
 
-.PHONY: clean
+.PHONY: clean run
+
+lrun: linux server
+	cd bin && ./sacagawea.out
+
+wrun: win32 server
+	cd bin && wine ./sacagawea.exe
 
 clean:
 	rm -rf $(BIN)
