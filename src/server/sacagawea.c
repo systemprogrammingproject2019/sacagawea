@@ -75,9 +75,8 @@ int main(int argc, char *argv[]){
 	#endif
 
 	// open socket call
-	open_socket();
+	SERVER_SOCKET = open_socket();
 
-	// TODO: remove the ifndef and implement these functions under win32
 	#ifndef _WIN32
 	/* declare FD_SET and initialize it */
 	FD_ZERO(&fds_set);
@@ -87,16 +86,26 @@ int main(int argc, char *argv[]){
 	for (int i=0; i <= max_num_s ; ++i){
 		fprintf( stdout,"i: %d  is set:  %d\n",i,FD_ISSET(i, &fds_set));
 	}
+	#endif
 
 	/* Loop waiting for incoming connects or for incoming data
 		on any of the connected sockets.   */
-	do{
-		if( listen_descriptor() ){
+	do {
+		if (listen_descriptor(SERVER_SOCKET)) {
 			break;
 		}
-	}while(true);
+	} while(true);
 
-	// we are out of select loop so we have to close all connection
+	// we are out of select loop so we have to close all sockets
+	#ifdef _WIN32
+	for(int i = 0; i < MAX_CLIENTS; i++)  {
+		SOCKET s = client_socket[i];
+		if(s > 0) {
+			closesocket(s);
+		}
+	}
+	WSACleanup();
+	#else
 	for (int i=0; i <= max_num_s; ++i){
 		if (FD_ISSET(i, &fds_set)){
 			close(i);

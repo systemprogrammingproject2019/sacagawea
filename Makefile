@@ -6,7 +6,7 @@ INCLUDE  = $(SRC)/include
 BUILD    = ./build
 BIN      = ./bin
 
-CFLAGS  = -Wall -O3
+CFLAGS  = -Wall -O3 -g 
 
 #included by both Linux and windows
 INC  = -I$(INCLUDE)

@@ -180,7 +180,7 @@ int load_file_memory_linux( char *path){
 }
 
 // this fuction opens a listening socket
-void open_socket(){
+int open_socket(){
 	int on=1;
 	struct sockaddr_in serv_addr;
 	/*The socket() API returns a socket descriptor, which represents an endpoint.
@@ -223,6 +223,7 @@ void open_socket(){
 		exit(5);
 	}
 
+	return SERVER_SOCKET;
 }
 
 // this function check if a line contain a new config
@@ -412,14 +413,14 @@ int thread_management( client_args *client_info ){
 
 
 // this function call the select() and check the FDS_SET if some socket is readable
-int listen_descriptor(){
+int listen_descriptor(int svr_socket){
 	// Some declaretion of usefull variable
 	struct sockaddr_in client_addr;
 	int i, num_fd_ready, check, client_addr_len;
 	struct timeval timeout;
 	fd_set working_set;
 	int close_conn;
-	char str_client_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
+	char str_client_addr[ADDR_MAXLEN];
 	int new_s;
 	// struct defined in sacagawea.h for contain client information
 	client_args *client_info;
