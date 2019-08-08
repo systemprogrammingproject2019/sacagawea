@@ -15,31 +15,72 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <dirent.h>
 
 #include "sacagawea.h"
 #include "linux/sacagalib.h"
+
+#define MAX_FILE_NAME 255 // in Linux the max file name is 255 bytes
 
 int SERVER_PORT = DEFAULT_SERVER_PORT;
 char MODE_CLIENT_PROCESSING = 0; // 0=thread 1=subProcess
 
 struct struct_client_args{
-		char path[PATH_MAX];
 		char client_addr[16];
 		int socket;
+		char *file_to_send;
+		long len_file;
 };
 
 typedef struct struct_client_args client_args;
+
+struct struct_selector{
+		char selector[PATH_MAX];
+		int num_words;
+		char **words;
+};
+
+typedef struct struct_selector selector;
+
 
 void print_client_args( client_args *client){
 		fprintf( stdout, "SOCKET: %d\nIP:PORT: %s\n", client->socket, client->client_addr );
 }
 
-int load_file_memory_posix( char *path){
+
+void *thread_sender( void* c ){
+	// declare a variable of STRUCT client_args
+	client_args *client_info;
+	client_info = (client_args*) c;
+
+	char c1[]="ciao\n";
+	send( client_info->socket, c1, strlen(c1), 0 );
+
+	long bytes_sent = 0;
+    while( bytes_sent < client_info->len_file )
+    {
+		bytes_sent += send( client_info->socket, client_info->file_to_send, (client_info->len_file - bytes_sent) , 0 );
+		fprintf( stdout, "sent %ld bytes\n", bytes_sent);
+    }
+	char c2[]="\n";
+	send( client_info->socket, c2, strlen(c2), 0 );
+
+	// qui spedisce il file al momento lo stampo
+	/*if ( fwrite( client_info->file_to_send, client_info->len_file, 1, stdout ) < 0 ){
+		fprintf( stderr,"fwrite() failed: %s\n", strerror(errno));
+	 	exit(5);
+	}*/ 
+	// this work
+	/* G__RUNTIME_PSEUDO_RELOC_LIST_END____imp_GetCurrentProcess.refptr.__xc_z___crt_xt_end____imp_open_socket__security_cookie */
+	//fprintf(stdout,"finito\n");
+}
+
+int load_file_memory_posix( client_args *client_info , char *path){
 	
 	// open get file descriptor associated to file
 	int fd = open ( path , O_RDWR );
 	if ( fd < 0 ){ 
-		fprintf( stderr,"fdopen() failed: %s\n", strerror(errno));
+		fprintf( stderr,"open() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
 	// declare struct for 3th argument for fcntl and memset it to 0
@@ -77,21 +118,12 @@ int load_file_memory_posix( char *path){
 	fseek(fp, 0, SEEK_END);
 	long len = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
-	char *file_content = malloc( (len+1) );
-	fread( file_content, 1, len, fp);
-	file_content[len]= '\0';
+
+	client_info->file_to_send = malloc( (len+1) );
+	client_info->len_file = len;
+	fread( client_info->file_to_send, 1, len, fp);
+	client_info->file_to_send[len]= '\0';
 	
-	// we check the tipe or file with file bash command
-	/* char command[ (strlen(path))+5 ]; 
-	command = strcat( "file", path );
-	FILE* popen_output_stream = popen( command , "r" )
-	if ( popen_output_stream == NULL ){ 
-		fprintf( stderr,"popen() failed: %s\n", strerror(errno));
-	 	exit(5);
-	}
-	char* popen_output = malloc( Pat );
-	while ( fgets(popen_output, 100, popen_output_stream) != NULL)
-		printf("%s", path); */
 
 	// release lock with F_UNLCK flag and FP FD
 	fclose(fp);
@@ -99,9 +131,12 @@ int load_file_memory_posix( char *path){
 	lck.l_type = F_UNLCK;
 	fcntl (fd, F_SETLK, &lck);
 
-	// qui generare thread che spedisce il file al momento lo stampo
-	fprintf( stdout , "file: %s", file_content);
-	free(file_content);
+	
+	// create thread to send the file at client
+	pthread_t tid;
+	pthread_create(&tid, NULL, thread_sender, (void *) client_info );
+
+	//free( client_info->file_to_send );
 }
 
 // VERSIONE LINUX, NON POSIX dovremmo chiedere al prof se si può usare ma non credo
@@ -131,7 +166,7 @@ int load_file_memory_linux( char *path){
 
 	/* OFD is a flag of Linux, not posix, more problably he become new standard in 
 	POSIX 1. 
-	The principal difference between OFD and non is that whereas
+	The principal difference between OFD and non is that where as
 	traditional record locks are associated with a process, open file
 	description locks(OFD) are associated with the open file description on
 	which they are acquired, and are only automatically released on the last
@@ -222,7 +257,6 @@ int open_socket(){
 		fprintf( stderr,"listen failed: %s\n", strerror(errno) );
 		exit(5);
 	}
-
 	return SERVER_SOCKET;
 }
 
@@ -345,6 +379,149 @@ void config_handler(int signum){
 	}
 }
 
+
+// this fuction check if the input contain a selector or not and return it
+selector request_to_selector( char *input ){
+
+	int read_bytes;
+	selector client_selector;
+	memset( &client_selector, 0, sizeof(client_selector));
+	// if contain it we take it
+	if( (input[0] != '\t') || (input[0] != ' ') ){
+		sscanf( input, "%4096s", client_selector.selector);
+		read_bytes = strlen(client_selector.selector);
+	}else{ // if not, we don't take it
+		strcpy( client_selector.selector, "" );
+		read_bytes=0;
+	}
+	
+	fprintf( stdout, "\nSELECTOR: %s,%d bytes\n", client_selector.selector , read_bytes );
+
+	/* if the client send a tab \t, it means that the selector is followed by words 
+	that need to match with the name of the searched file */
+	if( input[ read_bytes ] == '\t' ){
+		int i=0;
+		client_selector.words = (char **) malloc( 3*sizeof( char *) );
+		do{
+			// put this check, becouse if the request contain 2+ consecutive \t or 2+ consecutive ' ' the scanf don't read an empty word.
+			if( (input[read_bytes] == '\t') || (input[read_bytes] == ' ') ){
+				//fprintf( stdout, "CHAR %c\n", input[read_bytes]);
+				read_bytes++;
+				continue;
+			}
+			// realloc check. we do a realloc every 3 words, just for limit overhead of realloc, and don't do every word
+			// first call do a malloc(3) becouse words=NULL after do realloc( 6 ) ... 9, 12 ...
+			if( (i % 3) == 0){
+				client_selector.words = (char **) realloc(  client_selector.words, (i+3)*sizeof( char *)  );
+			}
+			/* declare a space for word and read it, OPPURE c'è l'opzione %m che passandogli  client_selector.words[i], senza 
+			fare prima la malloc la fa scanf in automatico della grandezza della stringa letta + 1, sarebbe piu efficente dato che 
+			MAX_FILE_NAME è spazio sprecato per parole di piccole dimensione */
+			client_selector.words[i] = (char *) malloc( ( (MAX_FILE_NAME+1)*sizeof( char ) ) );
+			sscanf( &input[read_bytes], "%255s", client_selector.words[i]);
+			// upgrade read_bytes for check when we finish the client input
+			read_bytes += ( strlen( client_selector.words[i] )  );
+			fprintf( stdout, "WORD %d: %s,%d bytes\n", i, client_selector.words[i] , strlen(client_selector.words[i]) );
+			// upgrade the num of words, contained in client_selector
+			client_selector.num_words=i;
+			i++;
+
+		}while( input[read_bytes] != '\n' );
+	}
+
+	return client_selector;
+}
+
+int check_security_path( char path[PATH_MAX]){
+	/* le cose qui son 2
+	1 o facciamo un array di word globale con le parole non accettate
+	2 lasciamo stare tanto giusto ".." è da scartare, e teoricamente anche i ".." in UTF a 16 bits 32, non ricordo 
+	quanti erano */
+	int i=0;
+	int cont=0;
+	for( i=0; i<PATH_MAX; ++i){
+		if( path[i] == '.' ){
+			cont++;
+		}else{
+			cont=0;
+		}
+
+		if( cont == 2){
+			return 1;
+		}
+	}
+	return 0;
+}
+
+// this function take a path as argument and return the gopher char associated.
+// in the Gopher.md u can see all gopher char and the translate
+char type_path( char path[PATH_MAX] ){
+
+	// we check the tipe or file with file bash command
+	char command[ (strlen(path)+9) ];
+	// file with -b option: 
+	strcpy( command, "file -bi "); // 9 for "file -b " + \0 at end
+	strcat( command, path );
+	FILE* popen_output_stream = popen( command , "r" );
+	if ( popen_output_stream == NULL ){ 
+		fprintf( stderr,"popen() failed: %s\n", strerror(errno));
+	 	exit(5);
+	}
+	char popen_output[20]; // is useless read all output, i need only the first section and the max is "application/gopher"
+	//while ( fgets( &popen_output, 20, popen_output_stream) != NULL){
+	fgets( &popen_output, 20, popen_output_stream);
+	fprintf( stdout, "%s\n", popen_output); 
+	//}
+	close( popen_output_stream );
+	
+
+	if( (strncmp( popen_output, DIR_1, strlen(DIR_1))==0 ) || (strncmp( popen_output, GOPHER_1, strlen(GOPHER_1))==0) ){
+		return '1';
+	}
+	if( strncmp( popen_output, MULTIPART_M, strlen(MULTIPART_M))==0 ){
+		return 'M';
+	}
+	if( strncmp( popen_output, APPLICATION_9, strlen(APPLICATION_9))==0 ){
+		return '9';
+	}
+	if( strncmp( popen_output, AUDIO_s, strlen(AUDIO_s)) ==0 ){
+		return 's';
+	}
+	if( strncmp( popen_output, HTML_h, strlen(HTML_h))==0 ){
+		return 'h';
+	}
+	if( ( strncmp( popen_output, TEXT_0, strlen(TEXT_0))==0 ) || ( strncmp( popen_output, EMPTY_0, strlen(EMPTY_0))==0 ) ){
+		return '0';
+	}
+	if( strncmp( popen_output, GIF_g, strlen(GIF_g))==0 ){
+		return 'g';
+	}
+	if( strncmp( popen_output, IMAGE_I, strlen(IMAGE_I))==0 ){
+		return 'I';
+	}
+	if( strncmp( popen_output, MAC_4, strlen(MAC_4))==0 ){
+		return '4';
+	}
+	return '3';
+}
+
+
+void send_content_of_dir( char *temp, int sd , selector client_selector){
+	fprintf( stdout , "%s\n" , temp);
+	DIR *folder;
+	struct dirent *subFile;
+	folder = opendir( temp );
+	if( folder == NULL ){
+
+	}
+	while (( subFile = readdir( folder )) != NULL) {
+      printf("%s\n", subFile->d_name);
+    }
+    closedir(folder);
+
+}
+
+
 // this function spawn process to management the new client request 
 int process_management( client_args *client_info ){
 
@@ -356,17 +533,23 @@ void *thread_function( void* c ){
 	client_args *client_info;
 	client_info = (client_args*) c;
 	
+	char type;
 	int check;
-	int read_byte=0;
+	int read_bytes=0;
 	int sd = (*client_info).socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
-	char input[PATH_MAX]; // becouse the request is a path and the max path is 4096 
-						// char length we create a string of 4096 char
+	char *input = malloc( PATH_MAX*sizeof(char) ); // becouse the request is a path (SELECTOR) and the max path is 4096, plus
+											// eventualy some words which have to match with file name, wE put a MAX input = 4096
 
 	/* Receive data on this connection until the recv \n of finish line.
 	If any other failure occurs, we will close the connection.    */
 	int stop=true;
 	while( stop ){
-		check = recv(sd, &input[read_byte], (PATH_MAX-read_byte), 0);
+		if(  (PATH_MAX-read_bytes) <= 0 ){
+			// the client send a wrong input, or the lenght is > PATH_MAX without a \n at end or send more bytes after \n
+			close(sd);
+			pthread_exit(NULL);
+		}
+		check = recv(sd, &input[read_bytes], (PATH_MAX-read_bytes), 0);
 		if (check < 0){
 			if (errno != EWOULDBLOCK){
 				// if recv fail the error can be server side or client side so we close the connection and go on 
@@ -379,30 +562,76 @@ void *thread_function( void* c ){
 		/* Check to see if the connection has been closed by the client, so recv return 0  */
 		if (check == 0){
 			printf("	Connection closed %d\n", sd );
-			stop = false;
+			// client close the connection so we can stop the thread
+			close(sd);
+			pthread_exit(NULL);
 		}
 		if( check > 0){
-			fprintf( stdout, "READ: %s ,byte: %d\n", &input[read_byte] , check );
-			read_byte += check;
-			if(input[ (read_byte-1) ]=='\n'){
+			read_bytes += check;
+			if(input[ (read_bytes-1) ]=='\n'){
 				stop = false;
 			}
 		}
 	}
+	// if we are there, print that message
+	//fprintf( stdout, "READ: %s%d bytes at %p\n", input, check, &input );
 
-	// if we are there check is the number of bytes read from client, print that message
-	printf("  %d bytes received\n", read_byte);
-	// stampo indietro il messaggio sempre prova per vedere il funzionamento "non eliminare"
-	check = send(sd, input, read_byte, 0);
-	if (check < 0){
-		// same of recv
-		fprintf( stderr,"send() of sd - %d, failed: %s\n", sd, strerror(errno) );
-						//exit(5);
-						// or can be a client error so we have only to close connection
-						//close_conn = true;
+	// check if the input contain a selector or not
+	selector client_selector;
+	memset( &client_selector, 0, sizeof(client_selector));
+
+	//request_to_selector( input , client_selector);
+	client_selector = request_to_selector( input );
+	/* if ( client_selector == NULL ){
+		send( sd, S_ERROR_SELECTOR_REQUEST, strlen(S_ERROR_SELECTOR_REQUEST), 0);
+	} */
+	
+
+	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
+	char path_selector[ ( strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1 ) ];
+	strcpy( path_selector, S_ROOT_PATH ); 
+	strcat( path_selector, client_selector.selector );	
+
+	
+	fprintf(stdout,"%s\n",path_selector);
+
+	if ( strcmp( client_selector.selector , "") == 0  ){
+		// if selector is empty we send the content of gophermap, who match with words
+		type = type_path( S_ROOT_PATH );
+	}else{ // if we have a selector, we check if is a dir or not 
+		// little check for avoid trasversal path
+		if( check_security_path( client_selector.selector ) ){
+			fprintf ( stdout, "eh eh nice try where u wanna go?\n" );
+			close(sd);
+			pthread_exit(NULL);
+		}// add the gopher root path at selector and check the type of file
+		type = type_path( path_selector );
 	}
+	// if is a dir we check the content if match with words 
+	if( type == '1' ){
+		send_content_of_dir( path_selector, sd, client_selector);
+		//pthread_exit( NULL );
+	}else{ 
+		if( type == '3' ){ // if is an error send the error message
+			char temp[ ( strlen(client_selector.selector) + 4 ) ]; // 3 is for lenght of "3\t" + 1 per \n + 1 
+			strcpy( temp, "3\t" ); 
+			strcat( temp, client_selector.selector );
+			strcat( temp, "\n" ); // senza /n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
+			send( sd, temp, strlen(temp), 0);
+			// close socket and thread
+			close(sd);
+			pthread_exit(NULL);
+		}else{ // if is only a file
+			load_file_memory_posix( client_info, path_selector );
+			// creao thread per spedire il file
+			// avviso il processo che carica il file di log
+		}
+	}
+	//fprintf( stdout, "%d\n", sd);
+	fprintf( stdout, "%c\n", type);
 
 }
+
 // this function spawn thread to management the new client request 
 int thread_management( client_args *client_info ){
 	pthread_t tid;
@@ -413,14 +642,14 @@ int thread_management( client_args *client_info ){
 
 
 // this function call the select() and check the FDS_SET if some socket is readable
-int listen_descriptor(int svr_socket){
+int listen_descriptor( int useless ){
 	// Some declaretion of usefull variable
 	struct sockaddr_in client_addr;
 	int i, num_fd_ready, check, client_addr_len;
 	struct timeval timeout;
 	fd_set working_set;
 	int close_conn;
-	char str_client_addr[ADDR_MAXLEN];
+	char str_client_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
 	int new_s;
 	// struct defined in sacagawea.h for contain client information
 	client_args *client_info;
@@ -484,7 +713,7 @@ int listen_descriptor(int svr_socket){
 					}
 					/* we create a t/p for management the incoming connection, call the right function with (socket , client_addr) as argument */
 					snprintf( client_info->client_addr, 16, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-					printf("New connection stabilished at fd - %d from %s\n", new_s, str_client_addr);
+					printf("New connection stabilished at fd - %d from %s\n", new_s, client_info->client_addr);
 					client_info->socket=new_s;
 					
 					if ( MODE_CLIENT_PROCESSING == 0){
