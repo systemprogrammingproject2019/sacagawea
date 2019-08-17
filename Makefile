@@ -37,7 +37,7 @@ makedirs:
 
 
 linux: $(L_OBJS)
-	$(CC) $(CFLAGS) $(INC) -shared -o ${BIN}/libsacagawea.so ${L_OBJS}
+	$(CC) $(CFLAGS) $(INC) -shared -o ${BIN}/libsacagawea.so ${L_OBJS} 
 
 $(L_OBJS): $(L_SOURCES) $(HEADERS) $(L_HEADERS)
 	$(CC) $(CFLAGS) $(INC) -c -fpic $< -o $@
@@ -51,7 +51,7 @@ $(SVR_OBJS): $(SVR_SOURCES)
 	@echo "Building Linux Server"
 	@echo "#####################"
 
-	$(CC) $(CFLAGS) $(INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread
+	$(CC) $(CFLAGS) $(INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread -lrt
 
 	@echo 
 	@echo "#####################"
