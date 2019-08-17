@@ -7,12 +7,34 @@
 #include <getopt.h>
 #include <unistd.h> // for close
 
+
 #include "sacagawea.h"
 
 #ifdef _WIN32
 #include "win32/sacagalib.h"
 #else
 #include "linux/sacagalib.h"
+
+#include <stdlib.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <string.h>
+#include <signal.h>
+#include <arpa/inet.h>
+#include <getopt.h>
+
+#include <sys/mman.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <dirent.h>
+
 #endif
 
 
@@ -53,6 +75,91 @@ int main(int argc, char *argv[]){
 	fprintf( stdout, "Server port: %d, mode: %d\n", SERVER_PORT , MODE_CLIENT_PROCESSING);
 
 	#ifndef _WIN32
+	//spawn process who manages the logs file
+	int pid; /* process identifier */
+
+	/* condition variable and mutex are shared on the same process, but when we fork we create a new
+	addressing for the child, so the global/local variable are not shared like threads.
+	we have to create a shared memory for the 2 process and put on that the mutex and condition variable
+	now these can be used by both process. */
+    int mutex_d, cond_d;
+    int mode = S_IRWXU | S_IRWXG;
+	/* non ho capito perche se con shm_open di una SHARED_MEM qualsiasi gli davo dimensione con ftruncate
+	pari a un mutex e un cond, quando facevo i 2 mmap non funzionavano. non erano sharati ( non da errore
+	semplicemente funzionava come se il mutex fosse sharato ma non la cond), con 2 open diversi funziona.
+	non eliminare devo chiederlo al prof so curioso. non ho trovato nulla al riguardo su internet o sul man */
+    /* shm_open open the SHARED_MUTEX_MEM or create it like a file, indeed mutex_d is a descriptor */
+    mutex_d = shm_open( SHARED_MUTEX_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
+    if (mutex_d < 0) {
+        fprintf( stderr,"System call shm_open() failed because of %s", strerror(errno));
+	 	exit(5);
+    }
+    if (ftruncate(mutex_d, sizeof(pthread_mutex_t)) == -1) {
+		fprintf( stderr,"System call ftruncate() failed because of %s", strerror(errno));
+	 	exit(5);
+    }
+    mutex = (pthread_mutex_t *)mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, mutex_d, 0);
+    if (mutex == MAP_FAILED) {
+        fprintf( stderr,"System call mmap() failed because of %s", strerror(errno));
+	 	exit(5);
+    } 
+	/* shm_open open the SHARED_COND_MEM or create it like a file, indeed cond_d is a descriptor */
+    cond_d = shm_open( SHARED_COND_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
+    if (cond_d < 0) {
+        fprintf( stderr,"System call shm_open() failed because of %s", strerror(errno));
+	 	exit(5);
+    }
+    if (ftruncate(cond_d, sizeof(pthread_mutex_t)) == -1) {
+		fprintf( stderr,"System call ftruncate() failed because of %s", strerror(errno));
+	 	exit(5);
+    }
+    cond = (pthread_cond_t *)mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, cond_d, 0);
+    if (cond == MAP_FAILED) {
+        fprintf( stderr,"System call mmap() failed because of %s", strerror(errno));
+	 	exit(5);
+    }
+	/* A condition variable/mutex attribute object (attr) allows you to manage the characteristics
+	of condition variables/mutex in your application by defining a set of values to be used for a
+	condition variable/mutex during its creation.*/
+	pthread_mutexattr_t mattr;
+	pthread_condattr_t cattr;
+	/* PTHREAD_PROCESS_SHARED
+	Permits a condition variable/mutex to be operated upon by any thread that has access to the memory
+	where the condition variable/mutex is allocated; even if the condition variable/mutex is allocated in memory
+	that is shared by multiple processes.*/
+    pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
+    pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+	// set and init the mutex and condition variable
+	pthread_mutex_init(mutex, &mattr);
+	pthread_cond_init(cond, &cattr);
+
+	// create the pipe for SERVER<->SACALOGS
+	if ( pipe(pipe_conf)==-1 ){ 
+        fprintf( stderr,"System call pipe() failed because of %s", strerror(errno));
+	 	exit(5);
+    }
+	/* set NON-BLOCKING read pipe, becouse sacalogs don't have to go in blocked mode
+	while try read pipe */
+    if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) < 0){
+		fprintf( stderr,"System call fcntl() failed because of %s", strerror(errno));
+	 	exit(5);
+	}
+
+	// now create the process
+	pid=fork();
+	if (pid < 0){
+		fprintf( stderr,"System call fork() failed because of %s", strerror(errno));
+	 	exit(5);
+	}
+    if (pid == 0){ /* child process */
+		// close write pipe
+		close( pipe_conf[1] );
+		// call log management
+		log_management();
+	}
+	/* server process "father" */
+	// close read pipe
+	close( pipe_conf[0] );
 	// Creating sigaction for SIGHUP
 	struct sigaction new_action;
 	/* Block other SIGHUP signals while handler runs. */
@@ -111,5 +218,10 @@ int main(int argc, char *argv[]){
 			close(i);
 		}
 	}
+	// destroy the allocated attr for, condition variable
+    pthread_condattr_destroy(&cattr);
+    pthread_mutexattr_destroy(&mattr);
+	// close write pipe.
+	close( pipe_conf[1] );
 	#endif
 }

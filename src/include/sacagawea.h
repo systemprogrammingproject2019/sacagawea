@@ -21,11 +21,11 @@
 
 #define true     1
 #define false    0
-#define PATH_MAX 4096 // in Linux the max path is 4096 chars
-#define MAX_FILE_NAME 255 // in Linux the max file name is 255 bytes
 #define SACAGAWEACONF_PATH "sacagawea.conf"
+#define SACAGAWEALOGS_PATH "sacagawea.logs"
 #define DEFAULT_SERVER_PORT 7070
 #define MAX_CLIENTS 64
+#define SERVER_DOMAIN "michele-pc"
 
 // max length of IP is 15 254.254.254.254 + 1 char for ':'
 // + 5 char for port 65000 + 1 char for the terminating null byte
@@ -64,18 +64,5 @@ EXPORTED int check_security_path();
 #define S_ERROR_FGETS "fgets() failed: %s\n"
 
 
-// all "file -bi file_path" command output
-#define S_ROOT_PATH "./"
-#define TEXT_0 "text/" // vale per .txt .conf .c .py ...
-#define HTML_h "text/html"
-#define GIF_g "image/gif"
-#define IMAGE_I "image/" // vale per .jpg
-#define DIR_1 "inode/directory"
-#define EMPTY_0 "empty" // file empty, we use 0 for defoult
-#define GOPHER_1 "application/gopher"
-#define MAC_4 "application/mac"
-#define APPLICATION_9 "application/"
-#define AUDIO_s "audio/"
-#define MULTIPART_M "multipart/mixed"
 
 #endif
