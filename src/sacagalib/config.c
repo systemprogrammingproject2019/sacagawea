@@ -75,6 +75,7 @@ int read_and_check_conf(){
 	return port_change;
 }
 
+#ifndef _WIN32
 // check this fuction
 // this function is called when SIGHUP coming 
 void config_handler(int signum){
@@ -130,3 +131,4 @@ void config_handler(int signum){
 
 	}
 }
+#endif

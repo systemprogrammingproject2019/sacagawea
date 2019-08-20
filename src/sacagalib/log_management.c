@@ -13,9 +13,9 @@
 
 #include "sacagalib.h"
 
-
-void log_management(){
-
+void log_management() {
+#ifdef _WIN32
+#else
 	printf("Process for sacagawea.log created\n");
 	FILE *fp;
 	char *read_line;
@@ -75,5 +75,5 @@ void log_management(){
 		free(read_line);
 		pthread_mutex_unlock(mutex);
 	}
-	
+#endif
 }

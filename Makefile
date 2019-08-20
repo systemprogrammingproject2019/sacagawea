@@ -22,6 +22,7 @@ LIB_HEADERS := $(wildcard ${LIB_INCLUDE}/*.h)
 LIB_SOURCES := $(wildcard ${LIB_SRC}/*.c)
 LIB_HEADERS := $(wildcard ${LIB_INCLUDE}/*.h)
 LIB_OBJS    := $(patsubst ${SRC}%.c, ${BUILD_SL}%.o, $(LIB_SOURCES))
+LIB_WIN_OBJS:= $(patsubst ${SRC}%.c, ${BUILD_WIN_SL}%.o, $(LIB_SOURCES))
 
 SACAGALIB_O := ${BUILD}/sacagalib/sacagalib.o
 
@@ -48,13 +49,14 @@ makedirs:
 linuxlib: $(LIB_OBJS)
 	$(CC) $(CFLAGS) $(LIB_INC) -shared -o ${BIN}/libsacagawea.so ${LIB_OBJS}
 
-win32lib: $(LIB_OBJS)
-	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(LIB_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a -lws2_32
+win32lib: $(LIB_WIN_OBJS)
+	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(LIB_WIN_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a -lws2_32
+
 
 $(BUILD_SL)/sacagalib/sacagalib.o: $(LIB_SRC)/sacagalib.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
-$(BUILD_SL)/sacagalib/open_socket.o: $(LIB_SRC)/open_socket.c $(LIB_HEADERS)
+$(BUILD_SL)/sacagalib/socket.o: $(LIB_SRC)/socket.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
 $(BUILD_SL)/sacagalib/config.o: $(LIB_SRC)/config.c $(LIB_HEADERS)
@@ -69,10 +71,11 @@ $(BUILD_SL)/sacagalib/children_management.o: $(LIB_SRC)/children_management.c $(
 $(BUILD_SL)/sacagalib/utility.o: $(LIB_SRC)/utility.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
+
 $(BUILD_WIN_SL)/sacagalib/sacagalib.o: $(LIB_SRC)/sacagalib.c $(LIB_HEADERS)
 	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
 
-$(BUILD_WIN_SL)/sacagalib/open_socket.o: $(LIB_SRC)/open_socket.c $(LIB_HEADERS)
+$(BUILD_WIN_SL)/sacagalib/socket.o: $(LIB_SRC)/socket.c $(LIB_HEADERS)
 	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/config.o: $(LIB_SRC)/config.c $(LIB_HEADERS)
@@ -102,7 +105,7 @@ win32server: $(SVR_SOURCES)
 	@echo "Building Win32 Server"
 	@echo "#####################"
 
-	$(WCC) $(CFLAGS) $(INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea
+	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea
 
 # $(LIB_OBJS): $(LIB_SOURCES) $(HEADERS) $(LIB_HEADERS)
 # 	$(WCC) $(CFLAGS) $(INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32

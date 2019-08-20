@@ -43,7 +43,6 @@ pthread_cond_t *cond;
 pthread_mutex_t *mutex;
 #endif
 
-
 typedef struct client_args{
 	char client_addr[16];
 	int socket;
@@ -58,6 +57,14 @@ typedef struct struct_selector{
 		char **words;
 } selector;
 
+// children_management.c
+EXPORTED selector request_to_selector( char *input );
+EXPORTED void *thread_sender(void* c);
+EXPORTED void *thread_function(void* c);
+EXPORTED int thread_management(struct client_args *client_info);
+EXPORTED int process_management(struct client_args *client_info);
+
+// socket.c
 #ifdef _WIN32
 SOCKET client_socket[MAX_CLIENTS];
 SOCKET SERVER_SOCKET;        // the server socket's handle
@@ -65,20 +72,20 @@ EXPORTED SOCKET open_socket();
 EXPORTED int listen_descriptor(SOCKET);
 #else
 int SERVER_SOCKET; // the server socket's file descriptor
-int open_socket();
-int listen_descriptor(int);
+EXPORTED int open_socket();
+EXPORTED int listen_descriptor(int);
 #endif
 
-EXPORTED int thread_management(struct client_args *client_info);
-EXPORTED int process_management(struct client_args *client_info);
-
-EXPORTED int check_if_conf(char line[]);
 EXPORTED int check_security_path();
-EXPORTED void config_handler(int signum);
 EXPORTED int load_file_memory_linux(char *path);
-EXPORTED void log_management();
+
+// config.c
+EXPORTED int check_if_conf(char line[]);
 EXPORTED int read_and_check_conf();
-EXPORTED void *thread_sender(void* c);
+EXPORTED void config_handler(int signum);
+
+// log_management.c
+EXPORTED void log_management();
 
 #define SHARED_MUTEX_MEM "/shared_memory_for_mutex"
 #define SHARED_COND_MEM "/shared_memory_for_cond"

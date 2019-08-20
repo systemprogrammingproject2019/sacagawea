@@ -1,23 +1,24 @@
 #include <stdlib.h>
-#include <netinet/in.h>
-#include <errno.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <dirent.h>
-#include <poll.h>
 
 #ifdef _WIN32
 #else
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <pthread.h>
+#include <errno.h>
 #endif
 
 #include "sacagalib.h"
 
+#ifndef _WIN32
 int load_file_memory_and_send_posix( client_args *client_info ){
 	
 	// open get file descriptor associated to file
@@ -156,7 +157,6 @@ int load_file_memory_linux( char *path){
 	free(file_content);
 }
 
-
 int check_security_path( char path[PATH_MAX]){
 	/* le cose qui son 2
 	1 o facciamo un array di word globale con le parole non accettate
@@ -177,3 +177,4 @@ int check_security_path( char path[PATH_MAX]){
 	}
 	return 0;
 }
+#endif
