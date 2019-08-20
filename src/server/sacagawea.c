@@ -24,7 +24,6 @@
 
 #include "sacagalib.h"
 
-
 int main(int argc, char *argv[]){
 
 	// chiamo load file in memory per testare se funzionava

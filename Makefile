@@ -33,12 +33,12 @@ SVR_OBJS    := $(patsubst ${SRC}%.c, ${BUILD}%.o, $(SVR_SOURCES))
 all: linux win32
 # copy default sacagawea.conf file into bin directory
 # so we always have the original
-	echo $(LIB_OBJS)
-	cp sacagawea.conf bin
 
 linux: makedirs linuxlib linuxserver
+	@cp sacagawea.conf bin
 
 win32: makedirs win32lib win32server
+	@cp sacagawea.conf bin
 
 
 makedirs:
@@ -71,24 +71,30 @@ $(BUILD_SL)/sacagalib/children_management.o: $(LIB_SRC)/children_management.c $(
 $(BUILD_SL)/sacagalib/utility.o: $(LIB_SRC)/utility.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
+$(BUILD_SL)/sacagalib/gopher.o: $(LIB_SRC)/gopher.c $(LIB_HEADERS)
+	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
+
 
 $(BUILD_WIN_SL)/sacagalib/sacagalib.o: $(LIB_SRC)/sacagalib.c $(LIB_HEADERS)
-	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/socket.o: $(LIB_SRC)/socket.c $(LIB_HEADERS)
-	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/config.o: $(LIB_SRC)/config.c $(LIB_HEADERS)
-	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/log_management.o: $(LIB_SRC)/log_management.c $(LIB_HEADERS)
-	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/children_management.o: $(LIB_SRC)/children_management.c $(LIB_HEADERS)
-	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/utility.o: $(LIB_SRC)/utility.c $(LIB_HEADERS)
-	$(WCC) $(CFLAGS) $(LIB_INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
+
+$(BUILD_WIN_SL)/sacagalib/gopher.o: $(LIB_SRC)/gopher.c $(LIB_HEADERS)
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 
 linuxserver: $(SVR_SOURCES)
@@ -96,16 +102,30 @@ linuxserver: $(SVR_SOURCES)
 	@echo "#####################"
 	@echo "Building Linux Server"
 	@echo "#####################"
+	@echo 
 
 	$(CC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread -lrt
+
+	@echo 
+	@echo Linux server built successfully
+	@echo 
+	@echo -------------------------------
+	@echo 
 
 win32server: $(SVR_SOURCES)
 	@echo 
 	@echo "#####################"
 	@echo "Building Win32 Server"
 	@echo "#####################"
+	@echo 
 
 	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea
+
+	@echo 
+	@echo Win32 server built successfully
+	@echo 
+	@echo -------------------------------
+	@echo 
 
 # $(LIB_OBJS): $(LIB_SOURCES) $(HEADERS) $(LIB_HEADERS)
 # 	$(WCC) $(CFLAGS) $(INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32

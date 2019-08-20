@@ -15,7 +15,8 @@
 
 #include "sacagalib.h"
 
-
+int SERVER_PORT = DEFAULT_SERVER_PORT;
+char MODE_CLIENT_PROCESSING = (char) 0; // 0 = thread --- 1 = subProcess
 
 #ifdef _WIN32
 // this fuction opens a listening socket
@@ -143,7 +144,6 @@ int open_socket(){
 }
 #endif
 
-
 #ifdef _WIN32
 int listen_descriptor(SOCKET svr_socket) {
 	SOCKET new_socket, s;
@@ -212,10 +212,10 @@ int listen_descriptor(SOCKET svr_socket) {
 					printf("New connection estabilished at socket - %d from %s\n",
 							client_info->socket, client_info->client_addr);
 					if (MODE_CLIENT_PROCESSING == 0) {
-						//thread_management(&client_info);
+						thread_management(&client_info);
 					} else {
-						if ( MODE_CLIENT_PROCESSING == 1){
-							//process_management( client_info );
+						if (MODE_CLIENT_PROCESSING == 1){
+							process_management(client_info);
 						}else{
 							fprintf( stderr,"WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING );
 							exit(5);

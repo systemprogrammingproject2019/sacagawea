@@ -31,8 +31,8 @@
 #define SOCK_RECVBUF_LEN   65536
 #define S_SOCK_RECVBUF_LEN "65536"
 
-extern int SERVER_PORT;
-extern char MODE_CLIENT_PROCESSING;
+int SERVER_PORT;
+char MODE_CLIENT_PROCESSING;
 fd_set fds_set;
 
 #ifndef _WIN32
@@ -83,6 +83,9 @@ EXPORTED int load_file_memory_linux(char *path);
 EXPORTED int check_if_conf(char line[]);
 EXPORTED int read_and_check_conf();
 EXPORTED void config_handler(int signum);
+
+// gopher.c
+EXPORTED char type_path(char path[PATH_MAX]);
 
 // log_management.c
 EXPORTED void log_management();
