@@ -54,16 +54,20 @@ pthread_mutex_t *mutex;
 
 typedef struct client_args{
 	char client_addr[16];
+#ifdef _WIN32
+	SOCKET socket;
+#else
 	int socket;
+#endif
 	char *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
 	char *file_to_send;
 	long len_file;
 } client_args;
 
 typedef struct struct_selector{
-		char selector[PATH_MAX];
-		int num_words;
-		char **words;
+	char selector[PATH_MAX];
+	int num_words;
+	char **words;
 } selector;
 
 // children_management.c
