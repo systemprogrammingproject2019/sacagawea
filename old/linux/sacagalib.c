@@ -894,8 +894,10 @@ int listen_descriptor( int useless ){
 						break;
 					}
 					/* we create a t/p for management the incoming connection, call the right function with (socket , client_addr) as argument */
-					snprintf( client_info->client_addr, 16, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-					printf("New connection stabilished at fd - %d from %s\n", new_s, client_info->client_addr);
+					snprintf( client_info->client_addr, ADDR_MAXLEN, "%s:%d",
+							inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
+					printf("New connection stabilished at fd - %d from %s\n",
+							new_s, client_info->client_addr);
 					client_info->socket=new_s;
 					
 					if ( MODE_CLIENT_PROCESSING == 0){
