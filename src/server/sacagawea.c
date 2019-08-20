@@ -33,11 +33,11 @@ int main(int argc, char *argv[]){
 	read_and_check_conf();
 	// check if some variable are setted by command line
 	int c;
-	opterr=0;
-	while ( ( c = getopt(argc, argv, "ptP:") ) != -1 ){
-		switch (c){
+	opterr = 0;
+	while ((c = getopt(argc, argv, "ptP:")) != -1) {
+		switch (c) {
 			case 'p':
-				MODE_CLIENT_PROCESSING=1;
+				MODE_CLIENT_PROCESSING = 1;
 				fprintf(stdout,"mode change p: %d\n", MODE_CLIENT_PROCESSING);
 				break;
 
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]){
 				break;
 
 			case 't':
-				MODE_CLIENT_PROCESSING=0;
+				MODE_CLIENT_PROCESSING = 0;
 				fprintf(stdout, "mode change t: %d\n", MODE_CLIENT_PROCESSING);
 				break;
 
@@ -58,9 +58,10 @@ int main(int argc, char *argv[]){
 		}
 	}
 
-	fprintf( stdout, "Server port: %d, mode: %d\n", SERVER_PORT , MODE_CLIENT_PROCESSING);
+	fprintf(stdout, "Server port: %d, mode: %s\n",
+			SERVER_PORT, MODE_CLIENT_PROCESSING?"multiprocess":"multithreaded");
 
-	#ifndef _WIN32
+#ifndef _WIN32
 	//spawn process who manages the logs file
 	int pid; /* process identifier */
 
@@ -118,8 +119,11 @@ int main(int argc, char *argv[]){
 	// set and init the mutex and condition variable
 	pthread_mutex_init(mutex, &mattr);
 	pthread_cond_init(cond, &cattr);
+#endif
 
 	// create the pipe for SERVER<->SACALOGS
+#ifdef _WIN32
+#else
 	if ( pipe(pipe_conf)==-1 ){ 
 		fprintf( stderr,"System call pipe() failed because of %s", strerror(errno));
 	 	exit(5);
@@ -130,8 +134,10 @@ int main(int argc, char *argv[]){
 		fprintf( stderr,"System call fcntl() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-
+#endif
 	// now create the process
+#ifdef _WIN32
+#else
 	pid=fork();
 	if (pid < 0){
 		fprintf( stderr,"System call fork() failed because of %s", strerror(errno));
@@ -165,12 +171,12 @@ int main(int argc, char *argv[]){
 		fprintf( stderr,"System call sigaction() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	#endif
+#endif
 
 	// open socket call
 	SERVER_SOCKET = open_socket();
 
-	#ifndef _WIN32
+#ifndef _WIN32
 	/* declare FD_SET and initialize it */
 	FD_ZERO(&fds_set);
 	max_num_s = SERVER_SOCKET;
@@ -179,7 +185,7 @@ int main(int argc, char *argv[]){
 	for (int i=0; i <= max_num_s ; ++i){
 		fprintf( stdout,"i: %d  is set:  %d\n",i,FD_ISSET(i, &fds_set));
 	}
-	#endif
+#endif
 
 	/* Loop waiting for incoming connects or for incoming data
 		on any of the connected sockets.   */
@@ -190,7 +196,7 @@ int main(int argc, char *argv[]){
 	} while(true);
 
 	// we are out of select loop so we have to close all sockets
-	#ifdef _WIN32
+#ifdef _WIN32
 	for(int i = 0; i < MAX_CLIENTS; i++)  {
 		SOCKET s = client_socket[i];
 		if(s > 0) {
@@ -198,7 +204,7 @@ int main(int argc, char *argv[]){
 		}
 	}
 	WSACleanup();
-	#else
+#else
 	for (int i=0; i <= max_num_s; ++i){
 		if (FD_ISSET(i, &fds_set)){
 			close(i);
@@ -209,5 +215,5 @@ int main(int argc, char *argv[]){
 	pthread_mutexattr_destroy(&mattr);
 	// close write pipe.
 	close( pipe_conf[1] );
-	#endif
+#endif
 }

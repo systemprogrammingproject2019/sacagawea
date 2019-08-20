@@ -62,10 +62,10 @@ $(BUILD_SL)/sacagalib/socket.o: $(LIB_SRC)/socket.c $(LIB_HEADERS)
 $(BUILD_SL)/sacagalib/config.o: $(LIB_SRC)/config.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
-$(BUILD_SL)/sacagalib/log_management.o: $(LIB_SRC)/log_management.c $(LIB_HEADERS)
+$(BUILD_SL)/sacagalib/log.o: $(LIB_SRC)/log.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
-$(BUILD_SL)/sacagalib/children_management.o: $(LIB_SRC)/children_management.c $(LIB_HEADERS)
+$(BUILD_SL)/sacagalib/children.o: $(LIB_SRC)/children.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
 $(BUILD_SL)/sacagalib/utility.o: $(LIB_SRC)/utility.c $(LIB_HEADERS)
@@ -84,10 +84,10 @@ $(BUILD_WIN_SL)/sacagalib/socket.o: $(LIB_SRC)/socket.c $(LIB_HEADERS)
 $(BUILD_WIN_SL)/sacagalib/config.o: $(LIB_SRC)/config.c $(LIB_HEADERS)
 	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
-$(BUILD_WIN_SL)/sacagalib/log_management.o: $(LIB_SRC)/log_management.c $(LIB_HEADERS)
+$(BUILD_WIN_SL)/sacagalib/log.o: $(LIB_SRC)/log.c $(LIB_HEADERS)
 	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
-$(BUILD_WIN_SL)/sacagalib/children_management.o: $(LIB_SRC)/children_management.c $(LIB_HEADERS)
+$(BUILD_WIN_SL)/sacagalib/children.o: $(LIB_SRC)/children.c $(LIB_HEADERS)
 	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/utility.o: $(LIB_SRC)/utility.c $(LIB_HEADERS)
@@ -127,8 +127,6 @@ win32server: $(SVR_SOURCES)
 	@echo -------------------------------
 	@echo 
 
-# $(LIB_OBJS): $(LIB_SOURCES) $(HEADERS) $(LIB_HEADERS)
-# 	$(WCC) $(CFLAGS) $(INC) -c -DBUILDING_SACAGALIB_DLL $< -o $@ -lws2_32
 
 .PHONY: clean lrun wrun linux win32 linuxserver win32server linuxlib win32lib
 

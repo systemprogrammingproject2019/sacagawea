@@ -7,6 +7,15 @@
 
 #include "exported.h"
 
+#define ERROR   0
+#define WARNING 1
+#define INFO    2
+#define DEBUG   3
+
+#ifndef LOG_LEVEL
+#define LOG_LEVEL INFO
+#endif
+
 #define true     1
 #define false    0
 #define SACAGAWEACONF_PATH "sacagawea.conf"
