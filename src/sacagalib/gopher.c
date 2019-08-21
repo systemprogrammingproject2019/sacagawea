@@ -120,15 +120,18 @@ void *thread_sender( void* c ){
 	/* this cicle send the file at client and save the number of bytes sent */
 	long bytes_sent = 0, temp;
 	while( bytes_sent < client_info->len_file ){
-		temp = send( client_info->socket, client_info->file_to_send, (client_info->len_file - bytes_sent) , 0 );
+		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
+		temp = send( client_info->socket, client_info->file_to_send, (client_info->len_file - bytes_sent) , MSG_NOSIGNAL );
 		if( temp < 0){
 			fprintf( stderr,"Sending file at %s, with socket %d failed becouse of: %s\n",
 					client_info->client_addr, client_info->socket, strerror(errno) );
+			close( client_info->socket );
 			pthread_exit(NULL);
 		}
 		if( temp == 0){
 			fprintf( stderr,"Client %s, with socket %d close the connection meanwhile sending file\n",
 					client_info->client_addr, client_info->socket );
+			close( client_info->socket );
 			pthread_exit(NULL);
 		}
 		bytes_sent += temp;
@@ -144,6 +147,7 @@ void *thread_sender( void* c ){
 	dal lato server, cosi curl quando finisce di leggere i bytes inviati si blocca e chiude la comunicazione */ 
 	if ( shutdown( client_info->socket, SHUT_WR) < 0 ){
 		fprintf( stderr,"shutdown() failed: %s\n", strerror(errno) );
+		close( client_info->socket );
 		pthread_exit(NULL);
 	}
 	/* come detto prima curl finisce la comunicazione quando legge tutto, ma noi non sappiamo quando ha finito
@@ -158,12 +162,13 @@ void *thread_sender( void* c ){
 	}
 	if( check < 0 ){
 		fprintf( stderr,"recv() failed: %s\n", strerror(errno) );
+		close( client_info->socket );
 		pthread_exit(NULL);
 	}
 	close( client_info->socket );
 	
 	// if we sent all the file without error we wake up logs_uploader
-	fprintf( stdout, "%ld %ld\n", bytes_sent, client_info->len_file);
+	fprintf( stdout, "file length %ld\n", bytes_sent, client_info->len_file);
 	if ( bytes_sent >= client_info->len_file ){
 		// create line to write to the logs file ""
 		// get time
@@ -188,13 +193,13 @@ void *thread_sender( void* c ){
 		
 		// lock mutex and wake up process for logs
 		pthread_mutex_lock(mutex);
-		pthread_cond_signal(cond);
 		// sent logs string, first we sent the strlen after the string
 		len_logs_string = strlen( logs_string );
 		fprintf( stdout,"HERE %ld: %s\n", len_logs_string, logs_string);
 		write(pipe_conf[1], &len_logs_string, sizeof(int));	
 		write(pipe_conf[1], logs_string, len_logs_string);
-		// unlock mutex and free 
+		// unlock mutex and free
+		pthread_cond_signal(cond);
 		pthread_mutex_unlock(mutex);
 		free(logs_string);
 	}

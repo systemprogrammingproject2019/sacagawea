@@ -96,7 +96,7 @@ SOCKET open_socket() {
 	return ListenSocket;
 }
 #else
-// this fuction opens a listening socket.
+// this fuction opens a listening socket. In LINUX 1.0+
 int open_socket(){
 	int on=1;
 	struct sockaddr_in serv_addr;
@@ -149,7 +149,7 @@ int listen_descriptor(SOCKET svr_socket) {
 	SOCKET new_socket, s;
 	int addrlen = sizeof(struct sockaddr_in), num_fd_ready;
 	struct sockaddr_in address;
-	struct client_args* client_info = malloc(sizeof(struct client_args));
+	client_args* client_info = malloc(sizeof(client_args));
 
 	struct timeval timeout;
 	timeout.tv_sec  = 13 * 60;
@@ -229,14 +229,14 @@ int listen_descriptor(SOCKET svr_socket) {
 }
 #else
 // this function call the select() and check the FDS_SET if some socket is readable
-int listen_descriptor(int useless) {
+int listen_descriptor() {
 	// Some declaretion of usefull variable
 	struct sockaddr_in client_addr;
 	int i, num_fd_ready, check, client_addr_len;
 	struct timeval timeout;
 	fd_set working_set;
 	int close_conn;
-	char str_client_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
+	//char str_client_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
 	int new_s;
 	// struct defined in sacagawea.h for contain client information
 	client_args *client_info;
@@ -265,7 +265,6 @@ int listen_descriptor(int useless) {
 	}
 	/* 1 or more descriptors are readable we have to check which they are */
 	num_fd_ready=check;
-	
 	// for, for check all ready FD in fds_set until, FD are finish or we check all the ready fd
 
 
@@ -289,7 +288,7 @@ int listen_descriptor(int useless) {
 					then we have accepted all of them.
 					Any other failure on accept will cause us to end the server.  */
 					memset(&client_addr, 0, sizeof(client_addr));
-					client_addr_len = sizeof(client_addr);
+					client_addr_len = sizeof(client_addr); // save sizeof sockaddr struct becouse accept need it
 					new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
 					if (new_s < 0){
 						if (errno != EWOULDBLOCK){
@@ -299,12 +298,10 @@ int listen_descriptor(int useless) {
 						break;
 					}
 					/* we create a t/p for management the incoming connection, call the right function with (socket , client_addr) as argument */
-					snprintf( client_info->client_addr, ADDR_MAXLEN, "%s:%d",
-							inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-					printf("New connection stabilished at fd - %d from %s\n",
-							new_s, client_info->client_addr);
-					client_info->socket=new_s;
-					
+					snprintf( client_info->client_addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
+					printf("New connection stabilished at fd - %d from %s\n", new_s, client_info->client_addr);
+					client_info->socket = new_s;
+
 					if ( MODE_CLIENT_PROCESSING == 0){
 						thread_management( client_info );
 					}else{

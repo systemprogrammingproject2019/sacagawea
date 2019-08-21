@@ -42,11 +42,8 @@ void log_management() {
 		return;
 	}
 	#else
-	log_file = fopen(SACAGAWEALOGS_PATH , "a");
-	if(log_file == NULL){
-		fprintf(stderr, S_ERROR_FOPEN, strerror(errno));
-		exit(5);
-	}
+	FILE *fp;
+	
 	#endif
 
 	while (true) {
@@ -62,14 +59,13 @@ void log_management() {
 		/* this while check if pipe is readable, or dont contain nothing.
 		if is empty return error EWOULDBLOCK and go again in blocked mode. */
 		while( true ){
-			fprintf(stdout, "read\n", check);
+			//fprintf(stdout, "read\n", check);
 			check = read(pipe_conf[0] , &len_string, sizeof(int));
-			fprintf(stdout, "check: %d\n", check);
+			fprintf(stdout, "check bytes in logs pipe: %d\n", check);
 			if( check < 0){
 				if( errno == EWOULDBLOCK ){
-					pthread_cond_wait(cond, mutex);
 					fprintf(stdout, "LOGS Process nothing\n");
-					sleep(1);
+					pthread_cond_wait(cond, mutex);
 				}else{
 					fprintf(stdout, "LOGS Process terminate\n");
 					pthread_mutex_destroy(mutex);
@@ -86,8 +82,14 @@ void log_management() {
 			}
 			if( check == 0){
 				pthread_mutex_unlock(mutex);
-				exit(1);
+				fprintf(stdout, "ATTENZIONE\nATTENZIONE\nATTENZIONE\nricorda che a volte da 0 come return di read() della pipe del processo di logs e dovevamo capire se fosse EPIPE (Broken pipe) oppure qualcosa che indica che semplicemente ha letto 0 byte. ::   %s\n", strerror(errno));
 			}
+		}
+
+		fp = fopen(SACAGAWEALOGS_PATH , "a");
+		if(fp == NULL){
+			fprintf(stderr, S_ERROR_FOPEN, strerror(errno));
+			exit(5);
 		}
 
 		// read pipe and write sacagawea.log, until we got \n
@@ -95,16 +97,15 @@ void log_management() {
 		read(pipe_conf[0] , read_line , len_string );
 		read_line[len_string]='\0';
 		fprintf(stdout, "received: %d, %s",len_string, read_line);
-		fprintf(log_file, "%s", read_line);
+		fprintf(fp, "%s", read_line);
 		
+		fclose(fp);
 		free(read_line);
 		pthread_mutex_unlock(mutex);
 #endif
 	}
 #ifdef _WIN32
 	CloseHandle(log_file);
-#else
-	fclose(log_file);
 #endif
 }
 

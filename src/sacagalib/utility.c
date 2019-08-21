@@ -45,13 +45,11 @@ int load_file_memory_and_send_posix( client_args *client_info ){
 	lck.l_len = 0;           // len is zero, which is a special value representing end
 													// of file (no matter how large the file grows in future)
 	lck.l_pid = getppid(); // process holding the lock, we use PPID for all file lock
-	printf("Son try GET LOCK\n");
 	/* this version use SETLKW with associed lock at couple [i-node,process], so threads share the lock
 	but forked process nope, becouse they have differend PID. But all have the same DAD the PPID we use that
 	for declare a only lock for file. */
 	fcntl (fd, F_SETLKW, &lck);
 	// now we have the lock "load file in memory"
-	printf("Son GET LOCK\n");
 	/* initialize the memory for load the file, 
 	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
 	FILE* fp = fdopen(fd, "r");
@@ -75,7 +73,6 @@ int load_file_memory_and_send_posix( client_args *client_info ){
 
 	fclose(fp);
 	close(fd);
-	printf("Son SPAWN SENDER\n");
 	// create thread to send the file at client
 	pthread_t tid;
 	pthread_create(&tid, NULL, thread_sender, (void *) client_info );

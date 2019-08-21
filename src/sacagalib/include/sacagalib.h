@@ -16,8 +16,8 @@
 #define LOG_LEVEL INFO
 #endif
 
-#define true     1
-#define false    0
+#define true    1
+#define false   0
 #define SACAGAWEACONF_PATH "sacagawea.conf"
 #define SACAGAWEALOGS_PATH "sacagawea.log"
 #define DEFAULT_SERVER_PORT 7070
@@ -52,30 +52,31 @@ pthread_cond_t *cond;
 pthread_mutex_t *mutex;
 #endif
 
-typedef struct client_args{
-	char client_addr[16];
-#ifdef _WIN32
-	SOCKET socket;
-#else
-	int socket;
-#endif
-	char *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
-	char *file_to_send;
-	long len_file;
-} client_args;
+struct struct_client_args {
+		char client_addr[ADDR_MAXLEN];
+		int socket;
+		char *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
+		char *file_to_send;
+		long len_file;
+};
 
-typedef struct struct_selector{
-	char selector[PATH_MAX];
-	int num_words;
-	char **words;
-} selector;
+typedef struct struct_client_args client_args;
+
+struct struct_selector {
+		char selector[PATH_MAX];
+		int num_words;
+		char **words;
+};
+
+typedef struct struct_selector selector;
+
 
 // children_management.c
-EXPORTED selector request_to_selector( char *input );
+EXPORTED selector request_to_selector(char *input);
 EXPORTED void *thread_sender(void* c);
 EXPORTED void *thread_function(void* c);
-EXPORTED int thread_management(struct client_args *client_info);
-EXPORTED int process_management(struct client_args *client_info);
+EXPORTED int thread_management(client_args *client_info);
+EXPORTED int process_management(client_args *client_info);
 
 // socket.c
 #ifdef _WIN32
@@ -85,8 +86,8 @@ EXPORTED SOCKET open_socket();
 EXPORTED int listen_descriptor(SOCKET);
 #else
 int SERVER_SOCKET; // the server socket's file descriptor
-EXPORTED int open_socket();
-EXPORTED int listen_descriptor(int);
+int open_socket();
+int listen_descriptor();
 #endif
 
 EXPORTED int check_security_path();
@@ -121,16 +122,16 @@ EXPORTED void log_management();
 #else
 #define S_ROOT_PATH "./"
 #endif
-#define TEXT_0 "text/" // vale per .txt .conf .c .py ...
-#define HTML_h "text/html"
-#define GIF_g "image/gif"
-#define IMAGE_I "image/" // vale per .jpg
-#define DIR_1 "inode/directory"
-#define EMPTY_0 "empty" // file empty, we use 0 for defoult
-#define GOPHER_1 "application/gopher"
-#define MAC_4 "application/mac"
-#define APPLICATION_9 "application/"
-#define AUDIO_s "audio/"
-#define MULTIPART_M "multipart/mixed"
+#define TEXT_0         "text/" // vale per .txt .conf .c .py ...
+#define HTML_h         "text/html"
+#define GIF_g          "image/gif"
+#define IMAGE_I        "image/" // vale per .jpg
+#define DIR_1          "inode/directory"
+#define EMPTY_0        "inode/x-empty" // file empty, we use 0 for defoult
+#define GOPHER_1       "application/gopher"
+#define MAC_4          "application/mac"
+#define APPLICATION_9  "application/"
+#define AUDIO_s        "audio/"
+#define MULTIPART_M    "multipart/mixed"
 
 #endif

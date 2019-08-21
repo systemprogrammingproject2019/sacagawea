@@ -107,42 +107,33 @@ selector request_to_selector(char *input){
 
 // this fuction is the real management of the client responce with thread as son
 void *thread_function(void* c){
+#ifdef _WIN32
+	return;
+#else
 	// declare a variable of STRUCT client_args
 	client_args *client_info;
 	client_info = (client_args*) c;
 	
 	char type;
 	int check;
-	int read_bytes = 0;
-	
-	#ifdef _WIN32
-	SOCKET sd;
-	#else
-	int sd;
-	#endif
-
-	sd = (*client_info).socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
+	int read_bytes=0;
+	int sd = (*client_info).socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
-	char *input = malloc(PATH_MAX*sizeof(char));
+	char *input = malloc( PATH_MAX*sizeof(char) );
 
 	/* Receive data on this connection until the recv \n of finish line.
 	If any other failure occurs, we will close the connection.    */
-	int keep_going = true;
-	while (keep_going) {
-		if ((PATH_MAX - read_bytes) <= 0) {
+	int stop=true;
+	while( stop ){
+		if(  (PATH_MAX-read_bytes) <= 0 ){
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
-			#ifdef _WIN32
-			closesocket(sd);
-			ExitThread(NULL);
-			#else
 			close(sd);
 			pthread_exit(NULL);
-			#endif
 		}
 		check = recv(sd, &input[read_bytes], (PATH_MAX-read_bytes), 0);
-		if (check < 0) {
-			if (errno != EWOULDBLOCK) {
+		if (check < 0){
+			if (errno != EWOULDBLOCK){
 				// if recv fail the error can be server side or client side so we close the connection and go on 
 				fprintf( stderr,"recv() of sd - %d, failed: %s we close that connection\n", sd, strerror(errno) );
 				return;
@@ -154,24 +145,16 @@ void *thread_function(void* c){
 		if (check == 0){
 			printf("	Connection closed %d\n", sd );
 			// client close the connection so we can stop the thread
-			#ifdef _WIN32
-			closesocket(sd);
-			ExitThread(NULL);
-			#else
 			close(sd);
 			pthread_exit(NULL);
-			#endif
 		}
 		if( check > 0){
 			read_bytes += check;
 			if(input[ (read_bytes-1) ]=='\n'){
-				keep_going = false;
+				stop = false;
 			}
 		}
 	}
-#ifdef _WIN32
-	return;
-#else
 	// if we are there, print that message
 	//fprintf( stdout, "READ: %s%d bytes at %p\n", input, check, &input );
 
@@ -238,9 +221,7 @@ int thread_management(client_args *client_info) {
 	tData = (client_args*) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
 			sizeof(client_args));
 
-	// MinGW uses _beginthreadex instead of CreateThread because
-	// CreateThread sets up the stack wrongly
-	hThread = _beginthreadex( 
+	hThread = CreateThread( 
 			NULL,                   // default security attributes
 			0,                      // use default stack size  
 			thread_function,       // thread function name

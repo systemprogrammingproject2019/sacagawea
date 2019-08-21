@@ -187,6 +187,7 @@ int main(int argc, char *argv[]){
 	}
 #endif
 
+#ifdef _WIN32
 	/* Loop waiting for incoming connects or for incoming data
 		on any of the connected sockets.   */
 	do {
@@ -194,6 +195,13 @@ int main(int argc, char *argv[]){
 			break;
 		}
 	} while(true);
+#else
+	do {
+		if (listen_descriptor()) {
+			break;
+		}
+	} while(true);
+#endif
 
 	// we are out of select loop so we have to close all sockets
 #ifdef _WIN32

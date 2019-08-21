@@ -6,6 +6,8 @@
 
 #ifndef _WIN32
 #include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <arpa/inet.h>
 #endif
 
 #include "sacagalib.h"
@@ -90,36 +92,7 @@ void config_handler(int signum){
 			fprintf( stderr,"shutdown() failed: %s\n", (char*) strerror(errno) );
 			exit(5);
 		}
-		// now we accept all remaining connected comunication which did 3WHS
-		int new_s;
-		do{
-			new_s = accept(SERVER_SOCKET, NULL, NULL);
-			fprintf( stdout ,"new_s = %d\n", new_s );
-			if (new_s < 0){
-				/* remember, we do a NON BLOCK socket, so if we have finished the waiting connections,
-				accept will return -1 with EWOULDBLOCK errno */
-				if (errno != EWOULDBLOCK){
-					fprintf( stderr,"accept() failed: %s\n", (char*) strerror(errno) );
-					exit(5);
-				}else{
-					break;
-				}
-			}else if(new_s > 0){
-				/* add the descriptor associated at new connection at fds_set, then select can 
-				controll when is readable */
-				FD_SET(new_s, &fds_set);
-			}
-		} while ( new_s != 0);
-
-		// close definitely the listen server socket
-		close(SERVER_SOCKET);
-		// Leave the closed socket from fds_set 
-		FD_CLR(SERVER_SOCKET, &fds_set);
-		if( SERVER_SOCKET == max_num_s){
-			while ( FD_ISSET(max_num_s , &fds_set) == false ){
-				max_num_s--;
-			}
-		}
+		int EX_SERVER_SOCKET = SERVER_SOCKET;
 		// Open the new listen socket at new PORT
 		open_socket();
 		// Add new socket at set of socket to select
@@ -129,6 +102,52 @@ void config_handler(int signum){
 			max_num_s = SERVER_SOCKET;
 		}
 
+		// now we accept all remaining connected comunication which did 3WHS
+		int new_s, client_addr_len;
+		// client_addr to take ip:port of client
+		struct sockaddr_in client_addr;
+		// client_info for save all info of client
+		client_args *client_info;
+		client_info = (client_args*) malloc( sizeof(client_args));
+		memset( client_info, 0, sizeof(client_info));
+
+		do{
+			memset(&client_addr, 0, sizeof(client_addr));
+			client_addr_len = sizeof(client_addr); // save sizeof sockaddr struct becouse accept need it
+			new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
+			if (new_s < 0){
+				if (errno != EWOULDBLOCK){
+					fprintf( stderr,"socket accept() failed: %s\n", strerror(errno) );
+					exit(5);
+				}
+				break;
+			}
+			/* we create a t/p for management the incoming connection, call the right function with (socket , client_addr) as argument */
+			snprintf( client_info->client_addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
+			printf("New connection stabilished at fd - %d from %s\n", new_s, client_info->client_addr);
+			client_info->socket = new_s;
+
+			if ( MODE_CLIENT_PROCESSING == 0){
+				thread_management( client_info );
+			}else{
+				if ( MODE_CLIENT_PROCESSING == 1){
+					process_management( client_info );
+				}else{
+					fprintf( stderr,"WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING );
+					exit(5);
+				}
+			}
+		} while ( new_s != 0);
+
+		// close definitely the listen server socket
+		close( EX_SERVER_SOCKET);
+		// Leave the closed socket from fds_set 
+		FD_CLR( EX_SERVER_SOCKET, &fds_set);
+		if( EX_SERVER_SOCKET == max_num_s){
+			while ( FD_ISSET(max_num_s , &fds_set) == false ){
+				max_num_s--;
+			}
+		}
 	}
 }
 #endif
