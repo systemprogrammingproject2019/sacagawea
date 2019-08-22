@@ -131,7 +131,7 @@ win32server: $(SVR_SOURCES)
 .PHONY: clean lrun wrun linux win32 linuxserver win32server linuxlib win32lib
 
 lrun:
-	cd bin && ./sacagawea.out
+	cd bin && ./sacagawea.out -P 5467
 
 wrun:
 	cd bin && wine ./sacagawea.exe

@@ -27,6 +27,7 @@
 #include "sacagalib.h"
 
 #ifndef _WIN32
+// this fuction send each file in a directory which match "words" in the gopher protocol format.
 void send_content_of_dir( client_args *client_info, selector *client_selector){
 
 	fprintf( stdout , "%s\n" , client_info->path_file);
@@ -35,7 +36,7 @@ void send_content_of_dir( client_args *client_info, selector *client_selector){
 	int j=0;
 	int len_responce;
 	char type;
-	int no_match;
+	int no_match=false;
 	char* responce;
 	char *path_of_subfile;
 	char port_str[6]; // max ex "65000\0"
@@ -109,7 +110,7 @@ void send_content_of_dir( client_args *client_info, selector *client_selector){
 	closedir(folder);
 
 	close( client_info->socket);
-	pthread_exit(NULL);
+	
 }
  
 // This fuction management the thread which have to send the FILE at client
@@ -212,9 +213,9 @@ void *thread_sender( void* c ){
 char type_path(char path[PATH_MAX]){
 
 	// we check the tipe or file with file bash command
-	char command[ (strlen(path)+9) ];
+	char command[ (strlen(path)+10) ];
 	// file with -b option: 
-	strcpy( command, "file -bi "); // 9 for "file -b " + \0 at end
+	strcpy( command, "file -bi "); // 9 for "file -bi " +1 for \0 at end
 	strcat( command, path );
 	FILE* popen_output_stream = popen( command , "r" );
 	if ( popen_output_stream == NULL ){ 

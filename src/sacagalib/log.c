@@ -63,7 +63,7 @@ void log_management() {
 			check = read(pipe_conf[0] , &len_string, sizeof(int));
 			fprintf(stdout, "check bytes in logs pipe: %d\n", check);
 			if( check < 0){
-				if( errno == EWOULDBLOCK ){
+				if( (errno == EWOULDBLOCK) || (errno == EAGAIN) ){
 					fprintf(stdout, "LOGS Process nothing\n");
 					pthread_cond_wait(cond, mutex);
 				}else{
@@ -81,7 +81,13 @@ void log_management() {
 				break;
 			}
 			if( check == 0){
-				pthread_mutex_unlock(mutex);
+				if( (errno == EWOULDBLOCK) || (errno == EAGAIN) ){
+					fprintf(stdout, "LOGS Process nothing\n");
+					pthread_cond_wait(cond, mutex);
+				}else{
+					pthread_mutex_unlock(mutex);
+					return;
+				}
 				fprintf(stdout, "ATTENZIONE\nATTENZIONE\nATTENZIONE\nricorda che a volte da 0 come return di read() della pipe del processo di logs e dovevamo capire se fosse EPIPE (Broken pipe) oppure qualcosa che indica che semplicemente ha letto 0 byte. ::   %s\n", strerror(errno));
 			}
 		}

@@ -149,7 +149,11 @@ int listen_descriptor(SOCKET svr_socket) {
 	SOCKET new_socket, s;
 	int addrlen = sizeof(struct sockaddr_in), num_fd_ready;
 	struct sockaddr_in address;
+	#ifdef _WIN32
 	client_args* client_info = malloc(sizeof(client_args));
+	#else
+	struct client_args* client_info = malloc(sizeof(struct client_args));
+	#endif
 
 	struct timeval timeout;
 	timeout.tv_sec  = 13 * 60;
