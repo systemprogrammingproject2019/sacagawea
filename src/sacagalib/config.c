@@ -21,7 +21,7 @@ int check_if_conf(const char* line) {
 	char* match;
 
 	int port_change = false;
-	printf((S_LINE_READ_FROM_CONF_FILE " %s"), line);
+	printf((S_LINE_READ_FROM_CONF_FILE), line);
 	// if line is type "mode [t/p]"
 	if (strlen(match = do_regex(("^" S_MODE "\\s+([tp])"), line))) {
 		char mode;
@@ -92,7 +92,7 @@ char* do_regex(const char* pattern, const char* str) {
 			&erroroffset,          /* for error offset */
 			NULL                   /* use default compile context */
 	);
-	
+
 	/* Compilation failed: print the error message and exit. */
 	if (re == NULL) {
 		PCRE2_UCHAR buffer[256];
@@ -127,7 +127,6 @@ int read_and_check_conf(){
 	FILE *fp;
 	const size_t max_line_size = 100;
 	char line[max_line_size];
-	int keep_going = true;
 	int port_change = false;
 	//open config file and check if an error occured
 	fp = fopen(SACAGAWEACONF_PATH , "r");
@@ -137,10 +136,10 @@ int read_and_check_conf(){
 	}
 
 	//readline or 100 char
-	while (keep_going) {
+	while (true) {
 		if (fgets(line, max_line_size, fp) == NULL) {
 			if (feof(fp)) {
-				keep_going = false;
+				break;
 			} else {
 				fprintf(stderr, S_ERROR_FGETS, strerror(errno));
 				exit(5);

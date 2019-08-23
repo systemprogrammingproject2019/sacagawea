@@ -103,23 +103,27 @@ int open_socket(){
 	/*The socket() API returns a socket descriptor, which represents an endpoint.
 		The statement also identifies that the INET (Internet Protocol) 
 		address family with the TCP transport (SOCK_STREAM) is used for this socket.*/
-	if ( (SERVER_SOCKET = socket(AF_INET, SOCK_STREAM, 0)) < 0 ){
-		fprintf( stderr,"socket failed: %s\n", strerror(errno));
+	if ((SERVER_SOCKET = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
+		write_log(ERROR, "socket failed: %s", strerror(errno));
 	 	exit(5);
+	}
+
+	if (setsockopt(SERVER_SOCKET, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
+    	write_log(ERROR, "setsockopt(SO_REUSEADDR) failed: %s", strerror(errno));
 	}
 
 	/*The ioctl() API allows the local address to be reused when the server is restarted 
 	before the required wait time expires. In this case, it sets the socket to be nonblocking. 
 	All of the sockets for the incoming connections are also nonblocking because they inherit that state from the listening socket. */
-	if ( (ioctl(SERVER_SOCKET, FIONBIO, (char *)&on)) < 0 ){
-		fprintf( stderr,"ioctl failed: %s\n", strerror(errno));
+	if ((ioctl(SERVER_SOCKET, FIONBIO, (char *)&on)) < 0 ) {
+		write_log(ERROR, "ioctl failed: %s", strerror(errno));
 		close(SERVER_SOCKET);
 		exit(5);
 	}
 
 	/* Set max recvbuf to match windows version's */
 	if (setsockopt(SERVER_SOCKET, SOL_SOCKET, SO_RCVBUF, S_SOCK_RECVBUF_LEN, sizeof(S_SOCK_RECVBUF_LEN))) {
-		fprintf(stderr, "setsockopt failed: %s\n", strerror(errno));
+		write_log(ERROR, "setsockopt failed: %s", strerror(errno));
 		exit(5);
 	}
 
@@ -130,14 +134,14 @@ int open_socket(){
 	serv_addr.sin_port = htons( SERVER_PORT );
 
 	// bind to join the unamed socket with sockaddr_in and become named socket
-	if( bind( SERVER_SOCKET , (struct sockaddr*)&serv_addr ,  sizeof(serv_addr)) == -1 ){
-		fprintf( stderr,"bind failed: %s\n", strerror(errno) );
+	if (bind(SERVER_SOCKET, (struct sockaddr*)&serv_addr ,  sizeof(serv_addr)) == -1) {
+		write_log(ERROR, "bind failed: %s\n", strerror(errno));
 		exit(5);
 	}
 
 	/* listen allows the server to accept incoming client connection  */
-	if ( (listen( SERVER_SOCKET, 32)) < 0){
-		fprintf( stderr,"listen failed: %s\n", strerror(errno) );
+	if ((listen(SERVER_SOCKET, 32)) < 0) {
+		write_log(ERROR, "listen failed: %s\n", strerror(errno));
 		exit(5);
 	}
 	return SERVER_SOCKET;
@@ -245,9 +249,9 @@ int listen_descriptor() {
 	// struct defined in sacagawea.h for contain client information
 	client_args *client_info;
 	client_info = (client_args*) malloc( sizeof(client_args));
-	memset( client_info, 0, sizeof(client_info));
-	/* Initialize the timeval struct to 13 minutes.  If no        
-	activity after 13 minutes this program will end.           */
+	memset(client_info, 0, sizeof(client_args));
+	/* Initialize the timeval struct to 13 minutes. If no
+	   activity after 13 minutes this program will end. */
 	timeout.tv_sec  = 13 * 60;
 	timeout.tv_usec = 0;
 
@@ -260,15 +264,15 @@ int listen_descriptor() {
 	/* if errno==EINTR the select is interrupted becouse of sigaction 
 	so we have to repeat select, not exit(5) */
 	if ( (check < 0) && (errno != EINTR) ){
-		fprintf( stderr,"select() failed: %s\n", strerror(errno) );
+		write_log(ERROR, "select() failed: %s\n", strerror(errno) );
 		exit(5);
 	}// Chek if select timed out
 	if (check == 0){
-		printf("select() timed out. End program.\n");
+		write_log(ERROR, "select() timed out. End program.\n");
 		return true;
 	}
 	/* 1 or more descriptors are readable we have to check which they are */
-	num_fd_ready=check;
+	num_fd_ready = check;
 	// for, for check all ready FD in fds_set until, FD are finish or we check all the ready fd
 
 
@@ -276,18 +280,18 @@ int listen_descriptor() {
 	// in realta il for non serve perche prima inserivo anche le nuove connessioni dentro FD_SET cosi
 	// creavo il thread/processo solo quando era effettivamente leggibile, ma non cambiava nulla anzi
 	// mi complicavo la vita a dover creare un dizionario per salvarmi informazioni ecc... dopo lo sistemo
-	for (i=0;  i <= max_num_s && num_fd_ready > 0; ++i){
+	for (i = 0; i <= max_num_s && num_fd_ready > 0; ++i){
 		close_conn = false;
 		// Check to see if the i-esimo descriptor is ready
 		if (FD_ISSET(i, &working_set)){
 			/* if we come there, the descriptor is readable. */
 			num_fd_ready -= 1;
 
-			if (i==SERVER_SOCKET){
+			if (i == SERVER_SOCKET){
 				printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
 				/*Accept all incoming connections that are queued up on the listening socket before we
 				loop back and call select again. */
-				do{
+				do {
 					/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
 					then we have accepted all of them.
 					Any other failure on accept will cause us to end the server.  */
@@ -306,13 +310,13 @@ int listen_descriptor() {
 					printf("New connection stabilished at fd - %d from %s\n", new_s, client_info->client_addr);
 					client_info->socket = new_s;
 
-					if ( MODE_CLIENT_PROCESSING == 0){
-						thread_management( client_info );
-					}else{
-						if ( MODE_CLIENT_PROCESSING == 1){
-							process_management( client_info );
-						}else{
-							fprintf( stderr,"WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING );
+					if (MODE_CLIENT_PROCESSING == 0) {
+						thread_management(client_info);
+					} else {
+						if (MODE_CLIENT_PROCESSING == 1) {
+							process_management(client_info);
+						} else {
+							fprintf( stderr,"WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING);
 							exit(5);
 						}
 					}

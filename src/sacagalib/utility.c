@@ -1,12 +1,17 @@
+#ifndef _WIN32
+#define _GNU_SOURCE
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <dirent.h>
-
 #ifdef _WIN32
 #else
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
@@ -50,7 +55,8 @@ int load_file_memory_and_send_posix(client_args *client_info)
 
 	/* this version use SETLKW with associed lock at couple [i-node,process], so threads share the lock
 	but forked process nope. */
-	fcntl(fd, F_SETLKW, &lck);
+	//fcntl(fd, F_SETLKW, &lck);
+	fcntl(fd, F_OFD_SETLKW, &lck);
 	// now we have the lock "load file in memory"
 	/* initialize the memory for load the file, 
 	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
@@ -71,7 +77,8 @@ int load_file_memory_and_send_posix(client_args *client_info)
 
 	// release lock with F_UNLCK flag and FP FD
 	lck.l_type = F_UNLCK;
-	fcntl(fd, F_SETLK, &lck);
+	//fcntl(fd, F_SETLK, &lck);
+	fcntl(fd, F_OFD_SETLK, &lck);
 
 	fclose(fp);
 	close(fd);

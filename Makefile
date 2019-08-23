@@ -70,7 +70,7 @@ $(BUILD_SL)/sacagalib/children.o: $(LIB_SRC)/children.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
 
 $(BUILD_SL)/sacagalib/utility.o: $(LIB_SRC)/utility.c $(LIB_HEADERS)
-	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
+	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@ -lpthread
 
 $(BUILD_SL)/sacagalib/gopher.o: $(LIB_SRC)/gopher.c $(LIB_HEADERS)
 	$(CC) $(CFLAGS) $(LIB_INC) -c -fpic $< -o $@
@@ -105,7 +105,7 @@ linuxserver: $(SVR_SOURCES)
 	@echo "#####################"
 	@echo 
 
-	$(CC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread -lrt
+	$(CC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread -lrt -lpcre2-8 -lpcre2-posix
 
 	@echo 
 	@echo Linux server built successfully

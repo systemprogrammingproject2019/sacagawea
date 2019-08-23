@@ -103,8 +103,9 @@ EXPORTED void config_handler(int signum);
 // gopher.c
 EXPORTED char type_path(char path[PATH_MAX]);
 
-// log_management.c
+// log.c
 EXPORTED void log_management();
+EXPORTED void write_log(int, const char*, ...);
 
 #define SHARED_MUTEX_MEM "/shared_memory_for_mutex"
 #define SHARED_COND_MEM "/shared_memory_for_cond"
