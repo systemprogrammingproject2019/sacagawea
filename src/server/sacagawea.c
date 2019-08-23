@@ -25,7 +25,8 @@
 #include "sacagalib.h"
 
 int main(int argc, char *argv[]){
-
+	// ciao paolo
+	
 	// chiamo load file in memory per testare se funzionava
 	//load_file_memory_posix( "conf/sacagawea.conf");
 
