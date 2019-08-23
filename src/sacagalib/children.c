@@ -34,7 +34,7 @@ int read_request( int sd, char *input){
 	int stop=true;
 
 	while( stop ){
-		if(  (PATH_MAX-read_bytes) <= 0 ){
+		if ((PATH_MAX-read_bytes) <= 0 ) {
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
 			fprintf( stderr,"recv() of sd - %d, failed: Becouse wrong input, we close that connection\n", sd, strerror(errno) );
 			return true;
@@ -254,7 +254,7 @@ void *thread_function(void* c){
 	client_info->path_file = (char*) malloc( strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1 );
 	strcpy( client_info->path_file, S_ROOT_PATH ); 
 	strcat( client_info->path_file, client_selector.selector );	
-	fprintf(stdout,"PATH+SELECTOR %d bytes: %s\n", strlen(client_info->path_file), client_info->path_file);
+	write_log("PATH+SELECTOR %d bytes: %s", strlen(client_info->path_file), client_info->path_file);
 
 	if ( client_selector.selector[0] == '\0' ){
 		// if selector is empty we send the content of gophermap, who match with words

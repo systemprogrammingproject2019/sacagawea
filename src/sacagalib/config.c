@@ -4,6 +4,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#define PCRE2_CODE_UNIT_WIDTH 8 // every char is 8 bits
+#include <pcre2.h>
+
 #ifndef _WIN32
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -14,65 +17,140 @@
 
 // this function check if a line contain a new config, FINITA
 // RETURN true if change SERVER_PORT, false in all other cases
-int check_if_conf(char line[]){
+int check_if_conf(const char* line) {
+	char* match;
 
-	fprintf(stdout, S_LINE_READ_FROM_CONF_FILE, line);
-	int port_change=false;
+	int port_change = false;
+	printf((S_LINE_READ_FROM_CONF_FILE " %s"), line);
 	// if line is type "mode [t/p]"
-	if( strncmp(S_MODE ,line,4)==0 ){
+	if (strlen(match = do_regex(("^" S_MODE "\\s+([tp])"), line))) {
 		char mode;
-		memcpy( &mode, &line[5], 1 );
-		if(mode == S_MODE_THREADED){
-			MODE_CLIENT_PROCESSING=0;
+		mode = match[0];
+		if (mode == S_MODE_THREADED) {
+			MODE_CLIENT_PROCESSING = 0;
 		}
-		if(mode == S_MODE_MULTIPROCESS){
-			MODE_CLIENT_PROCESSING=1;
+		if (mode == S_MODE_MULTIPROCESS) {
+			MODE_CLIENT_PROCESSING = 1;
 		}
 		//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
-	}
-	
-	// if line is "port XXX" with XXX a port number
-	if( strncmp(S_PORT,line,4)==0 ){
+	} else if (strlen(match = do_regex(("^" S_PORT "\\s+([0-9]{1,5})"), line))) {
+		// if line is "port XXX" with XXX a port number
 		long int val;
-		val=strtol( &line[5], NULL, 10 );
-		if( val != SERVER_PORT){
-			SERVER_PORT=val;
-			port_change=true;
+		val = strtol(match, NULL, 10);
+		if (val != SERVER_PORT && val < 65536) {
+			SERVER_PORT = val;
+			port_change = true;
 		}
 	}
 	return port_change;
+}
+
+// WITHOUT REGEX
+//int check_if_conf(const char* line) {
+	// fprintf(stdout, S_LINE_READ_FROM_CONF_FILE, line);
+	// int port_change=false;
+	// // if line is type "mode [t/p]"
+	// if( strncmp(S_MODE ,line,4)==0 ){
+	// 	char mode;
+	// 	memcpy( &mode, &line[5], 1 );
+	// 	if(mode == S_MODE_THREADED){
+	// 		MODE_CLIENT_PROCESSING=0;
+	// 	}
+	// 	if(mode == S_MODE_MULTIPROCESS){
+	// 		MODE_CLIENT_PROCESSING=1;
+	// 	}
+	// 	//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
+	// }
+	
+	// // if line is "port XXX" with XXX a port number
+	// if( strncmp(S_PORT,line,4)==0 ){
+	// 	long int val;
+	// 	val=strtol( &line[5], NULL, 10 );
+	// 	if( val != SERVER_PORT){
+	// 		SERVER_PORT=val;
+	// 		port_change=true;
+	// 	}
+	// }
+	// return port_change;
+//}
+
+char* do_regex(const char* pattern, const char* str) {
+	PCRE2_SIZE BUFLEN = 256;
+	char *r = malloc(BUFLEN);
+	pcre2_code *re;
+	int errorcode, rc;
+	PCRE2_SIZE *ovector;
+	pcre2_match_data *match_data;
+	PCRE2_SIZE erroroffset;
+
+	/* Compile regular expression */
+	re = pcre2_compile (
+			pattern,               /* the pattern */
+			PCRE2_ZERO_TERMINATED, /* indicates pattern is zero-terminated */
+			0,                     /* default options */
+			&errorcode,            /* for error code */
+			&erroroffset,          /* for error offset */
+			NULL                   /* use default compile context */
+	);
+	
+	/* Compilation failed: print the error message and exit. */
+	if (re == NULL) {
+		PCRE2_UCHAR buffer[256];
+		pcre2_get_error_message(errorcode, buffer, sizeof(buffer));
+		write_log("PCRE2 compilation failed at offset %d: %s", (int)erroroffset, buffer);
+		exit(1);
+	}
+
+	unsigned int offset = 0;
+	unsigned int len = strlen(str);
+	match_data = pcre2_match_data_create(20, NULL);
+	rc = pcre2_match(re, str, -1, 0, 0, match_data, NULL);
+	if (rc <= 0) {
+		// printf("No match!\n");
+	} else {
+		ovector = pcre2_get_ovector_pointer(match_data);
+		// printf("Match succeeded at offset %llu\n", ovector[0]);
+		/* Use ovector to get matched strings */
+		PCRE2_SPTR start = str + ovector[0];
+		PCRE2_SIZE slen = ovector[2] - ovector[0];
+		pcre2_substring_copy_bynumber(match_data, 1, r, &BUFLEN);
+	}
+	pcre2_match_data_free(match_data);
+	pcre2_code_free(re);
+
+	return r;
 }
 
 // this function read the sacagawea.conf line by line  FINITA
 int read_and_check_conf(){
 	// some declaretion 
 	FILE *fp;
-	const size_t max_line_size=100;
+	const size_t max_line_size = 100;
 	char line[max_line_size];
-	int keep_going=true;
-	int port_change=false;
+	int keep_going = true;
+	int port_change = false;
 	//open config file and check if an error occured
-	fp = fopen( SACAGAWEACONF_PATH , "r");
-	if(fp==NULL){
+	fp = fopen(SACAGAWEACONF_PATH , "r");
+	if (fp == NULL) {
 		fprintf(stderr, S_ERROR_FOPEN, (char*) strerror(errno));
 	 	exit(5);
 	}
 
 	//readline or 100 char
-	do{
-		if( fgets( line, max_line_size, fp)==NULL){
-			if(feof(fp)){
-				keep_going=false;
-			}else{
+	while (keep_going) {
+		if (fgets(line, max_line_size, fp) == NULL) {
+			if (feof(fp)) {
+				keep_going = false;
+			} else {
 				fprintf(stderr, S_ERROR_FGETS, strerror(errno));
 				exit(5);
 			}
 		}
 		// check if the line is a config line
-		if( (strlen(line)!=100) && (check_if_conf(line)) ){
-			port_change=true;
+		if ((strlen(line) <= 100) && (check_if_conf(line))) {
+			port_change = true;
 		}
-	}while(keep_going);
+	};
 
 	return port_change;
 }

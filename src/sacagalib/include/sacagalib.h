@@ -95,7 +95,8 @@ EXPORTED int check_security_path();
 EXPORTED int load_file_memory_linux(char *path);
 
 // config.c
-EXPORTED int check_if_conf(char line[]);
+EXPORTED int check_if_conf(const char* line);
+EXPORTED char* do_regex(const char* pattern, const char* str);
 EXPORTED int read_and_check_conf();
 EXPORTED void config_handler(int signum);
 

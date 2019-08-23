@@ -92,20 +92,20 @@ void log_management() {
 			}
 		}
 
-		fp = fopen(SACAGAWEALOGS_PATH , "a");
-		if(fp == NULL){
+		log_file = fopen(SACAGAWEALOGS_PATH , "a");
+		if (log_file == NULL) {
 			fprintf(stderr, S_ERROR_FOPEN, strerror(errno));
 			exit(5);
 		}
 
 		// read pipe and write sacagawea.log, until we got \n
-		read_line = (char*) malloc( (len_string+1)*sizeof(char) );
-		read(pipe_conf[0] , read_line , len_string );
+		read_line = (char*) malloc((len_string+1)*sizeof(char));
+		read(pipe_conf[0] , read_line , len_string);
 		read_line[len_string]='\0';
 		fprintf(stdout, "received: %d, %s",len_string, read_line);
-		fprintf(fp, "%s", read_line);
+		fprintf(log_file, "%s", read_line);
 		
-		fclose(fp);
+		fclose(log_file);
 		free(read_line);
 		pthread_mutex_unlock(mutex);
 #endif
@@ -134,9 +134,9 @@ void write_log(int log_lv, const char* error_string, ...) {
 		char* timestr = asctime(timeinfo);
 		char month[4] = {timestr[0], timestr[1], timestr[2], 0};
 
-		snprintf(log_string, 2048, "%s %02d %02d:%02d:%02d %s: %s\n",
+		snprintf(log_string, 2048, "%_3s %02d %02d:%02d:%02d: %s\n",
 				month, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min,
-				timeinfo->tm_sec, "sagacawea", error_string);
+				timeinfo->tm_sec, error_string);
 		#ifdef _WIN32
 		dwBytesToWrite = strlen(log_string);
 		BOOL bErrorFlag = WriteFile( 

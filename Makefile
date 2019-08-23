@@ -35,10 +35,11 @@ all: linux win32
 # so we always have the original
 
 linux: makedirs linuxlib linuxserver
-	@cp sacagawea.conf bin
+	@cp -u sacagawea.conf bin
 
 win32: makedirs win32lib win32server
-	@cp sacagawea.conf bin
+	@cp -u sacagawea.conf bin
+	@cp -u lib/libpcre2-8-0.dll bin
 
 
 makedirs:
@@ -47,10 +48,10 @@ makedirs:
 	@mkdir -p ${BUILD}/win32/sacagalib
 
 linuxlib: $(LIB_OBJS)
-	$(CC) $(CFLAGS) $(LIB_INC) -shared -o ${BIN}/libsacagawea.so ${LIB_OBJS}
+	$(CC) $(CFLAGS) $(LIB_INC) -shared -o ${BIN}/libsacagawea.so ${LIB_OBJS} -lpcre2-8 -lpcre2-posix
 
 win32lib: $(LIB_WIN_OBJS)
-	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(LIB_WIN_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a -lws2_32
+	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(LIB_WIN_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a -lws2_32 -lpcre2-8 -lpcre2-posix
 
 
 $(BUILD_SL)/sacagalib/sacagalib.o: $(LIB_SRC)/sacagalib.c $(LIB_HEADERS)
@@ -82,7 +83,7 @@ $(BUILD_WIN_SL)/sacagalib/socket.o: $(LIB_SRC)/socket.c $(LIB_HEADERS)
 	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
 
 $(BUILD_WIN_SL)/sacagalib/config.o: $(LIB_SRC)/config.c $(LIB_HEADERS)
-	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
+	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32 -lpcre2-8 -lpcre2-posix
 
 $(BUILD_WIN_SL)/sacagalib/log.o: $(LIB_SRC)/log.c $(LIB_HEADERS)
 	$(WCC) $(CFLAGS) $(LIB_INC) -c -DWIN_EXPORT $< -o $@ -lws2_32
@@ -119,7 +120,7 @@ win32server: $(SVR_SOURCES)
 	@echo "#####################"
 	@echo 
 
-	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea
+	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea -lpcre2-8 -lpcre2-posix
 
 	@echo 
 	@echo Win32 server built successfully
