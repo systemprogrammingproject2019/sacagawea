@@ -106,6 +106,7 @@ EXPORTED char type_path(char path[PATH_MAX]);
 // log.c
 EXPORTED void log_management();
 EXPORTED void write_log(int, const char*, ...);
+EXPORTED char* date_string();
 
 #define SHARED_MUTEX_MEM "/shared_memory_for_mutex"
 #define SHARED_COND_MEM "/shared_memory_for_cond"
@@ -115,9 +116,10 @@ EXPORTED void write_log(int, const char*, ...);
 #define S_MODE              "mode"
 #define S_MODE_THREADED     't'
 #define S_MODE_MULTIPROCESS 'p'
-#define S_PORT "port"
-#define S_ERROR_FOPEN "fopen() failed: %s\n"
-#define S_ERROR_FGETS "fgets() failed: %s\n"
+#define S_PORT              "port"
+
+#define S_ERROR_FOPEN "fopen() failed: %s"
+#define S_ERROR_FGETS "fgets() failed: %s"
 
 // all "file -bi file_path" command output
 #ifdef _WIN32

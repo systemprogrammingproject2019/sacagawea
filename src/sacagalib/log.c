@@ -21,8 +21,10 @@ HFILE* log_file;
 FILE* log_file;
 #endif
 
+const char log_lv_name[][10] = {"ERROR", "WARNING", "INFO", "DEBUG"};
+
 void log_management() {
-	printf("Process for sacagawea.log created\n");
+	write_log(INFO, "Process for sacagawea.log created");
 	char *read_line;
 	int len_string, check;
 
@@ -38,7 +40,7 @@ void log_management() {
 		NULL                    // no attr. template
 	);
 	if (log_file == INVALID_HANDLE_VALUE) {
-		write_log(ERROR, "CreateFileA failed. Unable to open \"%s\".\n", SACAGAWEALOGS_PATH);
+		write_log(ERROR, "CreateFileA failed. Unable to open \"%s\"", SACAGAWEALOGS_PATH);
 		return;
 	}
 	#else
@@ -58,16 +60,16 @@ void log_management() {
 		}*/
 		/* this while check if pipe is readable, or dont contain nothing.
 		if is empty return error EWOULDBLOCK and go again in blocked mode. */
-		while( true ){
+		while (true) {
 			//fprintf(stdout, "read\n", check);
 			check = read(pipe_conf[0] , &len_string, sizeof(int));
-			fprintf(stdout, "check bytes in logs pipe: %d\n", check);
-			if( check < 0){
-				if( (errno == EWOULDBLOCK) || (errno == EAGAIN) ){
-					fprintf(stdout, "LOGS Process nothing\n");
+			write_log(INFO, "check bytes in logs pipe: %d", check);
+			if (check < 0) {
+				if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
+					write_log(INFO, "LOGS Process nothing");
 					pthread_cond_wait(cond, mutex);
-				}else{
-					fprintf(stdout, "LOGS Process terminate\n");
+				} else {
+					write_log(INFO, "LOGS Process terminate");
 					pthread_mutex_destroy(mutex);
 					pthread_cond_destroy(cond);
 					shm_unlink(SHARED_MUTEX_MEM);
@@ -76,19 +78,19 @@ void log_management() {
 					exit(1);
 				}
 			}
-			if( check > 0){
-				fprintf(stdout, "LOGS Process receive something\n");
+			if (check > 0) {
+				write_log(INFO, "LOGS Process receive something");
 				break;
 			}
-			if( check == 0){
-				if( (errno == EWOULDBLOCK) || (errno == EAGAIN) ){
-					fprintf(stdout, "LOGS Process nothing\n");
+			if (check == 0) {
+				if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
+					write_log(INFO, "LOGS Process nothing");
 					pthread_cond_wait(cond, mutex);
-				}else{
+				} else {
 					pthread_mutex_unlock(mutex);
 					return;
 				}
-				fprintf(stdout, "ATTENZIONE\nATTENZIONE\nATTENZIONE\nricorda che a volte da 0 come return di read() della pipe del processo di logs e dovevamo capire se fosse EPIPE (Broken pipe) oppure qualcosa che indica che semplicemente ha letto 0 byte. ::   %s\n", strerror(errno));
+				write_log(INFO, "ATTENZIONE\nATTENZIONE\nATTENZIONE\nricorda che a volte da 0 come return di read() della pipe del processo di logs e dovevamo capire se fosse EPIPE (Broken pipe) oppure qualcosa che indica che semplicemente ha letto 0 byte. ::   %s\n", strerror(errno));
 			}
 		}
 
@@ -99,10 +101,10 @@ void log_management() {
 		}
 
 		// read pipe and write sacagawea.log, until we got \n
-		read_line = (char*) malloc((len_string+1)*sizeof(char));
-		read(pipe_conf[0] , read_line , len_string);
+		read_line = (char*) malloc((len_string+1) * sizeof(char));
+		read(pipe_conf[0], read_line, len_string);
 		read_line[len_string]='\0';
-		fprintf(stdout, "received: %d, %s",len_string, read_line);
+		write_log(INFO, "received: %d, %s",len_string, read_line);
 		fprintf(log_file, "%s", read_line);
 		
 		fclose(log_file);
@@ -124,41 +126,54 @@ void write_log(int log_lv, const char* error_string, ...) {
 	#else
 	#endif
 
-	if (log_lv <= LOG_LEVEL) {
-		char* log_string = malloc(1024);
-		time_t rawtime;
-		struct tm* timeinfo;
-		time(&rawtime);
-		timeinfo = localtime(&rawtime);
+	char* log_string = malloc(1024);
+	char* formatted_error_string = malloc(960);
+	time_t rawtime;
+	struct tm* timeinfo;
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
 
-		char* timestr = asctime(timeinfo);
-		char month[4] = {timestr[0], timestr[1], timestr[2], 0};
+	char* timestr = asctime(timeinfo);
+	char month[4] = {timestr[4], timestr[5], timestr[6], 0};
 
-		snprintf(log_string, 2048, "%_3s %02d %02d:%02d:%02d: %s\n",
-				month, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min,
-				timeinfo->tm_sec, error_string);
-		#ifdef _WIN32
-		dwBytesToWrite = strlen(log_string);
-		BOOL bErrorFlag = WriteFile( 
-				log_file,        // open file handle
-				log_string,      // start of data to write
-				dwBytesToWrite,  // number of bytes to write
-				&dwBytesWritten, // number of bytes that were written
-				NULL             // no overlapped structure
-		);
-		if (FALSE == bErrorFlag) {
-			printf("ERROR: Unable to write to log file.\n");
-		} else if (dwBytesWritten != dwBytesToWrite) {
-				// This is an error because a synchronous write that results in
-				// success (WriteFile returns TRUE) should write all data as
-				// requested. This would not necessarily be the case for
-				// asynchronous writes.
-				printf("Error: dwBytesWritten != dwBytesToWrite\n");
-		}
-		#else
-		vfprintf(stderr, log_string, args);
-		#endif
-		free(log_string);
+	vsnprintf(formatted_error_string, 960, error_string, args);
+
+	char* ds = date_string();
+	if (snprintf(log_string, 1024, "%s %s: %s\n", ds, log_lv_name[log_lv],
+			formatted_error_string) < 0) {
+		write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
 	}
+	free(ds);
+
+	if (log_lv <= WARNING) {
+		fprintf(stderr, log_string);
+	} else if (log_lv <= LOG_LEVEL) {
+		fprintf(stdout, log_string);
+		// return;
+	}
+
+	free(log_string);
+	
 	va_end(args);
+}
+
+// returned string needs to be freed
+char* date_string() {
+	int len_str = 22; // for "[MMM DD YYYY hh:mm:ss]"
+	char* r = malloc(len_str+1);
+
+	time_t rawtime;
+	struct tm* timeinfo;
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	char* timestr = asctime(timeinfo);
+	char month[4] = {timestr[4], timestr[5], timestr[6], 0};
+	if (snprintf(r, len_str+1, "[%s %02d %04d %02d:%02d:%02d]",
+			month, timeinfo->tm_mday, timeinfo->tm_year + 1900, 
+			timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec) < 0) {
+		write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
+		exit(5);
+	}
+	return r;
 }

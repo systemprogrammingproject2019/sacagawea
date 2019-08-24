@@ -21,7 +21,7 @@ int check_if_conf(const char* line) {
 	char* match;
 
 	int port_change = false;
-	printf((S_LINE_READ_FROM_CONF_FILE), line);
+	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
 	// if line is type "mode [t/p]"
 	if (strlen(match = do_regex(("^" S_MODE "\\s+([tp])"), line))) {
 		char mode;
@@ -125,28 +125,35 @@ char* do_regex(const char* pattern, const char* str) {
 int read_and_check_conf(){
 	// some declaretion 
 	FILE *fp;
-	const size_t max_line_size = 100;
+	const size_t max_line_size = 128;
 	char line[max_line_size];
 	int port_change = false;
 	//open config file and check if an error occured
 	fp = fopen(SACAGAWEACONF_PATH , "r");
 	if (fp == NULL) {
-		fprintf(stderr, S_ERROR_FOPEN, (char*) strerror(errno));
+		write_log(ERROR, S_ERROR_FOPEN, (char*) strerror(errno));
 	 	exit(5);
 	}
 
-	//readline or 100 char
+	//readline or max_line_size chars
 	while (true) {
 		if (fgets(line, max_line_size, fp) == NULL) {
 			if (feof(fp)) {
 				break;
 			} else {
-				fprintf(stderr, S_ERROR_FGETS, strerror(errno));
+				write_log(ERROR, S_ERROR_FGETS, strerror(errno));
 				exit(5);
 			}
 		}
+		size_t line_len = strlen(line);
+		if (line[line_len - 1] != '\n') {
+			write_log(WARNING, "Config line too long: %s", line);
+		} else {
+			// replace '\n' with '\0'
+			line[line_len - 1] = '\0';
+		}
 		// check if the line is a config line
-		if ((strlen(line) <= 100) && (check_if_conf(line))) {
+		if ((line_len <= max_line_size) && (check_if_conf(line))) {
 			port_change = true;
 		}
 	};

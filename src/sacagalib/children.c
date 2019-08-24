@@ -142,22 +142,22 @@ int process_management(client_args *client_info) {
 	#else
 
 	int pid;
-	if ( ( pid = fork() ) < 0){
+	if ((pid = fork()) < 0) {
 		// failed fork on server
 	}
-	if( pid == 0){
+	if (pid == 0) {
 		// child who have to management the connection
 		// close server_socket
-		close ( SERVER_SOCKET );
+		close(SERVER_SOCKET);
 		printf("Son spawned ready to serv\n");
 		process_fuction( client_info );
 		printf("Son finish to serv\n");
 		exit(1);
-	}else{
+	} else {
 		// this is the server
 		// close connection and deallocate resourses
-		close( client_info->socket );
-		free( client_info );
+		close(client_info->socket);
+		free(client_info);
 	}
 
 #endif
@@ -171,69 +171,69 @@ selector request_to_selector(char *input){
 	client_selector.num_words=-1; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
 	
 	// check if input start with selector or not
-	if( ( input[0] == '\t' ) || ( input[0] == ' ') || (input[0] == '\n')){ // if not, we don't take it
+	if ((input[0] == '\t') || (input[0] == ' ') || (input[0] == '\n')) { // if not, we don't take it
 		client_selector.selector[0] = '\0' ;
 		read_bytes=0;
-	}else{ // if contain it we take it
+	} else { // if contain it we take it
 		sscanf( input, "%4096s", client_selector.selector);
 		read_bytes = strlen(client_selector.selector);
 	}
 	
-	fprintf( stdout, "\nSELECTOR: %s,%d bytes\n", client_selector.selector , read_bytes );
+	fprintf(stdout, "\nSELECTOR: %s,%d bytes\n", client_selector.selector , read_bytes );
 
 	/* if the client send a tab \t, it means that the selector is followed by words 
 	that need to match with the name of the searched file */
-	if( input[ read_bytes ] == '\t' ){
-		int i=0;
+	if (input[ read_bytes ] == '\t') {
+		int i = 0;
 		client_selector.words = (char **) malloc( 3*sizeof( char *) );
-		do{
+		do {
 			// put this check, becouse if the request contain 2+ consecutive \t or 2+ consecutive ' ' the scanf don't read an empty word.
-			if( (input[read_bytes] == '\t') || (input[read_bytes] == ' ') ){
+			if ((input[read_bytes] == '\t') || (input[read_bytes] == ' ')) {
 				//fprintf( stdout, "CHAR %c\n", input[read_bytes]);
 				read_bytes++;
 				continue;
 			}
 			// realloc check. we do a realloc every 3 words, just for limit overhead of realloc, and don't do every word
 			// first call do a malloc(3) becouse words=NULL after do realloc( 6 ) ... 9, 12 ...
-			if( (i % 3) == 0){
+			if ((i % 3) == 0) {
 				client_selector.words = (char **) realloc(  client_selector.words, (i+3)*sizeof( char *)  );
 			}
 			/* declare a space for word and read it, OPPURE c'è l'opzione %m che passandogli  client_selector.words[i], senza 
 			fare prima la malloc la fa scanf in automatico della grandezza della stringa letta + 1, sarebbe piu efficente dato che 
 			MAX_FILE_NAME è spazio sprecato per parole di piccole len_string */
-			client_selector.words[i] = (char *) malloc( ( (MAX_FILE_NAME+1)*sizeof( char ) ) );
-			sscanf( &input[read_bytes], "%255s", client_selector.words[i]);
+			client_selector.words[i] = (char *) malloc(((MAX_FILE_NAME+1) * sizeof(char)));
+			sscanf(&input[read_bytes], "%255s", client_selector.words[i]);
 			// upgrade read_bytes for check when we finish the client input
-			read_bytes += ( strlen( client_selector.words[i] )  );
-			fprintf( stdout, "WORD %d: %s,%llu bytes\n", i, client_selector.words[i] , strlen(client_selector.words[i]) );
+			read_bytes += (strlen( client_selector.words[i]));
+			fprintf(stdout, "WORD %d: %s,%llu bytes\n", i, client_selector.words[i] , strlen(client_selector.words[i]) );
 			// upgrade the num of words, contained in client_selector
 			client_selector.num_words=i;
 			i++;
 
-		}while( input[read_bytes] != '\n' );
+		} while (input[read_bytes] != '\n');
 	}
 
 	return client_selector;
 }
 
 // this fuction is the real management of the client responce with thread as son
-void *thread_function(void* c){
-	#ifdef _WIN32
-		return;
-	#else
+void *thread_function(void* c) {
+#ifdef _WIN32
+	return;
+#else
 	// declare a variable of STRUCT client_args
 	client_args *client_info;
 	client_info = (client_args*) c;
-	
+
 	char type; // will containt the type of selector
 
 	int sd = (*client_info).socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
-	char *input = malloc( PATH_MAX*sizeof(char) );
+	char *input = malloc(PATH_MAX*sizeof(char));
 
 	// read request from sd ( client socket ) and put in *input, if fail return true otherwise false
-	if( read_request( sd, input) ){
+	if (read_request( sd, input)) {
 		close(sd);
 		pthread_exit(NULL);
 	}
@@ -243,50 +243,50 @@ void *thread_function(void* c){
 
 	// check if the input contain a selector or not
 	selector client_selector;
-	memset( &client_selector, '\0', sizeof(client_selector));
+	memset(&client_selector, '\0', sizeof(client_selector));
 
-	client_selector = request_to_selector( input );
+	client_selector = request_to_selector(input);
 	/* if ( client_selector == NULL ){
 		send( sd, S_ERROR_SELECTOR_REQUEST, strlen(S_ERROR_SELECTOR_REQUEST), 0);
 	} */
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
-	client_info->path_file = (char*) malloc( strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1 );
-	strcpy( client_info->path_file, S_ROOT_PATH ); 
-	strcat( client_info->path_file, client_selector.selector );	
-	write_log("PATH+SELECTOR %d bytes: %s", strlen(client_info->path_file), client_info->path_file);
+	client_info->path_file = (char*) malloc(strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1);
+	strcpy(client_info->path_file, S_ROOT_PATH); 
+	strcat(client_info->path_file, client_selector.selector);
+	write_log(INFO, "PATH+SELECTOR %d bytes: %s", strlen(client_info->path_file), client_info->path_file);
 
-	if ( client_selector.selector[0] == '\0' ){
+	if (client_selector.selector[0] == '\0') {
 		// if selector is empty we send the content of gophermap, who match with words
 		// and the content of ROOT_PATH
-		type = type_path( S_ROOT_PATH );
+		type = type_path(S_ROOT_PATH);
 
-	}else{ /* if we have a selector, we check if is a dir or not.*/
+	} else { /* if we have a selector, we check if is a dir or not.*/
 
 		//	little check for avoid trasversal path	
-		if( check_security_path( client_selector.selector ) ){
-			fprintf ( stdout, "eh eh nice try where u wanna go?\n" );
+		if (check_security_path( client_selector.selector)) {
+			write_log(INFO, "eh eh nice try where u wanna go?");
 			close(sd);
 			pthread_exit(NULL);
 		}// add the gopher root path at selector and check the type of file
-		type = type_path( client_info->path_file );
+		type = type_path(client_info->path_file);
 	}
 	// if is a dir we check the content if match with words 
-	if( type == '1' ){
-		send_content_of_dir( client_info, &client_selector);
+	if (type == '1') {
+		send_content_of_dir(client_info, &client_selector);
 		pthread_exit(NULL);
 	}else{ 
-		if( type == '3' ){ // if is an error send the error message
-			char temp[ ( strlen(client_selector.selector) + 6 ) ]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
-			strcpy( temp, "3\t" ); 
-			strcat( temp, client_selector.selector );
-			strcat( temp, "\n.\n" ); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
-			send( sd, temp, strlen(temp), 0);
+		if (type == '3') { // if is an error send the error message
+			char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
+			strcpy(temp, "3\t"); 
+			strcat(temp, client_selector.selector);
+			strcat(temp, "\n.\n"); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
+			send(sd, temp, strlen(temp), 0);
 			// close socket and thread
 			close(sd);
 			pthread_exit(NULL);
-		}else{ // if is only a file
-			load_file_memory_and_send_posix( client_info );
+		} else { // if is only a file
+			load_file_memory_and_send_posix(client_info);
 		}
 	}
 #endif
@@ -316,7 +316,7 @@ int thread_management(client_args *client_info) {
 
 #else
 	pthread_t tid;
-	print_client_args( client_info );
-	pthread_create(&tid, NULL, thread_function, (void *) client_info );
+	print_client_args(client_info);
+	pthread_create(&tid, NULL, thread_function, (void *) client_info);
 #endif
 }

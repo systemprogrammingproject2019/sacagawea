@@ -36,7 +36,7 @@ SOCKET open_socket() {
 
 	// Initialize Winsock
 	if ((WSAStartup(MAKEWORD(2, 2), &wsaData)) == SOCKET_ERROR) {
-		printf("WSAStartup failed with error: %d\n", WSAGetLastError());
+		write_log(ERROR, "WSAStartup failed with error: %d", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -52,7 +52,7 @@ SOCKET open_socket() {
 	// Resolve the server address and port
 	err = getaddrinfo(NULL, port_to_string, &hints, &result);
 	if (err != 0) {
-		printf("getaddrinfo failed: %d\n", err);
+		write_log(ERROR, "getaddrinfo failed: %d", err);
 		WSACleanup();
 		exit(EXIT_FAILURE);
 	}
@@ -61,7 +61,7 @@ SOCKET open_socket() {
 	// Create a SOCKET for connecting to server
 	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (ListenSocket == INVALID_SOCKET) {
-		printf("socket failed with error: %d", WSAGetLastError());
+		write_log(ERROR, "socket failed with error: %d", WSAGetLastError());
 		freeaddrinfo(result);
 		WSACleanup();
 		exit(EXIT_FAILURE);
@@ -69,7 +69,7 @@ SOCKET open_socket() {
 
 	// Setup the TCP listening socket
 	if ((bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen)) == SOCKET_ERROR) {
-		printf("bind failed with error: %d", WSAGetLastError());
+		write_log(ERROR, "bind failed with error: %d", WSAGetLastError());
 		freeaddrinfo(result);
 		closesocket(ListenSocket);
 		WSACleanup();
@@ -79,7 +79,7 @@ SOCKET open_socket() {
 	freeaddrinfo(result);
 
 	if ((listen(ListenSocket, SOMAXCONN)) == SOCKET_ERROR) {
-		printf("listen failed with error: %d\n", WSAGetLastError());
+		write_log(ERROR, "listen failed with error: %d\n", WSAGetLastError());
 		closesocket(ListenSocket);
 		WSACleanup();
 		exit(EXIT_FAILURE);
@@ -89,7 +89,7 @@ SOCKET open_socket() {
 	// non-block so the application will not block waiting for requests
 	ULONG NonBlock = true;
 	if (ioctlsocket(ListenSocket, FIONBIO, &NonBlock) == SOCKET_ERROR){
-		printf("ioctlsocket failed with error %d\n", WSAGetLastError());
+		write_log(ERROR, "ioctlsocket failed with error %d\n", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -109,8 +109,14 @@ int open_socket(){
 	}
 
 	if (setsockopt(SERVER_SOCKET, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-    	write_log(ERROR, "setsockopt(SO_REUSEADDR) failed: %s", strerror(errno));
+		write_log(ERROR, "setsockopt(SO_REUSEADDR) failed: %s", strerror(errno));
 	}
+
+#ifdef SO_REUSEPORT
+	if (setsockopt(SERVER_SOCKET, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int)) < 0) {
+		write_log(ERROR, "setsockopt(SO_REUSEPORT) failed: %s", strerror(errno));
+	}
+#endif
 
 	/*The ioctl() API allows the local address to be reused when the server is restarted 
 	before the required wait time expires. In this case, it sets the socket to be nonblocking. 
@@ -184,7 +190,7 @@ int listen_descriptor(SOCKET svr_socket) {
 
 	//wait for an activity on any of the sockets, timeout is NULL , so wait indefinitely
 	if ((num_fd_ready = select(0, &working_set, NULL, NULL, &timeout)) == SOCKET_ERROR) {
-		printf("select failed with error: %d\n", WSAGetLastError());
+		write_log(ERROR, "select failed with error: %d\n", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -208,7 +214,7 @@ int listen_descriptor(SOCKET svr_socket) {
 					if ((new_socket = accept(svr_socket, &address, &address_len)) == SOCKET_ERROR){
 						int e = WSAGetLastError();
 						if (e != WSAEWOULDBLOCK) {
-							fprintf(stderr, "accept failed with error: %d\n", e);
+							write_log(ERROR, "accept failed with error: %d\n", e);
 						}
 						break;
 					}
@@ -225,7 +231,7 @@ int listen_descriptor(SOCKET svr_socket) {
 						if (MODE_CLIENT_PROCESSING == 1){
 							process_management(client_info);
 						}else{
-							fprintf( stderr,"WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING );
+							write_log(ERROR, "WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING );
 							exit(5);
 						}
 					}
@@ -256,18 +262,18 @@ int listen_descriptor() {
 	timeout.tv_usec = 0;
 
 	/* create a copy of fds_set called working_set, is a FD_SET to work on  */
-	memcpy( &working_set, &fds_set, sizeof(fds_set));
+	memcpy(&working_set, &fds_set, sizeof(fds_set));
 
 	// start select and check if failed
-	printf("Waiting on select()...\n");
+	write_log(INFO, "Waiting on select()...");
 	check = select( max_num_s+1, &working_set, NULL, NULL, &timeout);
 	/* if errno==EINTR the select is interrupted becouse of sigaction 
 	so we have to repeat select, not exit(5) */
-	if ( (check < 0) && (errno != EINTR) ){
+	if ((check < 0) && (errno != EINTR)) {
 		write_log(ERROR, "select() failed: %s\n", strerror(errno) );
 		exit(5);
 	}// Chek if select timed out
-	if (check == 0){
+	if (check == 0) {
 		write_log(ERROR, "select() timed out. End program.\n");
 		return true;
 	}
@@ -280,7 +286,7 @@ int listen_descriptor() {
 	// in realta il for non serve perche prima inserivo anche le nuove connessioni dentro FD_SET cosi
 	// creavo il thread/processo solo quando era effettivamente leggibile, ma non cambiava nulla anzi
 	// mi complicavo la vita a dover creare un dizionario per salvarmi informazioni ecc... dopo lo sistemo
-	for (i = 0; i <= max_num_s && num_fd_ready > 0; ++i){
+	for (i = 0; i <= max_num_s && num_fd_ready > 0; ++i) {
 		close_conn = false;
 		// Check to see if the i-esimo descriptor is ready
 		if (FD_ISSET(i, &working_set)){
@@ -298,16 +304,16 @@ int listen_descriptor() {
 					memset(&client_addr, 0, sizeof(client_addr));
 					client_addr_len = sizeof(client_addr); // save sizeof sockaddr struct becouse accept need it
 					new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
-					if (new_s < 0){
-						if (errno != EWOULDBLOCK){
-							fprintf( stderr,"socket accept() failed: %s\n", strerror(errno) );
+					if (new_s < 0) {
+						if (errno != EWOULDBLOCK) {
+							write_log(ERROR, "socket accept() failed: %s\n", strerror(errno) );
 							exit(5);
 						}
 						break;
 					}
 					/* we create a t/p for management the incoming connection, call the right function with (socket , client_addr) as argument */
-					snprintf( client_info->client_addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-					printf("New connection stabilished at fd - %d from %s\n", new_s, client_info->client_addr);
+					snprintf(client_info->client_addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
+					write_log(INFO, "New connection stabilished at fd - %d from %s", new_s, client_info->client_addr);
 					client_info->socket = new_s;
 
 					if (MODE_CLIENT_PROCESSING == 0) {
@@ -316,12 +322,12 @@ int listen_descriptor() {
 						if (MODE_CLIENT_PROCESSING == 1) {
 							process_management(client_info);
 						} else {
-							fprintf( stderr,"WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING);
+							write_log(ERROR, "Multithread/multiprocess mode not set correctly");
 							exit(5);
 						}
 					}
 
-				}while (new_s != -1);
+				} while (new_s != -1);
 					
 			}
 		} // End of select loop

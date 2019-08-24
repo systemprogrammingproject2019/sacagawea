@@ -24,21 +24,17 @@
 #include "sacagalib.h"
 
 #ifndef _WIN32
-int load_file_memory_and_send_posix(client_args *client_info)
-{
-
+int load_file_memory_and_send_posix(client_args *client_info) {
 	// open get file descriptor associated to file
 	int fd = open(client_info->path_file, O_RDWR);
-	if (fd < 0)
-	{
-		fprintf(stderr, "open() failed: %s\n", strerror(errno));
+	if (fd < 0) {
+		write_log(ERROR, "open() failed: %s\n", strerror(errno));
 		exit(5);
 	}
 	// declare struct for 3th argument for fcntl and memset it to 0
 	struct flock lck;
-	if (memset(&lck, 0, sizeof(lck)) == NULL)
-	{
-		fprintf(stderr, "memset() failed: %s\n", strerror(errno));
+	if (memset(&lck, 0, sizeof(lck)) == NULL) {
+		write_log(ERROR, "memset() failed: %s\n", strerror(errno));
 		exit(5);
 	}
 
@@ -61,9 +57,8 @@ int load_file_memory_and_send_posix(client_args *client_info)
 	/* initialize the memory for load the file, 
 	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
 	FILE *fp = fdopen(fd, "r");
-	if (fp == NULL)
-	{
-		fprintf(stderr, "fdopen() failed: %s\n", strerror(errno));
+	if (fp == NULL) {
+		write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
 		exit(5);
 	}
 	fseek(fp, 0, SEEK_END);
@@ -89,20 +84,17 @@ int load_file_memory_and_send_posix(client_args *client_info)
 }
 
 // VERSIONE LINUX, NON POSIX dovremmo chiedere al prof se si può usare ma non credo
-int load_file_memory_linux(char *path)
-{
+int load_file_memory_linux(char *path) {
 	// open get file descriptor associated to file
 	int fd = open(path, O_RDWR);
-	if (fd < 0)
-	{
-		fprintf(stderr, "fdopen() failed: %s\n", strerror(errno));
+	if (fd < 0) {
+		write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
 		exit(5);
 	}
 	// declare struct for 3th argument for fcntl and memset it to 0
 	struct flock lck;
-	if (memset(&lck, 0, sizeof(lck)) == NULL)
-	{
-		fprintf(stderr, "memset() failed: %s\n", strerror(errno));
+	if (memset(&lck, 0, sizeof(lck)) == NULL) {
+		write_log(ERROR, "memset() failed: %s\n", strerror(errno));
 		exit(5);
 	}
 	// F_WRLCK mean exclusive lock and not shared lock
@@ -133,9 +125,8 @@ int load_file_memory_linux(char *path)
 	/* initialize the memory for load the file, 
 	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
 	FILE *fp = fdopen(fd, "r");
-	if (fp == NULL)
-	{
-		fprintf(stderr, "fdopen() failed: %s\n", strerror(errno));
+	if (fp == NULL) {
+		write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
 		exit(5);
 	}
 	fseek(fp, 0, SEEK_END);
@@ -167,27 +158,20 @@ int load_file_memory_linux(char *path)
 	free(file_content);
 }
 
-int check_security_path(char path[PATH_MAX])
-{
+int check_security_path(char path[PATH_MAX]) {
 	/* le cose qui son 2
 	1 o facciamo un array di word globale con le parole non accettate
 	2 lasciamo stare tanto giusto ".." è da scartare, e teoricamente anche i ".." in UTF a 16 bits 32, non ricordo 
 	quanti erano */
 	int i = 0;
 	int cont = 0;
-	for (i = 0; i < PATH_MAX; ++i)
-	{
-		if (path[i] == '.')
-		{
+	for (i = 0; i < PATH_MAX; ++i) {
+		if (path[i] == '.') {
 			cont++;
-		}
-		else
-		{
+		} else {
 			cont = 0;
 		}
-
-		if (cont == 2)
-		{
+		if (cont == 2) {
 			return 1;
 		}
 	}

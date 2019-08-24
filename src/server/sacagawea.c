@@ -38,27 +38,27 @@ int main(int argc, char *argv[]){
 		switch (c) {
 			case 'p':
 				MODE_CLIENT_PROCESSING = 1;
-				fprintf(stdout,"mode change p: %d\n", MODE_CLIENT_PROCESSING);
+				write_log(INFO, "mode change p: %d", MODE_CLIENT_PROCESSING);
 				break;
 
 			case 'P':
 				SERVER_PORT = atoi(optarg);
-				fprintf(stdout, "port change: %d\n", SERVER_PORT);
+				write_log(INFO, "port change: %d", SERVER_PORT);
 				break;
 
 			case 't':
 				MODE_CLIENT_PROCESSING = 0;
-				fprintf(stdout, "mode change t: %d\n", MODE_CLIENT_PROCESSING);
+				write_log(INFO, "mode change t: %d", MODE_CLIENT_PROCESSING);
 				break;
 
 			case '?':
-				fprintf(stdout, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to process 1 client connection]" );
+				write_log(INFO, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to process 1 client connection]" );
 				exit(20);
 				break;
 		}
 	}
 
-	fprintf(stdout, "Server port: %d, mode: %s\n",
+	write_log(INFO, "Server port: %d, mode: %s",
 			SERVER_PORT, MODE_CLIENT_PROCESSING?"multiprocess":"multithreaded");
 
 #ifndef _WIN32
@@ -78,31 +78,31 @@ int main(int argc, char *argv[]){
 	/* shm_open open the SHARED_MUTEX_MEM or create it like a file, indeed mutex_d is a descriptor */
 	mutex_d = shm_open( SHARED_MUTEX_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
 	if (mutex_d < 0) {
-		fprintf( stderr,"System call shm_open() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	if (ftruncate(mutex_d, sizeof(pthread_mutex_t)) == -1) {
-		fprintf( stderr,"System call ftruncate() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	mutex = (pthread_mutex_t *)mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, mutex_d, 0);
 	if (mutex == MAP_FAILED) {
-		fprintf( stderr,"System call mmap() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
 	 	exit(5);
 	} 
 	/* shm_open open the SHARED_COND_MEM or create it like a file, indeed cond_d is a descriptor */
 	cond_d = shm_open( SHARED_COND_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
 	if (cond_d < 0) {
-		fprintf( stderr,"System call shm_open() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	if (ftruncate(cond_d, sizeof(pthread_mutex_t)) == -1) {
-		fprintf( stderr,"System call ftruncate() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	cond = (pthread_cond_t *)mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, cond_d, 0);
 	if (cond == MAP_FAILED) {
-		fprintf( stderr,"System call mmap() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	/* A condition variable/mutex attribute object (attr) allows you to manage the characteristics
@@ -125,22 +125,22 @@ int main(int argc, char *argv[]){
 #ifdef _WIN32
 #else
 	if ( pipe(pipe_conf)==-1 ){ 
-		fprintf( stderr,"System call pipe() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call pipe() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	/* set NON-BLOCKING read pipe, becouse sacalogs don't have to go in blocked mode
 	while try read pipe */
 	if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) < 0){
-		fprintf( stderr,"System call fcntl() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call fcntl() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 #endif
 	// now create the process
 #ifdef _WIN32
 #else
-	pid=fork();
+	pid = fork();
 	if (pid < 0){
-		fprintf( stderr,"System call fork() failed because of %s", strerror(errno));
+		write_log(ERROR, "System call fork() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	if (pid == 0){ /* child process */
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]){
 	}
 	/* server process "father" */
 	// close read pipe
-	close( pipe_conf[0] );
+	close(pipe_conf[0]);
 	// Creating sigaction for SIGHUP
 	struct sigaction new_action;
 	/* Block other SIGHUP signals while handler runs. */
@@ -167,8 +167,8 @@ int main(int argc, char *argv[]){
 	the system call is restarted and can give EINTR error if fail */ 
 	new_action.sa_flags = SA_RESTART;
 	/* The sigaction() API change the action taken by a process on receipt of SIGHUP signal. */
-	if( sigaction (SIGHUP, &new_action, NULL) < 0 ){
-		fprintf( stderr,"System call sigaction() failed because of %s", strerror(errno));
+	if (sigaction (SIGHUP, &new_action, NULL) < 0) {
+		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 #endif
@@ -183,7 +183,7 @@ int main(int argc, char *argv[]){
 	FD_SET( SERVER_SOCKET, &fds_set);
 	//per controlare roba da me "non eliminare"
 	for (int i=0; i <= max_num_s ; ++i){
-		fprintf( stdout,"i: %d  is set:  %d\n",i,FD_ISSET(i, &fds_set));
+		write_log(INFO, "i: %d  is set:  %d",i,FD_ISSET(i, &fds_set));
 	}
 #endif
 

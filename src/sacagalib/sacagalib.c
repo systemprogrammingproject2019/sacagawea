@@ -32,16 +32,16 @@ inserire path_of_dir come argomento del selector.
 se passa un path di 4096 ci sta un buffer overflow.
  */
 
-void print_client_args( client_args *client){
-	fprintf( stdout, "SOCKET: %d\nIP:PORT: %s\n", client->socket, client->client_addr );
+void print_client_args(client_args *client) {
+	write_log(INFO, "SOCKET: %d\nIP:PORT: %s\n", client->socket, client->client_addr );
 }
 
 // this fuction check if string d_name containt at some position the string word
 // es d_name=ciao_mario  word=mar  match
-int check_not_match( char d_name[PATH_MAX+1], char *word){
-	int i=0;
-	for( i=0; i< strlen( d_name ); i++){
-		if ( strncmp( &d_name[i], word, strlen(word) ) == 0){
+int check_not_match(char d_name[PATH_MAX+1], char *word) {
+	int i = 0;
+	for (i = 0; i< strlen( d_name ); i++) {
+		if (strncmp(&d_name[i], word, strlen(word) ) == 0) {
 			return false;
 		}
 	}
