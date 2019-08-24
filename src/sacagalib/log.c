@@ -90,7 +90,7 @@ void log_management() {
 					pthread_mutex_unlock(mutex);
 					return;
 				}
-				write_log(INFO, "ATTENZIONE\nATTENZIONE\nATTENZIONE\nricorda che a volte da 0 come return di read() della pipe del processo di logs e dovevamo capire se fosse EPIPE (Broken pipe) oppure qualcosa che indica che semplicemente ha letto 0 byte. ::   %s\n", strerror(errno));
+				write_log(INFO, "ATTENZIONE\nATTENZIONE\nATTENZIONE\nricorda che a volte da 0 come return di read() della pipe del processo di logs e dovevamo capire se fosse EPIPE (Broken pipe) oppure qualcosa che indica che semplicemente ha letto 0 byte. ::   %s", strerror(errno));
 			}
 		}
 
@@ -127,18 +127,12 @@ void write_log(int log_lv, const char* error_string, ...) {
 	#endif
 
 	char* log_string = malloc(1024);
-	char* formatted_error_string = malloc(960);
-	time_t rawtime;
-	struct tm* timeinfo;
-	time(&rawtime);
-	timeinfo = localtime(&rawtime);
-
-	char* timestr = asctime(timeinfo);
-	char month[4] = {timestr[4], timestr[5], timestr[6], 0};
-
-	vsnprintf(formatted_error_string, 960, error_string, args);
-
 	char* ds = date_string();
+	char* formatted_error_string = malloc(1024 - strlen(date_string));
+
+	vsnprintf(formatted_error_string, 1024 - strlen(date_string),
+			error_string, args);
+
 	if (snprintf(log_string, 1024, "%s %s: %s\n", ds, log_lv_name[log_lv],
 			formatted_error_string) < 0) {
 		write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
@@ -153,13 +147,13 @@ void write_log(int log_lv, const char* error_string, ...) {
 	}
 
 	free(log_string);
-	
+
 	va_end(args);
 }
 
 // returned string needs to be freed
 char* date_string() {
-	int len_str = 22; // for "[MMM DD YYYY hh:mm:ss]"
+	size_t len_str = 22; // for "[MMM DD YYYY hh:mm:ss]"
 	char* r = malloc(len_str+1);
 
 	time_t rawtime;

@@ -122,7 +122,7 @@ char* do_regex(const char* pattern, const char* str) {
 }
 
 // this function read the sacagawea.conf line by line  FINITA
-int read_and_check_conf(){
+int read_and_check_conf() {
 	// some declaretion 
 	FILE *fp;
 	const size_t max_line_size = 128;
@@ -164,16 +164,16 @@ int read_and_check_conf(){
 #ifndef _WIN32
 // check this fuction
 // this function is called when SIGHUP coming 
-void config_handler(int signum){
+void config_handler(int signum) {
 	/* Check sagacawea.conf, if the return's value is true the socket SERVER_PORT 
 	change so we have to close the socket finish the instaured connection
 	and restart the socket with the new SERVER_PORT */
-	if( read_and_check_conf() ){
-		fprintf(stdout,"SERVER_SOCKET CHANGE %d\n",SERVER_SOCKET);
+	if (read_and_check_conf()) {
+		write_log(INFO, "SERVER_SOCKET CHANGE %d",SERVER_SOCKET);
 		/* shutdown with SHUT_WR stop the socket response, he don't send data anymore on that socket.
 		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */
-		if ( shutdown(SERVER_SOCKET, SHUT_WR) < 0 ){
-			fprintf( stderr,"shutdown() failed: %s\n", (char*) strerror(errno) );
+		if (shutdown(SERVER_SOCKET, SHUT_WR) < 0) {
+			write_log(ERROR, "shutdown() failed: %s", (char*) strerror(errno));
 			exit(5);
 		}
 		int EX_SERVER_SOCKET = SERVER_SOCKET;
@@ -182,7 +182,7 @@ void config_handler(int signum){
 		// Add new socket at set of socket to select
 		FD_SET(SERVER_SOCKET, &fds_set);
 		// in case, set the new max descriptor 
-		if (SERVER_SOCKET > max_num_s){  
+		if (SERVER_SOCKET > max_num_s) {  
 			max_num_s = SERVER_SOCKET;
 		}
 
@@ -192,43 +192,43 @@ void config_handler(int signum){
 		struct sockaddr_in client_addr;
 		// client_info for save all info of client
 		client_args *client_info;
-		client_info = (client_args*) malloc( sizeof(client_args));
-		memset( client_info, 0, sizeof(client_info));
+		client_info = (client_args*) malloc(sizeof(client_args));
+		memset(client_info, 0, sizeof(client_info));
 
-		do{
+		do {
 			memset(&client_addr, 0, sizeof(client_addr));
 			client_addr_len = sizeof(client_addr); // save sizeof sockaddr struct becouse accept need it
 			new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
 			if (new_s < 0){
 				if (errno != EWOULDBLOCK){
-					fprintf( stderr,"socket accept() failed: %s\n", strerror(errno) );
+					write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
 					exit(5);
 				}
 				break;
 			}
 			/* we create a t/p for management the incoming connection, call the right function with (socket , client_addr) as argument */
 			snprintf( client_info->client_addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-			printf("New connection stabilished at fd - %d from %s\n", new_s, client_info->client_addr);
+			write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->client_addr);
 			client_info->socket = new_s;
 
-			if ( MODE_CLIENT_PROCESSING == 0){
-				thread_management( client_info );
-			}else{
-				if ( MODE_CLIENT_PROCESSING == 1){
-					process_management( client_info );
-				}else{
-					fprintf( stderr,"WRONG MODE PLS CHECK: %d\n", MODE_CLIENT_PROCESSING );
+			if (MODE_CLIENT_PROCESSING == 0) {
+				thread_management(client_info);
+			} else {
+				if (MODE_CLIENT_PROCESSING == 1) {
+					process_management(client_info);
+				} else {
+					write_log(ERROR, "WRONG MODE PLS CHECK: %d", MODE_CLIENT_PROCESSING );
 					exit(5);
 				}
 			}
 		} while ( new_s != 0);
 
 		// close definitely the listen server socket
-		close( EX_SERVER_SOCKET);
+		close(EX_SERVER_SOCKET);
 		// Leave the closed socket from fds_set 
-		FD_CLR( EX_SERVER_SOCKET, &fds_set);
-		if( EX_SERVER_SOCKET == max_num_s){
-			while ( FD_ISSET(max_num_s , &fds_set) == false ){
+		FD_CLR(EX_SERVER_SOCKET, &fds_set);
+		if( EX_SERVER_SOCKET == max_num_s) {
+			while (FD_ISSET(max_num_s , &fds_set) == false) {
 				max_num_s--;
 			}
 		}

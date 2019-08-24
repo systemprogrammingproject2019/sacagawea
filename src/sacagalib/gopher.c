@@ -213,7 +213,7 @@ void *thread_sender(void* c) {
 
 // this function take a path as argument and return the gopher char associated.
 // in the Gopher.md u can see all gopher char and the translate
-char type_path(char path[PATH_MAX]){
+char type_path(char path[PATH_MAX]) {
 
 	// we check the tipe or file with file bash command
 	char command[(strlen(path)+10)];
@@ -221,7 +221,7 @@ char type_path(char path[PATH_MAX]){
 	strcpy(command, "file -bi "); // 9 for "file -bi " +1 for \0 at end
 	strcat(command, path);
 	FILE* popen_output_stream = popen(command , "r");
-	if (popen_output_stream == NULL){ 
+	if (popen_output_stream == NULL) { 
 		write_log(ERROR,"popen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
