@@ -48,7 +48,7 @@ makedirs:
 	@mkdir -p ${BUILD}/win32/sacagalib
 
 linuxlib: $(LIB_OBJS)
-	$(CC) $(CFLAGS) $(LIB_INC) -shared -o ${BIN}/libsacagawea.so ${LIB_OBJS} -lpcre2-8 -lpcre2-posix
+	$(CC) $(CFLAGS) $(LIB_INC) -shared -o ${BIN}/libsacagawea.so ${LIB_OBJS}
 
 win32lib: $(LIB_WIN_OBJS)
 	$(WCC) $(CFLAGS) -shared -o ${BIN}/sacagawea.dll $(LIB_WIN_OBJS) -Wl,--out-implib,$(BUILD)/win32/sacagawea_dll.a -lws2_32 -lpcre2-8 -lpcre2-posix

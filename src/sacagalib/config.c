@@ -4,10 +4,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef _WIN32
 #define PCRE2_CODE_UNIT_WIDTH 8 // every char is 8 bits
 #include <pcre2.h>
-
-#ifndef _WIN32
+#else
+#include <regex.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
@@ -23,7 +24,7 @@ int check_if_conf(const char* line) {
 	int port_change = false;
 	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
 	// if line is type "mode [t/p]"
-	if (strlen(match = do_regex(("^" S_MODE "\\s+([tp])"), line))) {
+	if (strlen(match = do_regex(("^" S_MODE "[[:space:]]+([tp])"), line))) {
 		char mode;
 		mode = match[0];
 		if (mode == S_MODE_THREADED) {
@@ -33,7 +34,7 @@ int check_if_conf(const char* line) {
 			MODE_CLIENT_PROCESSING = 1;
 		}
 		//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
-	} else if (strlen(match = do_regex(("^" S_PORT "\\s+([0-9]{1,5})"), line))) {
+	} else if (strlen(match = do_regex(("^" S_PORT "[[:space:]]+([0-9]+)"), line))) {
 		// if line is "port XXX" with XXX a port number
 		long int val;
 		val = strtol(match, NULL, 10);
@@ -75,6 +76,7 @@ int check_if_conf(const char* line) {
 //}
 
 char* do_regex(const char* pattern, const char* str) {
+#ifdef _WIN32
 	PCRE2_SIZE BUFLEN = 256;
 	char *r = malloc(BUFLEN);
 	pcre2_code *re;
@@ -119,6 +121,43 @@ char* do_regex(const char* pattern, const char* str) {
 	pcre2_code_free(re);
 
 	return r;
+#else
+	// using posix regexes for the linux version
+	regex_t regex;
+	int reti;
+	char msgbuf[100];
+	regmatch_t regmatch[2];
+
+	/* Compile regular expression */
+	reti = regcomp(&regex, pattern, 0);
+	if (reti) {
+		write_log(ERROR, "Could not compile regex\n");
+		exit(1);
+	}
+
+	/* Execute regular expression */
+	reti = regexec(&regex, str, 2, regmatch, 0);
+	if (!reti) {
+		// puts("Match");
+	} else if (reti == REG_NOMATCH) {
+		// puts("No match");
+		return "\0";
+	} else {
+		// this one gets triggered when no match is found...?
+		regerror(reti, &regex, msgbuf, sizeof(msgbuf));
+		// write_log(ERROR, "Regex match failed: %s\n", msgbuf);
+		return "\0";
+		// exit(1);
+	}
+
+
+	char* r = malloc(regmatch[1].rm_eo - regmatch[1].rm_so + 1);
+	memcpy(r, &str[regmatch[1].rm_so], regmatch[1].rm_eo - regmatch[1].rm_so);
+	r[regmatch[1].rm_eo - regmatch[1].rm_so] = '\0';
+	/* Free memory allocated to the pattern buffer by regcomp() */
+	regfree(&regex);
+	return r;
+#endif
 }
 
 // this function read the sacagawea.conf line by line  FINITA

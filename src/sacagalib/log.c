@@ -120,20 +120,22 @@ void log_management() {
 void write_log(int log_lv, const char* error_string, ...) {
 	va_list args;
 	va_start(args, error_string);
+	#define LOG_STR_LEN 1024
+
 	#ifdef _WIN32
 	DWORD dwBytesToWrite;
 	DWORD dwBytesWritten;
 	#else
 	#endif
 
-	char* log_string = malloc(1024);
+	char* log_string = malloc(LOG_STR_LEN);
 	char* ds = date_string();
-	char* formatted_error_string = malloc(1024 - strlen(date_string));
+	char* formatted_error_string = malloc(LOG_STR_LEN - strlen(date_string));
 
-	vsnprintf(formatted_error_string, 1024 - strlen(date_string),
+	vsnprintf(formatted_error_string, LOG_STR_LEN - strlen(date_string),
 			error_string, args);
 
-	if (snprintf(log_string, 1024, "%s %s: %s\n", ds, log_lv_name[log_lv],
+	if (snprintf(log_string, LOG_STR_LEN, "%s %s: %s\n", ds, log_lv_name[log_lv],
 			formatted_error_string) < 0) {
 		write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
 	}
