@@ -22,7 +22,7 @@
 #define SACAGAWEALOGS_PATH "sacagawea.log"
 #define DEFAULT_SERVER_PORT 7070
 #define MAX_CLIENTS 64
-#define SERVER_DOMAIN "michele-pc"
+#define SERVER_DOMAIN "localhost"
 
 // max length of IP is 15 254.254.254.254 + 1 char for ':'
 // + 5 char for port 65000 + 1 char for the terminating null byte
