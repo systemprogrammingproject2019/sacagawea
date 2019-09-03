@@ -97,9 +97,9 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 
 			response = (char*) malloc( len_response*sizeof(char) );
 			if (client_selector->selector[ (strlen(client_selector->selector)-1) ] != '/'){
-				snprintf(response, len_response, "%c\t%s\t%s/%s\t%s\t%d", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
+				snprintf(response, len_response, "%c\t%s\t%s/%s\t%s\t%d\n", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
 			} else {
-				snprintf(response, len_response, "%c\t%s\t%s%s\t%s\t%d", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
+				snprintf(response, len_response, "%c\t%s\t%s%s\t%s\t%d\n", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
 			}
 
 			write_log(INFO, "response at %d: %s", client_info->socket, response);
