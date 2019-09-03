@@ -132,8 +132,9 @@ void write_log(int log_lv, const char* error_string, ...) {
 	vsnprintf(formatted_error_string, LOG_STR_LEN - strlen(date_string),
 			error_string, args);
 
-	while(formatted_error_string[strlen(formatted_error_string)] == '\n') {
-		formatted_error_string[strlen(formatted_error_string)] = '\0';
+	// make sure that the string ends with no trailing newlines ('\n')
+	while(formatted_error_string[strlen(formatted_error_string)-1] == '\n') {
+		formatted_error_string[strlen(formatted_error_string)-1] = '\0';
 	}
 
 	if (snprintf(log_string, LOG_STR_LEN, "%s %s: %s\n", ds, log_lv_name[log_lv],

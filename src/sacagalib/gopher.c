@@ -89,7 +89,7 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 			// for IP of server +\t
 			len_response += strlen( SERVER_DOMAIN ) + 1;
 			// for actualy opened SERVER_PORT
-			sprintf( port_str, "%d", SERVER_PORT);
+			snprintf(port_str, 6, "%d", SERVER_PORT);
 			len_response += strlen( port_str );
 			// \n + \0
 			len_response += 4;
