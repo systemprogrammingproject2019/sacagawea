@@ -24,9 +24,31 @@
 
 #include "sacagalib.h"
 
+#ifndef _WIN32
+/* A condition variable/mutex attribute object (attr) allows you to manage the characteristics
+	of condition variables/mutex in your application by defining a set of values to be used for a
+	condition variable/mutex during its creation.*/
+// these need to be global so they can be closed from an external function
+// - like close_all() - without unnecessary complications
+pthread_mutexattr_t mattr;
+pthread_condattr_t cattr;
+
+void close_all(){
+	// destroy the allocated attr for, condition variable
+	pthread_condattr_destroy(&cattr);
+	pthread_mutexattr_destroy(&mattr);
+
+	// close write pipe.
+	close(pipe_conf[1]);
+
+	//unlink shared memory
+	shm_unlink(SHARED_MUTEX_MEM);
+	shm_unlink(SHARED_COND_MEM);
+	exit(1);
+}
+#endif
+
 int main(int argc, char *argv[]){
-	// ciao paolo
-	
 	// chiamo load file in memory per testare se funzionava
 	//load_file_memory_posix( "conf/sacagawea.conf");
 
@@ -82,7 +104,7 @@ int main(int argc, char *argv[]){
 		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	if (ftruncate(mutex_d, sizeof(pthread_mutex_t)) == -1) {
+	if (ftruncate(mutex_d, sizeof(pthread_mutex_t)) != 0) {
 		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
@@ -97,7 +119,7 @@ int main(int argc, char *argv[]){
 		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	if (ftruncate(cond_d, sizeof(pthread_mutex_t)) == -1) {
+	if (ftruncate(cond_d, sizeof(pthread_mutex_t)) != 0) {
 		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
@@ -106,11 +128,7 @@ int main(int argc, char *argv[]){
 		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	/* A condition variable/mutex attribute object (attr) allows you to manage the characteristics
-	of condition variables/mutex in your application by defining a set of values to be used for a
-	condition variable/mutex during its creation.*/
-	pthread_mutexattr_t mattr;
-	pthread_condattr_t cattr;
+
 	/* PTHREAD_PROCESS_SHARED
 	Permits a condition variable/mutex to be operated upon by any thread that has access to the memory
 	where the condition variable/mutex is allocated; even if the condition variable/mutex is allocated in memory
@@ -125,13 +143,13 @@ int main(int argc, char *argv[]){
 	// create the pipe for SERVER<->SACALOGS
 #ifdef _WIN32
 #else
-	if ( pipe(pipe_conf)==-1 ){ 
+	if (pipe(pipe_conf) != 0){ 
 		write_log(ERROR, "System call pipe() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	/* set NON-BLOCKING read pipe, becouse sacalogs don't have to go in blocked mode
 	while try read pipe */
-	if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) < 0){
+	if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) != 0){
 		write_log(ERROR, "System call fcntl() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
@@ -153,6 +171,9 @@ int main(int argc, char *argv[]){
 	/* server process "father" */
 	// close read pipe
 	close(pipe_conf[0]);
+#endif
+
+#ifndef _WIN32
 	// Creating sigaction for SIGHUP
 	struct sigaction new_action;
 	/* Block other SIGHUP signals while handler runs. */
@@ -163,12 +184,34 @@ int main(int argc, char *argv[]){
 	new_action.sa_handler = config_handler;
 	new_action.sa_mask = block_mask;
 	sigemptyset (&new_action.sa_mask);
-	/* set SA_RESTART flag, so If a signal handler is invoked meanwhile a system call 
+	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 
 	is running like read/recv etc.. after the handler,
 	the system call is restarted and can give EINTR error if fail */ 
 	new_action.sa_flags = SA_RESTART;
 	/* The sigaction() API change the action taken by a process on receipt of SIGHUP signal. */
 	if (sigaction (SIGHUP, &new_action, NULL) < 0) {
+		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
+	 	exit(5);
+	}
+#endif
+
+#ifndef _WIN32
+	// Creating sigaction for SIGINT
+	struct sigaction sigint_action;
+	/* Block other SIGINT signals while handler runs. */
+	sigset_t sigint_block_mask;
+	sigemptyset (&sigint_block_mask);
+	sigaddset (&sigint_block_mask, SIGINT);
+	/* Set up the structure to specify the new action. */
+	sigint_action.sa_handler = close_all;
+	sigint_action.sa_mask = sigint_block_mask;
+	sigemptyset (&sigint_action.sa_mask);
+	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 
+	is running like read/recv etc.. after the handler,
+	the system call is restarted and can give EINTR error if fail */ 
+	sigint_action.sa_flags = SA_RESTART;
+	/* The sigaction() API change the action taken by a process on receipt of SIGINT signal. */
+	if (sigaction (SIGINT, &sigint_action, NULL) < 0) {
 		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
@@ -206,23 +249,21 @@ int main(int argc, char *argv[]){
 
 	// we are out of select loop so we have to close all sockets
 #ifdef _WIN32
-	for(int i = 0; i < MAX_CLIENTS; i++)  {
+	for (int i = 0; i < MAX_CLIENTS; i++) {
 		SOCKET s = client_socket[i];
-		if(s > 0) {
+		if (s > 0) {
 			closesocket(s);
 		}
 	}
 	WSACleanup();
 #else
-	for (int i=0; i <= max_num_s; ++i){
-		if (FD_ISSET(i, &fds_set)){
+	for (int i = 0; i <= max_num_s; ++i) {
+		if (FD_ISSET(i, &fds_set)) {
 			close(i);
 		}
 	}
-	// destroy the allocated attr for, condition variable
-	pthread_condattr_destroy(&cattr);
-	pthread_mutexattr_destroy(&mattr);
-	// close write pipe.
-	close( pipe_conf[1] );
+
+	close_all();
+
 #endif
 }

@@ -29,7 +29,7 @@ void log_management() {
 	int len_string, check;
 
 	// open logs file and check if an error occured
-	#ifdef _WIN32
+#ifdef _WIN32
 	log_file = CreateFileA (
 		SACAGAWEALOGS_PATH,     // file name
 		FILE_APPEND_DATA,       // open for appending
@@ -42,11 +42,8 @@ void log_management() {
 	if (log_file == INVALID_HANDLE_VALUE) {
 		write_log(ERROR, "CreateFileA failed. Unable to open \"%s\"", SACAGAWEALOGS_PATH);
 		return;
-	}
-	#else
-	FILE *fp;
-	
-	#endif
+	}	
+#endif
 
 	while (true) {
 #ifdef _WIN32

@@ -36,17 +36,17 @@ int read_request( int sd, char *input){
 	while( stop ){
 		if ((PATH_MAX-read_bytes) <= 0 ) {
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
-			fprintf( stderr,"recv() of sd - %d, failed: Becouse wrong input, we close that connection\n", sd, strerror(errno) );
+			write_log(ERROR, "recv() of sd - %d, failed: Becouse wrong input, we close that connection", sd, strerror(errno) );
 			return true;
 		}
 		check = recv(sd, &input[read_bytes], (PATH_MAX-read_bytes), 0);
 		if (check < 0){
 			if (errno != EWOULDBLOCK){
 				// if recv fail the error can be server side or client side so we close the connection and go on 
-				fprintf( stderr,"recv() of sd - %d, failed: %s we close that connection\n", sd, strerror(errno) );
+				write_log(ERROR, "recv() of sd - %d, failed: %s we close that connection", sd, strerror(errno) );
 				return true;
 			}
-			fprintf( stderr,"recv() of sd - %d EWOULDBLOCK", sd );
+			write_log(ERROR, "recv() of sd - %d EWOULDBLOCK", sd );
 			continue;
 		}
 		/* Check to see if the connection has been closed by the client, so recv return 0  */
@@ -105,7 +105,7 @@ void process_fuction(client_args *client_info){
 
 		//	little check for avoid trasversal path	
 		if( check_security_path( client_selector.selector ) ){
-			fprintf ( stdout, "eh eh nice try where u wanna go?\n" );
+			write_log(INFO, "eh eh nice try where u wanna go?\n" );
 			close(sd);
 			_exit(5);
 		}// add the gopher root path at selector and check the type of file
@@ -138,8 +138,52 @@ void process_fuction(client_args *client_info){
 
 // this function spawn process to management the new client request 
 int process_management(client_args *client_info) {
-	#ifdef _WIN32
-	#else
+#ifdef _WIN32
+	// TODO: create a sacagalogs.exe
+	TCHAR szCmdline[] = TEXT("sacagalogs.exe");
+	PROCESS_INFORMATION piProcInfo; 
+	STARTUPINFO siStartInfo;
+	int bSuccess = false;
+
+	// Set up members of the PROCESS_INFORMATION structure.
+	ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+ 
+	// Set up members of the STARTUPINFO structure. 
+	// This structure specifies the STDIN and STDOUT handles for redirection.
+	ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
+	siStartInfo.cb = sizeof(STARTUPINFO); 
+	// siStartInfo.hStdError = g_hChildStd_OUT_Wr;
+	// siStartInfo.hStdOutput = g_hChildStd_OUT_Wr;
+	// siStartInfo.hStdInput = g_hChildStd_IN_Rd;
+	// siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+	// Create the child process. 
+	bSuccess = CreateProcess(
+		NULL, 
+		szCmdline,     // command line
+		NULL,          // default security attributes
+		NULL,          // primary thread security attributes
+		TRUE,          // handles are inherited
+		0,             // creation flags
+		NULL,          // use parent's environment
+		NULL,          // use parent's current directory
+		&siStartInfo,  // STARTUPINFO pointer
+		&piProcInfo    // receives PROCESS_INFORMATION
+	);
+
+	// If an error occurs, exit the application. 
+	if (!bSuccess) {
+		write_log(ERROR, "Failed to create subprocess.");
+		exit(1);
+	} else {
+		// Close handles to the child process and its primary thread.
+		// Some applications might keep these handles to monitor the status
+		// of the child process, for example. 
+
+		CloseHandle(piProcInfo.hProcess);
+		CloseHandle(piProcInfo.hThread);
+	}
+#else
 
 	int pid;
 	if ((pid = fork()) < 0) {
@@ -179,7 +223,7 @@ selector request_to_selector(char *input){
 		read_bytes = strlen(client_selector.selector);
 	}
 	
-	fprintf(stdout, "\nSELECTOR: %s,%d bytes\n", client_selector.selector , read_bytes );
+	write_log(INFO, "SELECTOR: %s,%d bytes", client_selector.selector , read_bytes );
 
 	/* if the client send a tab \t, it means that the selector is followed by words 
 	that need to match with the name of the searched file */
@@ -205,7 +249,7 @@ selector request_to_selector(char *input){
 			sscanf(&input[read_bytes], "%255s", client_selector.words[i]);
 			// upgrade read_bytes for check when we finish the client input
 			read_bytes += (strlen( client_selector.words[i]));
-			fprintf(stdout, "WORD %d: %s,%llu bytes\n", i, client_selector.words[i] , strlen(client_selector.words[i]) );
+			write_log(INFO, "WORD %d: %s,%llu bytes", i, client_selector.words[i] , strlen(client_selector.words[i]) );
 			// upgrade the num of words, contained in client_selector
 			client_selector.num_words=i;
 			i++;

@@ -30,14 +30,14 @@
 // this fuction send each file in a directory which match "words" in the gopher protocol format.
 void send_content_of_dir(client_args *client_info, selector *client_selector) {
 
-	write_log(INFO, "%s\n", client_info->path_file);
+	write_log(INFO, "%s", client_info->path_file);
 	DIR *folder;
 	struct dirent *subFile;
 	int j = 0;
-	int len_responce;
+	int len_response;
 	char type;
 	int no_match = false;
-	char* responce;
+	char* response;
 	char *path_of_subfile;
 	char port_str[6]; // max ex "65000\0"
 	// open dir 
@@ -67,7 +67,7 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 			continue;
 		} else {
 			// the file match all word we send the data
-			write_log(INFO, "%s\n", subFile->d_name);
+			write_log(INFO, "%s", subFile->d_name);
 			path_of_subfile = (char*) malloc( ( strlen(client_info->path_file) + strlen(subFile->d_name) + 2 ) );
 			if (client_info->path_file[ (strlen(client_info->path_file)-1) ] == '/' ) {
 				snprintf(path_of_subfile,
@@ -80,32 +80,32 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 			}
 
 			type = type_path(path_of_subfile);
-			// calculate lenght of responce. first 2 are for type char + \t
-			len_responce = 2; 
+			// calculate lenght of response. first 2 are for type char + \t
+			len_response = 2; 
 			// for name of file +\t
-			len_responce += strlen(subFile->d_name) + 1; 
+			len_response += strlen(subFile->d_name) + 1; 
 			// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
-			len_responce += strlen(client_selector->selector) + strlen(subFile->d_name) + 2;
+			len_response += strlen(client_selector->selector) + strlen(subFile->d_name) + 2;
 			// for IP of server +\t
-			len_responce += strlen( SERVER_DOMAIN ) + 1;
+			len_response += strlen( SERVER_DOMAIN ) + 1;
 			// for actualy opened SERVER_PORT
 			sprintf( port_str, "%d", SERVER_PORT);
-			len_responce += strlen( port_str );
+			len_response += strlen( port_str );
 			// \n + \0
-			len_responce += 4;
+			len_response += 4;
 			// declare and compile
 
-			responce = (char*) malloc( len_responce*sizeof(char) );
+			response = (char*) malloc( len_response*sizeof(char) );
 			if (client_selector->selector[ (strlen(client_selector->selector)-1) ] != '/'){
-				snprintf(responce, len_responce, "%c\t%s\t%s/%s\t%s\t%d\n", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
+				snprintf(response, len_response, "%c\t%s\t%s/%s\t%s\t%d", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
 			} else {
-				snprintf(responce, len_responce, "%c\t%s\t%s%s\t%s\t%d\n", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
+				snprintf(response, len_response, "%c\t%s\t%s%s\t%s\t%d", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
 			}
 
-			write_log(INFO, "responce at %d: %s", client_info->socket, responce);
-			send(client_info->socket, responce, strlen(responce), 0);
+			write_log(INFO, "response at %d: %s", client_info->socket, response);
+			send(client_info->socket, response, strlen(response), 0);
 
-			free(responce);
+			free(response);
 			free(path_of_subfile);
 		}
 	}
