@@ -127,9 +127,9 @@ void write_log(int log_lv, const char* error_string, ...) {
 
 	char* log_string = malloc(LOG_STR_LEN);
 	char* ds = date_string();
-	char* formatted_error_string = malloc(LOG_STR_LEN - strlen(date_string));
+	char* formatted_error_string = malloc(LOG_STR_LEN - strlen(ds));
 
-	vsnprintf(formatted_error_string, LOG_STR_LEN - strlen(date_string),
+	vsnprintf(formatted_error_string, LOG_STR_LEN - strlen(ds),
 			error_string, args);
 
 	// make sure that the string ends with no trailing newlines ('\n')

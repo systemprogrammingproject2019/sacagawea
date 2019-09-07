@@ -7,11 +7,11 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <dirent.h>
 
 #ifdef _WIN32
 #else
+#include <pthread.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
@@ -23,12 +23,12 @@
 #include <sys/stat.h>
 #endif
 
-
 #include "sacagalib.h"
 
-#ifndef _WIN32
-// this fuction send each file in a directory which match "words" in the gopher protocol format.
 void send_content_of_dir(client_args *client_info, selector *client_selector) {
+#ifdef _WIN32
+#else
+// this fuction send each file in a directory which match "words" in the gopher protocol format.
 
 	write_log(INFO, "%s", client_info->path_file);
 	DIR *folder;
@@ -114,11 +114,14 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 	closedir(folder);
 
 	close(client_info->socket);
-	
+#endif
 }
- 
+
+
 // This fuction management the thread which have to send the FILE at client
-void *thread_sender(void* c) {
+void *thread_sender(client_args* c) {
+#ifdef _WIN32
+#else
 	// declare a variable of STRUCT client_args, and cast the arguemnt into
 	client_args *client_info;
 	client_info = (client_args*) c;
@@ -209,6 +212,7 @@ void *thread_sender(void* c) {
 	}
 	
 	pthread_exit(NULL);
+#endif
 }
 
 // this function take a path as argument and return the gopher char associated.
@@ -227,16 +231,16 @@ char type_path(char path[PATH_MAX]) {
 	}
 	char popen_output[20]; // is useless read all output, i need only the first section and the max is "application/gopher"
 	
-	fgets(&popen_output, 20, popen_output_stream);
+	fgets((char *) &popen_output, 20, popen_output_stream);
 	//fprintf( stdout, "%s\n", popen_output); 
 	if (strncmp(popen_output, "cannot", 6) == 0) {
 		write_log(INFO, "%s", popen_output);
-		while (fgets(&popen_output, 20, popen_output_stream) != NULL) {
+		while (fgets((char *) &popen_output, 20, popen_output_stream) != NULL) {
 			fprintf(stdout, "%s", popen_output); 
 		}
 		fprintf(stdout, "\n"); 
 	}
-	close(popen_output_stream);
+	pclose(popen_output_stream);
 	
 
 	if ((strncmp(popen_output, DIR_1, strlen(DIR_1)) == 0) || (strncmp(popen_output, GOPHER_1, strlen(GOPHER_1)) == 0)) {
@@ -268,5 +272,3 @@ char type_path(char path[PATH_MAX]) {
 	}
 	return '3';
 }
-
-#endif

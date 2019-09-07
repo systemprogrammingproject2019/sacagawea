@@ -25,40 +25,63 @@
 
 #include "sacagalib.h"
 
-int read_request( int sd, char *input){
+#ifdef _WIN32
+void close_socket_kill_thread(SOCKET sd, int errcode);
+#else
+void close_socket_kill_thread(int sd, int errcode);
+#endif
 
+
+#ifdef _WIN32
+int read_request(SOCKET sd, char *input) {
+#else
+int read_request(int sd, char *input) {
+#endif
 	/* Receive data on this connection until the recv \n of finish line.
 	If any other failure occurs, we will returt true.    */
 	int check;
-	int read_bytes=0;
-	int stop=true;
+	#ifdef _WIN32
+	int err;
+	#endif
+	int read_bytes = 0;
+	int keep_going = true;
 
-	while( stop ){
-		if ((PATH_MAX-read_bytes) <= 0 ) {
+	while (keep_going) {
+		if ((PATH_MAX - read_bytes) <= 0) {
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
-			write_log(ERROR, "recv() of sd - %d, failed: Becouse wrong input, we close that connection", sd, strerror(errno) );
+			write_log(ERROR, "recv() of sd - %d, failed because of wrong input. Closing the connection", sd, strerror(errno));
 			return true;
 		}
-		check = recv(sd, &input[read_bytes], (PATH_MAX-read_bytes), 0);
-		if (check < 0){
-			if (errno != EWOULDBLOCK){
+		check = recv(sd, &input[read_bytes], (PATH_MAX - read_bytes), 0);
+		if (check < 0) {
+		#ifdef _WIN32
+			if ((err = WSAGetLastError()) != WSAEWOULDBLOCK) {
 				// if recv fail the error can be server side or client side so we close the connection and go on 
-				write_log(ERROR, "recv() of sd - %d, failed: %s we close that connection", sd, strerror(errno) );
+				write_log(ERROR, "recv() of sd - %d, failed with error: %d. Closing the connection.", sd, err);
 				return true;
 			}
-			write_log(ERROR, "recv() of sd - %d EWOULDBLOCK", sd );
+			write_log(WARNING, "recv() of sd - %d WSAEWOULDBLOCK", sd);
 			continue;
+		#else
+			if (errno != EWOULDBLOCK) {
+				// if recv fail the error can be server side or client side so we close the connection and go on 
+				write_log(ERROR, "recv() of sd - %d, failed with error: %s. Closing the connection.", sd, strerror(errno));
+				return true;
+			}
+			write_log(WARNING, "recv() of sd - %d EWOULDBLOCK", sd );
+			continue;
+		#endif
 		}
 		/* Check to see if the connection has been closed by the client, so recv return 0  */
-		if (check == 0){
+		if (check == 0) {
 			printf("	Connection closed %d\n", sd );
 			// client close the connection so we can stop read and responce
 			return true;
 		}
-		if( check > 0){
+		if (check > 0) {
 			read_bytes += check;
-			if(input[ (read_bytes-1) ]=='\n'){
-				stop = false;
+			if (input[(read_bytes-1)] == '\n') {
+				keep_going = false;
 			}
 		}
 	}
@@ -66,7 +89,7 @@ int read_request( int sd, char *input){
 }
 
 // this is the real process fuction which management the request, when mode is p
-void process_fuction(client_args *client_info){
+void process_fuction(client_args *client_info) {
 #ifdef _WIN32
 #else
 	char type; // will containt the type of selector
@@ -74,10 +97,10 @@ void process_fuction(client_args *client_info){
 	int sd = (*client_info).socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
-	char *input = malloc( PATH_MAX*sizeof(char) );
+	char *input = malloc(PATH_MAX * sizeof(char));
 
 	// read request from sd ( client socket ) and put in *input, if fail return true otherwise false
-	if( read_request( sd, input) ){
+	if (read_request( sd, input)) {
 		close(sd);
 		pthread_exit(NULL);
 	}
@@ -85,51 +108,51 @@ void process_fuction(client_args *client_info){
 	selector client_selector;
 	memset( &client_selector, '\0', sizeof(client_selector));
 
-	client_selector = request_to_selector( input );
+	client_selector = request_to_selector(input);
 	/* if ( client_selector == NULL ){
 		send( sd, S_ERROR_SELECTOR_REQUEST, strlen(S_ERROR_SELECTOR_REQUEST), 0);
 	} */
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
-	client_info->path_file = (char*) malloc( strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1 );
-	strcpy( client_info->path_file, S_ROOT_PATH ); 
-	strcat( client_info->path_file, client_selector.selector );	
-	fprintf(stdout,"PATH+SELECTOR %d bytes: %s\n", strlen(client_info->path_file), client_info->path_file);
+	client_info->path_file = (char*) malloc(strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1);
+	strcpy(client_info->path_file, S_ROOT_PATH); 
+	strcat(client_info->path_file, client_selector.selector);	
+	fprintf(stdout,"PATH+SELECTOR %ld bytes: %s\n", strlen(client_info->path_file), client_info->path_file);
 
-	if ( client_selector.selector[0] == '\0' ){
+	if (client_selector.selector[0] == '\0') {
 		// if selector is empty we send the content of gophermap, who match with words
 		// and the content of ROOT_PATH
-		type = type_path( S_ROOT_PATH );
+		type = type_path(S_ROOT_PATH);
 
-	}else{ /* if we have a selector, we check if is a dir or not.*/
+	} else { /* if we have a selector, we check if is a dir or not.*/
 
 		//	little check for avoid trasversal path	
-		if( check_security_path( client_selector.selector ) ){
-			write_log(INFO, "eh eh nice try where u wanna go?\n" );
+		if (check_security_path(client_selector.selector)) {
+			write_log(INFO, "eh eh nice try where u wanna go?\n");
 			close(sd);
 			_exit(5);
 		}// add the gopher root path at selector and check the type of file
-		type = type_path( client_info->path_file );
+		type = type_path(client_info->path_file);
 	}
 	// if is a dir we check the content if match with words 
-	if( type == '1' ){
+	if (type == '1') {
 		// TODO change return of send dir with true/false for close connection ecc
-		send_content_of_dir( client_info, &client_selector);
+		send_content_of_dir(client_info, &client_selector);
 		_exit(1);
 		//pthread_exit( NULL );
-	}else{ 
-		if( type == '3' ){ // if is an error send the error message
-			char temp[ ( strlen(client_selector.selector) + 6 ) ]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
-			strcpy( temp, "3\t" ); 
-			strcat( temp, client_selector.selector );
-			strcat( temp, "\n.\n" ); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
+	} else { 
+		if (type == '3') { // if is an error send the error message
+			char temp[(strlen(client_selector.selector) + 6 )]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
+			strcpy(temp, "3\t"); 
+			strcat(temp, client_selector.selector);
+			strcat(temp, "\n.\n"); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
 			send( sd, temp, strlen(temp), 0);
 			// close socket and thread
 			close(sd);
 			_exit(1);
-		}else{ // if is only a file
+		} else { // if is only a file
 			// TODO  only that shit and is finish
-			load_file_memory_and_send_posix( client_info );
+			load_file_memory_and_send(client_info);
 			_exit(1);
 		}
 	}
@@ -261,29 +284,31 @@ selector request_to_selector(char *input){
 }
 
 // this fuction is the real management of the client responce with thread as son
-void *thread_function(void* c) {
-#ifdef _WIN32
-	return;
-#else
+void *thread_function(client_args* c) {
 	// declare a variable of STRUCT client_args
-	client_args *client_info;
-	client_info = (client_args*) c;
-
+	client_args *client_info = (client_args*) c;
 	char type; // will containt the type of selector
+	int check;
 
-	int sd = (*client_info).socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
+#ifdef _WIN32
+	SOCKET sd = client_info->socket;
+#else
+	int sd = client_info->socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
+#endif
+
+	printf("SD IS: %d\n",sd);
+
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
 	char *input = malloc(PATH_MAX*sizeof(char));
 
 	// read request from sd ( client socket ) and put in *input, if fail return true otherwise false
-	if (read_request( sd, input)) {
-		close(sd);
-		pthread_exit(NULL);
+	if ((check = read_request(sd, input))) {
+		close_socket_kill_thread(sd, 0);
 	}
 	
 	// if we are there, print that message
-	//fprintf( stdout, "READ: %s%d bytes at %p\n", input, check, &input );
+	fprintf(stdout, "READ: \"%s\"\n%d bytes at %p\n", input, check, &input );
 
 	// check if the input contain a selector or not
 	selector client_selector;
@@ -296,7 +321,7 @@ void *thread_function(void* c) {
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	client_info->path_file = (char*) malloc(strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1);
-	strcpy(client_info->path_file, S_ROOT_PATH); 
+	strcpy(client_info->path_file, S_ROOT_PATH);
 	strcat(client_info->path_file, client_selector.selector);
 	write_log(INFO, "PATH+SELECTOR %d bytes: %s", strlen(client_info->path_file), client_info->path_file);
 
@@ -310,57 +335,77 @@ void *thread_function(void* c) {
 		//	little check for avoid trasversal path	
 		if (check_security_path( client_selector.selector)) {
 			write_log(INFO, "eh eh nice try where u wanna go?");
-			close(sd);
-			pthread_exit(NULL);
+			close_socket_kill_thread(sd, 0);
 		}// add the gopher root path at selector and check the type of file
 		type = type_path(client_info->path_file);
 	}
 	// if is a dir we check the content if match with words 
 	if (type == '1') {
 		send_content_of_dir(client_info, &client_selector);
-		pthread_exit(NULL);
-	}else{ 
+	#ifdef _WIN32
+		ExitThread(0);
+	#else
+		pthread_exit(0);
+	#endif
+	} else {
 		if (type == '3') { // if is an error send the error message
 			char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
-			strcpy(temp, "3\t"); 
+			strcpy(temp, "3\t");
 			strcat(temp, client_selector.selector);
 			strcat(temp, "\n.\n"); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
 			send(sd, temp, strlen(temp), 0);
 			// close socket and thread
-			close(sd);
-			pthread_exit(NULL);
+			close_socket_kill_thread(sd, 0);
 		} else { // if is only a file
-			load_file_memory_and_send_posix(client_info);
+			load_file_memory_and_send(client_info);
 		}
 	}
-#endif
 }
 
 // this function spawn thread to management the new client request 
-int thread_management(client_args *client_info) {
 #ifdef _WIN32
-	HANDLE  hThread;
-	client_args * tData;
+HANDLE thread_management(client_args *client_info) {
+#else
+int thread_management(client_args *client_info) {
+#endif
+
+#ifdef _WIN32
+	HANDLE tid;
+	client_args *tData;
 	print_client_args(client_info);
 	LPDWORD lpThreadId;
 
 	tData = (client_args*) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
 			sizeof(client_args));
 
-	hThread = CreateThread( 
-			NULL,                   // default security attributes
-			0,                      // use default stack size  
-			thread_function,       // thread function name
-			tData,                  // argument to thread function 
-			0,                      // use default creation flags 
-			&lpThreadId);   // returns the thread identifier 
+	memcpy(tData, client_info, sizeof(client_args));
 
-
-	return false;
-
+	tid = CreateThread( 
+			NULL,            // default security attributes
+			0,               // use default stack size  
+			thread_function, // thread function name
+			tData,           // argument to thread function 
+			0,               // use default creation flags 
+			&lpThreadId      // returns the thread identifier 
+	);
 #else
 	pthread_t tid;
 	print_client_args(client_info);
-	pthread_create(&tid, NULL, thread_function, (void *) client_info);
+	pthread_create(&tid, NULL, (void *) thread_function, (void *) client_info);
 #endif
+	return tid;
+}
+
+#ifdef _WIN32
+void close_socket_kill_thread(SOCKET sd, int errcode) {
+#else
+void close_socket_kill_thread(int sd, int errcode) {
+#endif
+	#ifdef _WIN32
+		closesocket(sd);
+		ExitThread(errcode);
+	#else
+		close(sd);
+		pthread_exit(&errcode);
+	#endif
 }

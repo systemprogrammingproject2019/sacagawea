@@ -226,18 +226,21 @@ void config_handler(int signum) {
 		}
 
 		// now we accept all remaining connected comunication which did 3WHS
-		int new_s, client_addr_len;
+		int new_s;
+		unsigned int client_addr_len;
 		// client_addr to take ip:port of client
 		struct sockaddr_in client_addr;
 		// client_info for save all info of client
 		client_args *client_info;
 		client_info = (client_args*) malloc(sizeof(client_args));
-		memset(client_info, 0, sizeof(client_info));
+		memset(client_info, 0, sizeof(client_args));
 
 		do {
 			memset(&client_addr, 0, sizeof(client_addr));
 			client_addr_len = sizeof(client_addr); // save sizeof sockaddr struct becouse accept need it
-			new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
+			new_s = accept(SERVER_SOCKET,
+					(__SOCKADDR_ARG) &client_addr,
+					&client_addr_len);
 			if (new_s < 0){
 				if (errno != EWOULDBLOCK){
 					write_log(ERROR, "socket accept() failed: %s", strerror(errno) );

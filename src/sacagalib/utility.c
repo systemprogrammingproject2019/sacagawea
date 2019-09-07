@@ -23,8 +23,9 @@
 
 #include "sacagalib.h"
 
-#ifndef _WIN32
-int load_file_memory_and_send_posix(client_args *client_info) {
+int load_file_memory_and_send(client_args *client_info) {
+#ifdef _WIN32
+#else
 	// open get file descriptor associated to file
 	int fd = open(client_info->path_file, O_RDWR);
 	if (fd < 0) {
@@ -79,84 +80,11 @@ int load_file_memory_and_send_posix(client_args *client_info) {
 	close(fd);
 	// create thread to send the file at client
 	pthread_t tid;
-	pthread_create(&tid, NULL, thread_sender, (void *)client_info);
+	pthread_create(&tid, NULL, (void *) thread_sender, (void *)client_info);
 	pthread_join( tid, NULL);
+#endif
 }
 
-// VERSIONE LINUX, NON POSIX dovremmo chiedere al prof se si può usare ma non credo
-int load_file_memory_linux(char *path) {
-	// open get file descriptor associated to file
-	int fd = open(path, O_RDWR);
-	if (fd < 0) {
-		write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
-		exit(5);
-	}
-	// declare struct for 3th argument for fcntl and memset it to 0
-	struct flock lck;
-	if (memset(&lck, 0, sizeof(lck)) == NULL) {
-		write_log(ERROR, "memset() failed: %s\n", strerror(errno));
-		exit(5);
-	}
-	// F_WRLCK mean exclusive lock and not shared lock
-	/* difference, first put lock for read and write, in the second one
-	process if another is reading from the file can read simultanealy 
-	but cant write, and if 1 is writing no other one can write or read */
-	lck.l_type = F_WRLCK;
-	// lock entire file
-	lck.l_whence = SEEK_SET; // offset base is start of the file "SEEK_END mean start at end of file"
-	lck.l_start = 0;		 // starting offset is zero
-	lck.l_len = 0;			 // len is zero, which is a special value representing end
-							 // of file (no matter how large the file grows in future)
-
-	/* OFD is a flag of Linux, not posix, more problably he become new standard in 
-	POSIX 1. 
-	The principal difference between OFD and non is that where as
-	traditional record locks are associated with a process, open file
-	description locks(OFD) are associated with the open file description on
-	which they are acquired, and are only automatically released on the last
-	close of the open file description, instead of being released on any
-	close of the file. 
-	SETLKW mean is a blocked lock request*/
-
-	//leva commento fcntl (fd, F_OFD_SETLKW, &lck);
-
-	// now we have the lock "load file in memory"
-
-	/* initialize the memory for load the file, 
-	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
-	FILE *fp = fdopen(fd, "r");
-	if (fp == NULL) {
-		write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
-		exit(5);
-	}
-	fseek(fp, 0, SEEK_END);
-	long len = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	char *file_content = malloc((len + 1));
-	fread(file_content, 1, len, fp);
-	file_content[len] = '\0';
-
-	// we check the tipe or file with file bash command
-	/* char command[ (strlen(path))+5 ]; 
-	command = strcat( "file", path );
-	FILE* popen_output_stream = popen( command , "r" )
-	if ( popen_output_stream == NULL ){ 
-		fprintf( stderr,"popen() failed: %s\n", strerror(errno));
-	 	exit(5);
-	}
-	char* popen_output = malloc( Pat );
-	while ( fgets(popen_output, 100, popen_output_stream) != NULL)
-		printf("%s", path); */
-
-	// release lock with F_UNLCK flag and FP FD
-	fclose(fp);
-	close(fd);
-	lck.l_type = F_UNLCK;
-	//leva commento  fcntl (fd, F_OFD_SETLKW, &lck);
-
-	fprintf(stdout, "file: %s", file_content);
-	free(file_content);
-}
 
 int check_security_path(char path[PATH_MAX]) {
 	/* le cose qui son 2
@@ -177,4 +105,3 @@ int check_security_path(char path[PATH_MAX]) {
 	}
 	return 0;
 }
-#endif

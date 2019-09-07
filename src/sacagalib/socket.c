@@ -25,14 +25,14 @@ SOCKET open_socket() {
 	int err;
 
 	SOCKET ListenSocket = INVALID_SOCKET;
-	SOCKET ClientSocket = INVALID_SOCKET;
+	// SOCKET ClientSocket = INVALID_SOCKET;
 
 	struct addrinfo *result = NULL;
 	struct addrinfo hints;
 
-	int iSendResult;
-	char recvbuf[SOCK_RECVBUF_LEN];
-	int recvbuflen = SOCK_RECVBUF_LEN;
+	// int iSendResult;
+	// char recvbuf[SOCK_RECVBUF_LEN];
+	// int recvbuflen = SOCK_RECVBUF_LEN;
 
 	// Initialize Winsock
 	if ((WSAStartup(MAKEWORD(2, 2), &wsaData)) == SOCKET_ERROR) {
@@ -157,7 +157,7 @@ int open_socket(){
 #ifdef _WIN32
 int listen_descriptor(SOCKET svr_socket) {
 	SOCKET new_socket, s;
-	int addrlen = sizeof(struct sockaddr_in), num_fd_ready;
+	int num_fd_ready;//, addrlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in address;
 	#ifdef _WIN32
 	client_args* client_info = malloc(sizeof(client_args));
@@ -170,7 +170,7 @@ int listen_descriptor(SOCKET svr_socket) {
 	timeout.tv_usec = 0;
 
 	fd_set working_set;
-	char str_client_addr[ADDR_MAXLEN];
+	// char str_client_addr[ADDR_MAXLEN];
 
 	// /* create a copy of fds_set called working_set, is a FD_SET to work on  */
 	memcpy(&working_set, &fds_set, sizeof(fds_set));
@@ -201,7 +201,7 @@ int listen_descriptor(SOCKET svr_socket) {
 			/* if we come there, the descriptor is readable. */
 			num_fd_ready -= 1;
 
-			if (i==SERVER_SOCKET) {
+			if (i == SERVER_SOCKET) {
 				printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
 				/* Accept all incoming connections that are queued up on the listening socket
 					* before we loop back and call select again. */
@@ -210,8 +210,12 @@ int listen_descriptor(SOCKET svr_socket) {
 					then we have accepted all of them.
 					Any other failure on accept will cause us to end the server.  */
 					memset(&address, 0, sizeof(address));
-					size_t address_len = sizeof(address);
-					if ((new_socket = accept(svr_socket, &address, &address_len)) == SOCKET_ERROR){
+					int address_len = (int) sizeof(address);
+					if ((new_socket = 
+							accept(svr_socket,
+							(struct sockaddr *) &address,
+							&address_len)
+							) == SOCKET_ERROR) {
 						int e = WSAGetLastError();
 						if (e != WSAEWOULDBLOCK) {
 							write_log(ERROR, "accept failed with error: %d\n", e);
@@ -223,10 +227,10 @@ int listen_descriptor(SOCKET svr_socket) {
 							inet_ntoa(address.sin_addr), address.sin_port);
 					client_info->socket = new_socket;
 
-					printf("New connection estabilished at socket - %d from %s\n",
+					printf("New connection estabilished at socket - %I64d from %s\n",
 							client_info->socket, client_info->client_addr);
 					if (MODE_CLIENT_PROCESSING == 0) {
-						thread_management(&client_info);
+						thread_management(client_info);
 					} else {
 						if (MODE_CLIENT_PROCESSING == 1){
 							process_management(client_info);
@@ -246,15 +250,15 @@ int listen_descriptor(SOCKET svr_socket) {
 int listen_descriptor() {
 	// Some declaretion of usefull variable
 	struct sockaddr_in client_addr;
-	int i, num_fd_ready, check, client_addr_len;
+	int i, num_fd_ready, check;
+	unsigned int client_addr_len;
 	struct timeval timeout;
 	fd_set working_set;
-	int close_conn;
 	//char str_client_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
 	int new_s;
+
 	// struct defined in sacagawea.h for contain client information
-	client_args *client_info;
-	client_info = (client_args*) malloc( sizeof(client_args));
+	client_args *client_info = (client_args*) malloc(sizeof(client_args));
 	memset(client_info, 0, sizeof(client_args));
 	/* Initialize the timeval struct to 13 minutes. If no
 	   activity after 13 minutes this program will end. */
@@ -287,13 +291,12 @@ int listen_descriptor() {
 	// creavo il thread/processo solo quando era effettivamente leggibile, ma non cambiava nulla anzi
 	// mi complicavo la vita a dover creare un dizionario per salvarmi informazioni ecc... dopo lo sistemo
 	for (i = 0; i <= max_num_s && num_fd_ready > 0; ++i) {
-		close_conn = false;
 		// Check to see if the i-esimo descriptor is ready
-		if (FD_ISSET(i, &working_set)){
+		if (FD_ISSET(i, &working_set)) {
 			/* if we come there, the descriptor is readable. */
 			num_fd_ready -= 1;
 
-			if (i == SERVER_SOCKET){
+			if (i == SERVER_SOCKET) {
 				printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
 				/*Accept all incoming connections that are queued up on the listening socket before we
 				loop back and call select again. */
@@ -303,7 +306,9 @@ int listen_descriptor() {
 					Any other failure on accept will cause us to end the server.  */
 					memset(&client_addr, 0, sizeof(client_addr));
 					client_addr_len = sizeof(client_addr); // save sizeof sockaddr struct becouse accept need it
-					new_s = accept(SERVER_SOCKET, &client_addr, &client_addr_len);
+					new_s = accept(SERVER_SOCKET, 
+							(__SOCKADDR_ARG) &client_addr,
+							&client_addr_len);
 					if (new_s < 0) {
 						if (errno != EWOULDBLOCK) {
 							write_log(ERROR, "socket accept() failed: %s\n", strerror(errno) );

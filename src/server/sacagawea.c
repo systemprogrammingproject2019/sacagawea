@@ -224,9 +224,9 @@ int main(int argc, char *argv[]){
 	/* declare FD_SET and initialize it */
 	FD_ZERO(&fds_set);
 	max_num_s = SERVER_SOCKET;
-	FD_SET( SERVER_SOCKET, &fds_set);
+	FD_SET(SERVER_SOCKET, &fds_set);
 	//per controlare roba da me "non eliminare"
-	for (int i=0; i <= max_num_s ; ++i){
+	for (int i = 0; i <= max_num_s ; ++i) {
 		write_log(INFO, "i: %d  is set:  %d",i,FD_ISSET(i, &fds_set));
 	}
 #endif

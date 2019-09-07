@@ -53,30 +53,40 @@ pthread_mutex_t *mutex;
 #endif
 
 struct struct_client_args{
-		char client_addr[ ADDR_MAXLEN ];
-		int socket;
-		char *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
-		char *file_to_send;
-		long len_file;
+	char client_addr[ADDR_MAXLEN];
+#ifdef _WIN32
+	SOCKET socket;
+#else
+	int socket;
+#endif
+	char *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
+	char *file_to_send;
+	long len_file;
 };
 
 typedef struct struct_client_args client_args;
 
 struct struct_selector{
-		char selector[PATH_MAX];
-		int num_words;
-		char **words;
+	char selector[PATH_MAX];
+	int num_words;
+	char **words;
 };
 
 typedef struct struct_selector selector;
 
+// sacagalib.c
+EXPORTED void print_client_args(client_args* client);
+EXPORTED int check_not_match(char d_name[PATH_MAX+1], char *word);
 
 // children_management.c
 EXPORTED selector request_to_selector( char *input );
-EXPORTED void *thread_sender(void* c);
-EXPORTED void *thread_function(void* c);
+EXPORTED void *thread_function(client_args* c);
 EXPORTED void process_fuction(client_args *client_info);
+#ifdef _WIN32
+EXPORTED HANDLE thread_management(client_args *client_info);
+#else
 EXPORTED int thread_management(client_args *client_info);
+#endif
 EXPORTED int process_management(client_args *client_info);
 
 // socket.c
@@ -102,11 +112,18 @@ EXPORTED void config_handler(int signum);
 
 // gopher.c
 EXPORTED char type_path(char path[PATH_MAX]);
+EXPORTED void *thread_sender(client_args* c);
+EXPORTED void send_content_of_dir(client_args *client_info, selector *client_selector);
 
 // log.c
 EXPORTED void log_management();
 EXPORTED void write_log(int, const char*, ...);
 EXPORTED char* date_string();
+
+// utility.c
+EXPORTED int load_file_memory_and_send(client_args *client_info);
+EXPORTED int check_security_path(char path[PATH_MAX]);
+
 
 #define SHARED_MUTEX_MEM "/shared_memory_for_mutex"
 #define SHARED_COND_MEM "/shared_memory_for_cond"
