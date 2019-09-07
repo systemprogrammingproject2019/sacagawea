@@ -10,6 +10,7 @@
 #include <dirent.h>
 
 #ifdef _WIN32
+#include <shlwapi.h>
 #else
 #include <pthread.h>
 #include <netinet/in.h>
@@ -26,11 +27,12 @@
 #include "sacagalib.h"
 
 void send_content_of_dir(client_args *client_info, selector *client_selector) {
-#ifdef _WIN32
-#else
+	write_log(INFO, "%s", client_info->path_file);
+// #ifdef _WIN32
+
+// #else
 // this fuction send each file in a directory which match "words" in the gopher protocol format.
 
-	write_log(INFO, "%s", client_info->path_file);
 	DIR *folder;
 	struct dirent *subFile;
 	int j = 0;
@@ -48,7 +50,7 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 
 	while ((subFile = readdir(folder)) != NULL) {
 		// skip .. and . file
-		if ((strcmp( subFile->d_name , "..") == 0) || (strcmp( subFile->d_name , ".") == 0)) {
+		if ((strcmp(subFile->d_name , "..") == 0) || (strcmp( subFile->d_name , ".") == 0)) {
 			continue;
 		}
 		/* words are only strings and not regex, so i do that little check for take only 
@@ -68,8 +70,12 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 		} else {
 			// the file match all word we send the data
 			write_log(INFO, "%s", subFile->d_name);
-			path_of_subfile = (char*) malloc( ( strlen(client_info->path_file) + strlen(subFile->d_name) + 2 ) );
-			if (client_info->path_file[ (strlen(client_info->path_file)-1) ] == '/' ) {
+			path_of_subfile = (char*) calloc((strlen(client_info->path_file) + strlen(subFile->d_name) + 2), sizeof(char));
+		#ifdef _WIN32
+			if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '\\') {
+		#else
+			if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '/') {
+		#endif
 				snprintf(path_of_subfile,
 						(strlen(client_info->path_file) + strlen(subFile->d_name) + 1),
 						"%s%s", client_info->path_file, subFile->d_name);
@@ -87,7 +93,7 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 			// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
 			len_response += strlen(client_selector->selector) + strlen(subFile->d_name) + 2;
 			// for IP of server +\t
-			len_response += strlen( SERVER_DOMAIN ) + 1;
+			len_response += strlen(SERVER_DOMAIN) + 1;
 			// for actualy opened SERVER_PORT
 			snprintf(port_str, 6, "%d", SERVER_PORT);
 			len_response += strlen( port_str );
@@ -95,8 +101,8 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 			len_response += 4;
 			// declare and compile
 
-			response = (char*) malloc( len_response*sizeof(char) );
-			if (client_selector->selector[ (strlen(client_selector->selector)-1) ] != '/'){
+			response = (char*) malloc(len_response*sizeof(char));
+			if (client_selector->selector[(strlen(client_selector->selector)-1)] != '/'){
 				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\n", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
 			} else {
 				snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\n", type, subFile->d_name, client_selector->selector, subFile->d_name, SERVER_DOMAIN, SERVER_PORT);
@@ -114,13 +120,14 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 	closedir(folder);
 
 	close(client_info->socket);
-#endif
+// #endif
 }
 
 
 // This fuction management the thread which have to send the FILE at client
 void *thread_sender(client_args* c) {
 #ifdef _WIN32
+	write_log(INFO, "hello from thread_sender");
 #else
 	// declare a variable of STRUCT client_args, and cast the arguemnt into
 	client_args *client_info;
@@ -219,6 +226,20 @@ void *thread_sender(client_args* c) {
 // in the Gopher.md u can see all gopher char and the translate
 char type_path(char path[PATH_MAX]) {
 
+#ifdef _WIN32
+	DWORD f;
+	if((f = GetFileAttributes(path)) == INVALID_FILE_ATTRIBUTES) {
+		write_log(WARNING, "Path %s doesn't exist", path);
+		return '3';
+	}
+
+	if (PathIsDirectoryA(path)) {
+		write_log(INFO, "Path %s is a directory", path);
+		return '1';
+	}
+	write_log(INFO, "Path %s is a file", path);
+	return '0';
+#else
 	// we check the tipe or file with file bash command
 	char command[(strlen(path)+10)];
 	// file with -b option: 
@@ -252,23 +273,24 @@ char type_path(char path[PATH_MAX]) {
 	if (strncmp(popen_output, APPLICATION_9, strlen(APPLICATION_9)) == 0) {
 		return '9';
 	}
-	if (strncmp( popen_output, AUDIO_s, strlen(AUDIO_s)) == 0 ) {
+	if (strncmp(popen_output, AUDIO_s, strlen(AUDIO_s)) == 0 ) {
 		return 's';
 	}
-	if (strncmp( popen_output, HTML_h, strlen(HTML_h)) == 0 ) {
+	if (strncmp(popen_output, HTML_h, strlen(HTML_h)) == 0 ) {
 		return 'h';
 	}
 	if ((strncmp(popen_output, TEXT_0, strlen(TEXT_0)) == 0) || (strncmp(popen_output, EMPTY_0, strlen(EMPTY_0)) == 0)) {
 		return '0';
 	}
-	if (strncmp( popen_output, GIF_g, strlen(GIF_g)) == 0) {
+	if (strncmp(popen_output, GIF_g, strlen(GIF_g)) == 0) {
 		return 'g';
 	}
-	if (strncmp( popen_output, IMAGE_I, strlen(IMAGE_I)) == 0) {
+	if (strncmp(popen_output, IMAGE_I, strlen(IMAGE_I)) == 0) {
 		return 'I';
 	}
-	if (strncmp( popen_output, MAC_4, strlen(MAC_4)) == 0) {
+	if (strncmp(popen_output, MAC_4, strlen(MAC_4)) == 0) {
 		return '4';
 	}
 	return '3';
+#endif
 }

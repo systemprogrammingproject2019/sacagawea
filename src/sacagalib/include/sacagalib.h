@@ -13,7 +13,7 @@
 #define DEBUG   3
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL INFO
+#define LOG_LEVEL DEBUG
 #endif
 
 #define true     1
@@ -80,7 +80,7 @@ EXPORTED int check_not_match(char d_name[PATH_MAX+1], char *word);
 
 // children_management.c
 EXPORTED selector request_to_selector( char *input );
-EXPORTED void *thread_function(client_args* c);
+EXPORTED long unsigned int *thread_function(client_args* c);
 EXPORTED void process_fuction(client_args *client_info);
 #ifdef _WIN32
 EXPORTED HANDLE thread_management(client_args *client_info);
@@ -140,7 +140,7 @@ EXPORTED int check_security_path(char path[PATH_MAX]);
 
 // all "file -bi file_path" command output
 #ifdef _WIN32
-#define S_ROOT_PATH ".\\"
+#define S_ROOT_PATH ""
 #else
 #define S_ROOT_PATH "./"
 #endif

@@ -74,7 +74,7 @@ int read_request(int sd, char *input) {
 		}
 		/* Check to see if the connection has been closed by the client, so recv return 0  */
 		if (check == 0) {
-			printf("	Connection closed %d\n", sd );
+			printf("	Connection closed %I64d\n", sd);
 			// client close the connection so we can stop read and responce
 			return true;
 		}
@@ -228,6 +228,7 @@ int process_management(client_args *client_info) {
 	}
 
 #endif
+	return false;
 }
 
 // this fuction check if the input contain a selector or not and return it
@@ -284,7 +285,9 @@ selector request_to_selector(char *input){
 }
 
 // this fuction is the real management of the client responce with thread as son
-void *thread_function(client_args* c) {
+// needs to be "long unsigned int *" because win32 wants that, whereas
+// linux has no preference (only needs a "void *")
+long unsigned int *thread_function(client_args* c) {
 	// declare a variable of STRUCT client_args
 	client_args *client_info = (client_args*) c;
 	char type; // will containt the type of selector
@@ -296,11 +299,9 @@ void *thread_function(client_args* c) {
 	int sd = client_info->socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
 #endif
 
-	printf("SD IS: %d\n",sd);
-
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
-	char *input = malloc(PATH_MAX*sizeof(char));
+	char *input = calloc(PATH_MAX, sizeof(char));
 
 	// read request from sd ( client socket ) and put in *input, if fail return true otherwise false
 	if ((check = read_request(sd, input))) {
@@ -308,7 +309,7 @@ void *thread_function(client_args* c) {
 	}
 	
 	// if we are there, print that message
-	fprintf(stdout, "READ: \"%s\"\n%d bytes at %p\n", input, check, &input );
+	write_log(DEBUG, "RECEIVED: \"%s\"\n%d bytes at %p\n", input, check, &input );
 
 	// check if the input contain a selector or not
 	selector client_selector;
@@ -320,46 +321,39 @@ void *thread_function(client_args* c) {
 	} */
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
-	client_info->path_file = (char*) malloc(strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1);
+	client_info->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
+#ifdef _WIN32
+	GetCurrentDirectory(PATH_MAX, client_info->path_file);
+	client_info->path_file[strlen(client_info->path_file)] = '\\';
+#else
 	strcpy(client_info->path_file, S_ROOT_PATH);
+#endif
 	strcat(client_info->path_file, client_selector.selector);
 	write_log(INFO, "PATH+SELECTOR %d bytes: %s", strlen(client_info->path_file), client_info->path_file);
 
-	if (client_selector.selector[0] == '\0') {
-		// if selector is empty we send the content of gophermap, who match with words
-		// and the content of ROOT_PATH
-		type = type_path(S_ROOT_PATH);
-
-	} else { /* if we have a selector, we check if is a dir or not.*/
-
-		//	little check for avoid trasversal path	
-		if (check_security_path( client_selector.selector)) {
-			write_log(INFO, "eh eh nice try where u wanna go?");
-			close_socket_kill_thread(sd, 0);
-		}// add the gopher root path at selector and check the type of file
-		type = type_path(client_info->path_file);
+	// avoid trasversal path	
+	if (check_security_path(client_selector.selector)) {
+		write_log(INFO, "eh eh nice try where u wanna go?");
+		close_socket_kill_thread(sd, 0);
 	}
+	type = type_path(client_info->path_file);
+
 	// if is a dir we check the content if match with words 
 	if (type == '1') {
 		send_content_of_dir(client_info, &client_selector);
-	#ifdef _WIN32
-		ExitThread(0);
-	#else
-		pthread_exit(0);
-	#endif
-	} else {
-		if (type == '3') { // if is an error send the error message
-			char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
-			strcpy(temp, "3\t");
-			strcat(temp, client_selector.selector);
-			strcat(temp, "\n.\n"); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
-			send(sd, temp, strlen(temp), 0);
-			// close socket and thread
-			close_socket_kill_thread(sd, 0);
-		} else { // if is only a file
-			load_file_memory_and_send(client_info);
-		}
+	} else if (type == '3') { // if is an error send the error message
+		char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
+		strcpy(temp, "3\t");
+		strcat(temp, client_selector.selector);
+		strcat(temp, "\n.\n"); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
+		send(sd, temp, strlen(temp), 0);
+		// close socket and thread
+	} else { // if is only a file
+		load_file_memory_and_send(client_info);
 	}
+
+	close_socket_kill_thread(sd, 0);
+	return 0;
 }
 
 // this function spawn thread to management the new client request 
@@ -370,30 +364,31 @@ int thread_management(client_args *client_info) {
 #endif
 
 #ifdef _WIN32
-	HANDLE tid;
+	HANDLE tHandle;
 	client_args *tData;
 	print_client_args(client_info);
-	LPDWORD lpThreadId;
+	LPDWORD lpThreadId = 0;
 
 	tData = (client_args*) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
 			sizeof(client_args));
 
 	memcpy(tData, client_info, sizeof(client_args));
 
-	tid = CreateThread( 
+	tHandle = CreateThread( 
 			NULL,            // default security attributes
 			0,               // use default stack size  
 			thread_function, // thread function name
 			tData,           // argument to thread function 
 			0,               // use default creation flags 
-			&lpThreadId      // returns the thread identifier 
+			lpThreadId       // returns the thread identifier 
 	);
+	return tHandle;
 #else
 	pthread_t tid;
 	print_client_args(client_info);
 	pthread_create(&tid, NULL, (void *) thread_function, (void *) client_info);
-#endif
 	return tid;
+#endif
 }
 
 #ifdef _WIN32
