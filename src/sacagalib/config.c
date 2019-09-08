@@ -24,7 +24,7 @@ int check_if_conf(const char* line) {
 	int port_change = false;
 	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
 	// if line is type "mode [t/p]"
-	if (strlen(match = do_regex(("^" S_MODE "[[:space:]]+([tp])"), line))) {
+	if ( strlen( (match = do_regex( ("^" S_MODE "[[:space:]]+([tp])"), line) ) ) ) {
 		char mode;
 		mode = match[0];
 		if (mode == S_MODE_THREADED) {
@@ -34,7 +34,7 @@ int check_if_conf(const char* line) {
 			MODE_CLIENT_PROCESSING = 1;
 		}
 		//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
-	} else if (strlen(match = do_regex(("^" S_PORT "[[:space:]]+([0-9]+)"), line))) {
+	} else if( strlen( (match = do_regex(("^" S_PORT "[[:space:]]+([0-9]+)"), line) ) ) ) {
 		// if line is "port XXX" with XXX a port number
 		long int val;
 		val = strtol(match, NULL, 10);

@@ -44,6 +44,7 @@ int read_request(int sd, char *input) {
 	int err;
 	#endif
 	int read_bytes = 0;
+	int stopcheck = false;
 	int keep_going = true;
 
 	while (keep_going) {
@@ -80,8 +81,15 @@ int read_request(int sd, char *input) {
 		}
 		if (check > 0) {
 			read_bytes += check;
-			if (input[(read_bytes-1)] == '\n') {
-				keep_going = false;
+			if( stopcheck ){
+				if( input[(read_bytes-1)] == '\n' ) {
+					keep_going = false;
+				}else{
+					stopcheck = false;
+				}
+			}
+			if( input[(read_bytes-1)] == '\r' ) {
+				stopcheck = true;
 			}
 		}
 	}
@@ -233,31 +241,51 @@ int process_management(client_args *client_info) {
 
 // this fuction check if the input contain a selector or not and return it
 selector request_to_selector(char *input){
-	int read_bytes;
+	int read_bytes=0;
 	selector client_selector;
 	memset( &client_selector, '\0' , sizeof(client_selector));
 	client_selector.num_words=-1; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
 	
 	// check if input start with selector or not
-	if ((input[0] == '\t') || (input[0] == ' ') || (input[0] == '\n')) { // if not, we don't take it
+	if ( input[0] == '\t' ) { // if not, we don't take it
 		client_selector.selector[0] = '\0' ;
 		read_bytes=0;
 	} else { // if contain it we take it
-		sscanf( input, "%4096s", client_selector.selector);
-		read_bytes = strlen(client_selector.selector);
+
+		while( true ){
+			// if we arrive at \t we have finished the selector.	
+			if( input[read_bytes] == '\t' ){
+				break;
+			}
+			if( input[read_bytes] == '\r') {
+				// if we got \r we check if is followed by \n.
+				if( input[read_bytes+1] == '\n' ){
+					// if yes, the input is finished
+					break;
+				}else{
+					// if not, that means \r is in the file name.
+					client_selector.selector[read_bytes] = input[read_bytes];
+					read_bytes++;
+				}
+			}else{
+				// we save the char in the selector becouse is an accettable characters
+				client_selector.selector[read_bytes] = input[read_bytes];
+				read_bytes++;
+			}
+		}
 	}
 	
 	write_log(INFO, "SELECTOR: %s,%d bytes", client_selector.selector , read_bytes );
 
-	/* if the client send a tab \t, it means that the selector is followed by words 
-	that need to match with the name of the searched file */
+	// if the client send a tab \t, it means that the selector is followed by words 
+	// that need to match with the name of the searched file 
 	if (input[ read_bytes ] == '\t') {
 		int i = 0;
 		client_selector.words = (char **) malloc( 3*sizeof( char *) );
-		do {
+		while ( (input[read_bytes] != '\r') && (input[read_bytes] != '\n') ){
 			// put this check, becouse if the request contain 2+ consecutive \t or 2+ consecutive ' ' the scanf don't read an empty word.
 			if ((input[read_bytes] == '\t') || (input[read_bytes] == ' ')) {
-				//fprintf( stdout, "CHAR %c\n", input[read_bytes]);
+				fprintf( stdout, "CHAR -%c-\n", input[read_bytes]);
 				read_bytes++;
 				continue;
 			}
@@ -266,9 +294,9 @@ selector request_to_selector(char *input){
 			if ((i % 3) == 0) {
 				client_selector.words = (char **) realloc(  client_selector.words, (i+3)*sizeof( char *)  );
 			}
-			/* declare a space for word and read it, OPPURE c'è l'opzione %m che passandogli  client_selector.words[i], senza 
-			fare prima la malloc la fa scanf in automatico della grandezza della stringa letta + 1, sarebbe piu efficente dato che 
-			MAX_FILE_NAME è spazio sprecato per parole di piccole len_string */
+			// declare a space for word and read it, OPPURE c'è l'opzione %m che passandogli  client_selector.words[i], senza 
+			// fare prima la malloc la fa scanf in automatico della grandezza della stringa letta + 1, sarebbe piu efficente dato che 
+			// MAX_FILE_NAME è spazio sprecato per parole di piccole len_string 
 			client_selector.words[i] = (char *) malloc(((MAX_FILE_NAME+1) * sizeof(char)));
 			sscanf(&input[read_bytes], "%255s", client_selector.words[i]);
 			// upgrade read_bytes for check when we finish the client input
@@ -278,7 +306,7 @@ selector request_to_selector(char *input){
 			client_selector.num_words=i;
 			i++;
 
-		} while (input[read_bytes] != '\n');
+		}
 	}
 
 	return client_selector;
