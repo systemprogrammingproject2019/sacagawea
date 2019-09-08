@@ -89,7 +89,7 @@ int load_file_memory_and_send(client_args *client_info) {
 int check_security_path(char path[PATH_MAX]) {
 	/* le cose qui son 2
 	1 o facciamo un array di word globale con le parole non accettate
-	2 lasciamo stare tanto giusto ".." è da scartare, e teoricamente anche i ".." in UTF a 16 bits 32, non ricordo 
+	2 lasciamo stare tanto giusto "/../" è da scartare, e teoricamente anche i ".." in UTF a 16 bits 32, non ricordo 
 	quanti erano */
 	int i = 0;
 

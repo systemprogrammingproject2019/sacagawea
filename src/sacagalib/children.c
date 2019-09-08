@@ -48,12 +48,12 @@ int read_request(int sd, char *input) {
 	int keep_going = true;
 
 	while (keep_going) {
-		if ((PATH_MAX - read_bytes) <= 0) {
+		if ((MAX_REQUEST_LEN - read_bytes) <= 0) {
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
 			write_log(ERROR, "recv() of sd - %d, failed because of wrong input. Closing the connection", sd, strerror(errno));
 			return true;
 		}
-		check = recv(sd, &input[read_bytes], (PATH_MAX - read_bytes), 0);
+		check = recv(sd, &input[read_bytes], 1, 0);
 		if (check < 0) {
 		#ifdef _WIN32
 			if ((err = WSAGetLastError()) != WSAEWOULDBLOCK) {
@@ -360,7 +360,7 @@ long unsigned int *thread_function(client_args* c) {
 	write_log(INFO, "PATH+SELECTOR %d bytes: %s", strlen(client_info->path_file), client_info->path_file);
 
 	// avoid trasversal path	
-	if (check_security_path(client_selector.selector)) {
+	if (check_security_path(client_info->path_file)) {
 		write_log(INFO, "eh eh nice try where u wanna go?");
 		close_socket_kill_thread(sd, 0);
 	}

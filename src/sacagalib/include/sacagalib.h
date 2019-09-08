@@ -34,6 +34,7 @@
 // their length is 260 chars
 #else
 #define PATH_MAX 4096 // in Linux the max path is 4096 chars
+#define MAX_REQUEST_LEN  5000 // we can change that with logs
 #endif
 
 // windows needs it as a number, linux as a string
@@ -45,6 +46,7 @@ char MODE_CLIENT_PROCESSING;
 fd_set fds_set;
 
 #ifndef _WIN32
+
 int max_num_s;
 
 int pipe_conf[2];
