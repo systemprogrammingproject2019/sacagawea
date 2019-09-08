@@ -92,16 +92,11 @@ int check_security_path(char path[PATH_MAX]) {
 	2 lasciamo stare tanto giusto ".." è da scartare, e teoricamente anche i ".." in UTF a 16 bits 32, non ricordo 
 	quanti erano */
 	int i = 0;
-	int cont = 0;
-	for (i = 0; i < PATH_MAX; ++i) {
-		if (path[i] == '.') {
-			cont++;
-		} else {
-			cont = 0;
-		}
-		if (cont == 2) {
-			return 1;
-		}
+
+	for (i = 0; i < strlen( path ); ++i) {
+		if ( strncmp( &path[i], "/../" , 4) == 0 ){
+			return true;
+		} 
 	}
-	return 0;
+	return false;
 }
