@@ -196,12 +196,12 @@ void *thread_sender(client_args* c) {
 		
 		if (logs_string == NULL) {
 			write_log(ERROR, "malloc() failed: %s\n", strerror(errno));
-			exit(5);
+			pthread_exit(NULL);
 		}
 		if (snprintf(logs_string, len_logs_string, "%s %s %s\n", ds,
 				client_info->path_file, client_info->client_addr) < 0 ){
 			write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
-			exit(5);
+			pthread_exit(NULL);
 		}
 		free(ds);
 
@@ -210,8 +210,14 @@ void *thread_sender(client_args* c) {
 		// sent logs string, first we sent the strlen after the string
 		len_logs_string = strlen( logs_string );
 		write_log(INFO, "HERE %ld: %s\n", len_logs_string, logs_string);
-		write(pipe_conf[1], &len_logs_string, sizeof(int));	
-		write(pipe_conf[1], logs_string, len_logs_string);
+		if ( write(pipe_conf[1], &len_logs_string, sizeof(int)) < 0 ){
+			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
+	 		exit(5);
+		}	
+		if ( write(pipe_conf[1], logs_string, len_logs_string) < 0 ){
+			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
+	 		exit(5);
+		}	
 		// unlock mutex and free
 		pthread_cond_signal(cond);
 		pthread_mutex_unlock(mutex);
@@ -252,7 +258,10 @@ char type_path(char path[PATH_MAX]) {
 	}
 	char popen_output[20]; // is useless read all output, i need only the first section and the max is "application/gopher"
 	
-	fgets((char *) &popen_output, 20, popen_output_stream);
+	if ( fgets((char *) &popen_output, 20, popen_output_stream) == NULL) { 
+		write_log(ERROR,"fgets() failed: %s\n", strerror(errno));
+	 	exit(5);
+	}
 	//fprintf( stdout, "%s\n", popen_output); 
 	if (strncmp(popen_output, "cannot", 6) == 0) {
 		write_log(INFO, "%s", popen_output);

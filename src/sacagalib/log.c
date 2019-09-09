@@ -99,7 +99,10 @@ void log_management() {
 
 		// read pipe and write sacagawea.log, until we got \n
 		read_line = (char*) malloc((len_string+1) * sizeof(char));
-		read(pipe_conf[0], read_line, len_string);
+		if ( read(pipe_conf[0], read_line, len_string) < 0 ) {
+			fprintf(stderr, "read() fail becouse: %s\n", strerror(errno));
+			exit(5);
+		}
 		read_line[len_string]='\0';
 		write_log(INFO, "received: %d, %s",len_string, read_line);
 		fprintf(log_file, "%s", read_line);
@@ -144,9 +147,9 @@ void write_log(int log_lv, const char* error_string, ...) {
 	free(ds);
 
 	if (log_lv <= WARNING) {
-		fprintf(stderr, log_string);
+		fprintf(stderr, "%s", log_string);
 	} else if (log_lv <= LOG_LEVEL) {
-		fprintf(stdout, log_string);
+		fprintf(stdout, "%s", log_string);
 		// return;
 	}
 

@@ -68,7 +68,10 @@ int load_file_memory_and_send(client_args *client_info) {
 
 	client_info->file_to_send = malloc((len + 1));
 	client_info->len_file = len;
-	fread(client_info->file_to_send, 1, len, fp);
+	if ( fread(client_info->file_to_send, 1, len, fp) < len ) {
+		write_log(ERROR, "fread() failed: %s\n", strerror(errno));
+		exit(5);
+	}
 	client_info->file_to_send[len] = '\0';
 
 	// release lock with F_UNLCK flag and FP FD
@@ -82,6 +85,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	pthread_t tid;
 	pthread_create(&tid, NULL, (void *) thread_sender, (void *)client_info);
 	pthread_join( tid, NULL);
+	return 0;
 #endif
 }
 

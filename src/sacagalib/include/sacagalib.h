@@ -82,8 +82,8 @@ EXPORTED int check_not_match(char d_name[PATH_MAX+1], char *word);
 
 // children_management.c
 EXPORTED selector request_to_selector( char *input );
-EXPORTED long unsigned int *thread_function(client_args* c);
-EXPORTED void process_fuction(client_args *client_info);
+EXPORTED long unsigned int *management_function(client_args* c);
+// EXPORTED void process_fuction(client_args *client_info);
 #ifdef _WIN32
 EXPORTED HANDLE thread_management(client_args *client_info);
 #else

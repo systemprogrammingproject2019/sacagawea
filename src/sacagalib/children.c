@@ -27,8 +27,10 @@
 
 #ifdef _WIN32
 void close_socket_kill_thread(SOCKET sd, int errcode);
+void close_socket_kill_process(SOCKET sd, int errcode);
 #else
 void close_socket_kill_thread(int sd, int errcode);
+void close_socket_kill_process(int sd, int errcode);
 #endif
 
 
@@ -95,7 +97,7 @@ int read_request(int sd, char *input) {
 	}
 	return false;
 }
-
+/* non serve thread_function funziona identicamente.
 // this is the real process fuction which management the request, when mode is p
 void process_fuction(client_args *client_info) {
 #ifdef _WIN32
@@ -117,9 +119,7 @@ void process_fuction(client_args *client_info) {
 	memset( &client_selector, '\0', sizeof(client_selector));
 
 	client_selector = request_to_selector(input);
-	/* if ( client_selector == NULL ){
-		send( sd, S_ERROR_SELECTOR_REQUEST, strlen(S_ERROR_SELECTOR_REQUEST), 0);
-	} */
+
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	client_info->path_file = (char*) malloc(strlen(client_selector.selector) + strlen(S_ROOT_PATH) + 1);
@@ -132,7 +132,7 @@ void process_fuction(client_args *client_info) {
 		// and the content of ROOT_PATH
 		type = type_path(S_ROOT_PATH);
 
-	} else { /* if we have a selector, we check if is a dir or not.*/
+	} else { // if we have a selector, we check if is a dir or not.
 
 		//	little check for avoid trasversal path	
 		if (check_security_path(client_selector.selector)) {
@@ -165,7 +165,7 @@ void process_fuction(client_args *client_info) {
 		}
 	}
 #endif
-}
+} */
 
 // this function spawn process to management the new client request 
 int process_management(client_args *client_info) {
@@ -225,7 +225,7 @@ int process_management(client_args *client_info) {
 		// close server_socket
 		close(SERVER_SOCKET);
 		printf("Son spawned ready to serv\n");
-		process_fuction( client_info );
+		management_function( client_info );
 		printf("Son finish to serv\n");
 		exit(1);
 	} else {
@@ -315,7 +315,7 @@ selector request_to_selector(char *input){
 // this fuction is the real management of the client responce with thread as son
 // needs to be "long unsigned int *" because win32 wants that, whereas
 // linux has no preference (only needs a "void *")
-long unsigned int *thread_function(client_args* c) {
+long unsigned int *management_function(client_args* c) {
 	// declare a variable of STRUCT client_args
 	client_args *client_info = (client_args*) c;
 	char type; // will containt the type of selector
@@ -333,7 +333,11 @@ long unsigned int *thread_function(client_args* c) {
 
 	// read request from sd ( client socket ) and put in *input, if fail return true otherwise false
 	if ((check = read_request(sd, input))) {
-		close_socket_kill_thread(sd, 0);
+		if (MODE_CLIENT_PROCESSING == 0) {
+			close_socket_kill_thread(sd, 0);
+		}else{
+			close_socket_kill_process(sd, 0);
+		}
 	}
 	
 	// if we are there, print that message
@@ -362,7 +366,11 @@ long unsigned int *thread_function(client_args* c) {
 	// avoid trasversal path	
 	if (check_security_path(client_info->path_file)) {
 		write_log(INFO, "eh eh nice try where u wanna go?");
-		close_socket_kill_thread(sd, 0);
+		if (MODE_CLIENT_PROCESSING == 0) {
+			close_socket_kill_thread(sd, 0);
+		}else{
+			close_socket_kill_process(sd, 0);
+		}
 	}
 	type = type_path(client_info->path_file);
 
@@ -380,7 +388,11 @@ long unsigned int *thread_function(client_args* c) {
 		load_file_memory_and_send(client_info);
 	}
 
-	close_socket_kill_thread(sd, 0);
+	if (MODE_CLIENT_PROCESSING == 0) {
+		close_socket_kill_thread(sd, 0);
+	}else{
+		close_socket_kill_process(sd, 0);
+	}
 	return 0;
 }
 
@@ -414,7 +426,7 @@ int thread_management(client_args *client_info) {
 #else
 	pthread_t tid;
 	print_client_args(client_info);
-	pthread_create(&tid, NULL, (void *) thread_function, (void *) client_info);
+	pthread_create(&tid, NULL, (void *) management_function, (void *) client_info);
 	return tid;
 #endif
 }
@@ -430,5 +442,18 @@ void close_socket_kill_thread(int sd, int errcode) {
 	#else
 		close(sd);
 		pthread_exit(&errcode);
+	#endif
+}
+#ifdef _WIN32
+void close_socket_kill_process(SOCKET sd, int errcode) {
+#else
+void close_socket_kill_process(int sd, int errcode) {
+#endif
+	#ifdef _WIN32
+		closesocket(sd);
+		_exit(errcode);
+	#else
+		close(sd);
+		_exit(errcode);
 	#endif
 }
