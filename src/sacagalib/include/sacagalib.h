@@ -91,6 +91,15 @@ EXPORTED int thread_management(client_args *client_info);
 #endif
 EXPORTED int process_management(client_args *client_info);
 
+// the name is self explanatory
+#ifdef _WIN32
+void close_socket_kill_thread(SOCKET sd, int errcode);
+void close_socket_kill_process(SOCKET sd, int errcode);
+#else
+void close_socket_kill_thread(int sd, int errcode);
+void close_socket_kill_process(int sd, int errcode);
+#endif
+
 // socket.c
 #ifdef _WIN32
 SOCKET client_socket[MAX_CLIENTS];

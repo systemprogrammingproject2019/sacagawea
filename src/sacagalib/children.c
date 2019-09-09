@@ -25,14 +25,6 @@
 
 #include "sacagalib.h"
 
-#ifdef _WIN32
-void close_socket_kill_thread(SOCKET sd, int errcode);
-void close_socket_kill_process(SOCKET sd, int errcode);
-#else
-void close_socket_kill_thread(int sd, int errcode);
-void close_socket_kill_process(int sd, int errcode);
-#endif
-
 
 #ifdef _WIN32
 int read_request(SOCKET sd, char *input) {

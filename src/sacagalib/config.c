@@ -24,7 +24,7 @@ int check_if_conf(const char* line) {
 	int port_change = false;
 	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
 	// if line is type "mode [t/p]"
-	if ( strlen( (match = do_regex( ("^" S_MODE "[[:space:]]+([tp])"), line) ) ) ) {
+	if ( strlen( match = do_regex( ("^" S_MODE "[[:space:]]+([tp])"), line) ) ) {
 		char mode;
 		mode = match[0];
 		if (mode == S_MODE_THREADED) {
@@ -34,13 +34,18 @@ int check_if_conf(const char* line) {
 			MODE_CLIENT_PROCESSING = 1;
 		}
 		//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
-	} else if( strlen( (match = do_regex(("^" S_PORT "[[:space:]]+([0-9]+)"), line) ) ) ) {
-		// if line is "port XXX" with XXX a port number
-		long int val;
-		val = strtol(match, NULL, 10);
-		if (val != SERVER_PORT && val < 65536) {
-			SERVER_PORT = val;
-			port_change = true;
+	} else {
+		if( strlen( match = do_regex(("^" S_PORT "[[:space:]]+([0-9]+)"), line) ) ) {
+			// if line is "port XXX" with XXX a port number
+			long int val;
+			val = strtol(match, NULL, 10);
+			fprintf(stdout,"%d  -  %s\n", val , match);
+
+			if ( (val != SERVER_PORT) && (val < 65536) ) {
+				fprintf(stdout,"here\n");
+				SERVER_PORT = val;
+				port_change = true;
+			}
 		}
 	}
 	return port_change;
@@ -171,7 +176,7 @@ int read_and_check_conf() {
 	fp = fopen(SACAGAWEACONF_PATH , "r");
 	if (fp == NULL) {
 		write_log(ERROR, S_ERROR_FOPEN, (char*) strerror(errno));
-	 	exit(5);
+	 	close_socket_kill_process( SERVER_SOCKET, 5);
 	}
 
 	//readline or max_line_size chars
@@ -181,7 +186,7 @@ int read_and_check_conf() {
 				break;
 			} else {
 				write_log(ERROR, S_ERROR_FGETS, strerror(errno));
-				exit(5);
+				close_socket_kill_process( SERVER_SOCKET, 5);
 			}
 		}
 		size_t line_len = strlen(line);
@@ -192,7 +197,7 @@ int read_and_check_conf() {
 			line[line_len - 1] = '\0';
 		}
 		// check if the line is a config line
-		if ((line_len <= max_line_size) && (check_if_conf(line))) {
+		if ( (line_len <= max_line_size) && (check_if_conf(line)) ) {
 			port_change = true;
 		}
 	};
@@ -207,13 +212,14 @@ void config_handler(int signum) {
 	/* Check sagacawea.conf, if the return's value is true the socket SERVER_PORT 
 	change so we have to close the socket finish the instaured connection
 	and restart the socket with the new SERVER_PORT */
-	if (read_and_check_conf()) {
+	fprintf( stdout, "config file %d\n", read_and_check_conf() );
+	if ( read_and_check_conf() ) {
 		write_log(INFO, "SERVER_SOCKET CHANGE %d",SERVER_SOCKET);
 		/* shutdown with SHUT_WR stop the socket response, he don't send data anymore on that socket.
 		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */
 		if (shutdown(SERVER_SOCKET, SHUT_WR) < 0) {
 			write_log(ERROR, "shutdown() failed: %s", (char*) strerror(errno));
-			exit(5);
+			close_socket_kill_process( SERVER_SOCKET, 5);
 		}
 		int EX_SERVER_SOCKET = SERVER_SOCKET;
 		// Open the new listen socket at new PORT
@@ -244,7 +250,7 @@ void config_handler(int signum) {
 			if (new_s < 0){
 				if (errno != EWOULDBLOCK){
 					write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
-					exit(5);
+					close_socket_kill_process( SERVER_SOCKET, 5);
 				}
 				break;
 			}
@@ -260,7 +266,7 @@ void config_handler(int signum) {
 					process_management(client_info);
 				} else {
 					write_log(ERROR, "WRONG MODE PLS CHECK: %d", MODE_CLIENT_PROCESSING );
-					exit(5);
+					close_socket_kill_process( SERVER_SOCKET, 5);
 				}
 			}
 		} while ( new_s != 0);

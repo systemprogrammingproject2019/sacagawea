@@ -45,7 +45,7 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 	// open dir 
 	folder = opendir(client_info->path_file);
 	if (folder == NULL) {
-
+		close_socket_kill_process( SERVER_SOCKET, 5);
 	}
 
 	while ((subFile = readdir(folder)) != NULL) {
@@ -140,14 +140,12 @@ void *thread_sender(client_args* c) {
 		if (temp < 0) {
 			write_log(ERROR, "Sending file at %s, with socket %d failed becouse of: %s\n",
 					client_info->client_addr, client_info->socket, strerror(errno) );
-			close( client_info->socket );
-			pthread_exit(NULL);
+			close_socket_kill_thread( client_info->socket, 5);
 		}
 		if (temp == 0) {
 			write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
 					client_info->client_addr, client_info->socket);
-			close(client_info->socket);
-			pthread_exit(NULL);
+			close_socket_kill_thread( client_info->socket, 5);
 		}
 		bytes_sent += temp;
 		write_log(INFO, "sent %ld bytes\n", bytes_sent);
@@ -162,8 +160,7 @@ void *thread_sender(client_args* c) {
 	dal lato server, cosi curl quando finisce di leggere i bytes inviati si blocca e chiude la comunicazione */ 
 	if (shutdown(client_info->socket, SHUT_WR) < 0) {
 		write_log(ERROR, "shutdown() failed: %s\n", strerror(errno));
-		close(client_info->socket);
-		pthread_exit(NULL);
+		close_socket_kill_thread( client_info->socket, 5);
 	}
 	/* come detto prima curl finisce la comunicazione quando legge tutto, ma noi non sappiamo quando ha finito
 	quindi faccio questo while che cerca di fare una recv, quando la recv ritorna 0 vuol dire che la curl ha chiuso 
@@ -177,8 +174,7 @@ void *thread_sender(client_args* c) {
 	}
 	if (check < 0) {
 		write_log(ERROR, "recv() failed: %s\n", strerror(errno));
-		close(client_info->socket);
-		pthread_exit(NULL);
+		close_socket_kill_thread( client_info->socket, 5);
 	}
 	close(client_info->socket);
 	
@@ -254,13 +250,15 @@ char type_path(char path[PATH_MAX]) {
 	FILE* popen_output_stream = popen(command , "r");
 	if (popen_output_stream == NULL) { 
 		write_log(ERROR,"popen() failed: %s\n", strerror(errno));
-	 	exit(5);
+	 	close_socket_kill_process( SERVER_SOCKET, 5);
 	}
 	char popen_output[20]; // is useless read all output, i need only the first section and the max is "application/gopher"
 	
-	if ( fgets((char *) &popen_output, 20, popen_output_stream) == NULL) { 
-		write_log(ERROR,"fgets() failed: %s\n", strerror(errno));
-	 	exit(5);
+	if ( fgets((char *) &popen_output, 20, popen_output_stream) == NULL) {
+		if ( !feof(popen_output_stream)) {
+			write_log(ERROR, S_ERROR_FGETS, strerror(errno));
+			close_socket_kill_process( SERVER_SOCKET, 5);
+		}
 	}
 	//fprintf( stdout, "%s\n", popen_output); 
 	if (strncmp(popen_output, "cannot", 6) == 0) {
