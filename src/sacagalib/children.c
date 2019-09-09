@@ -308,27 +308,19 @@ selector request_to_selector(char *input){
 // needs to be "long unsigned int *" because win32 wants that, whereas
 // linux has no preference (only needs a "void *")
 long unsigned int *management_function(client_args* c) {
-	// declare a variable of STRUCT client_args
-	client_args *client_info = (client_args*) c;
 	char type; // will containt the type of selector
 	int check;
-
-#ifdef _WIN32
-	SOCKET sd = client_info->socket;
-#else
-	int sd = client_info->socket; // dato che (*client_info).socket era troppo lungo da riscrivere sempre ho usato sd 
-#endif
 
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
 	char *input = calloc(PATH_MAX, sizeof(char));
 
-	// read request from sd ( client socket ) and put in *input, if fail return true otherwise false
-	if ((check = read_request(sd, input))) {
+	// read request from client->socket ( client socket ) and put in *input, if fail return true otherwise false
+	if ((check = read_request(c->socket, input))) {
 		if (MODE_CLIENT_PROCESSING == 0) {
-			close_socket_kill_thread(sd, 0);
+			close_socket_kill_thread(c->socket, 0);
 		}else{
-			close_socket_kill_process(sd, 0);
+			close_socket_kill_process(c->socket, 0);
 		}
 	}
 	
@@ -341,49 +333,49 @@ long unsigned int *management_function(client_args* c) {
 
 	client_selector = request_to_selector(input);
 	/* if ( client_selector == NULL ){
-		send( sd, S_ERROR_SELECTOR_REQUEST, strlen(S_ERROR_SELECTOR_REQUEST), 0);
+		send( client->socket, S_ERROR_SELECTOR_REQUEST, strlen(S_ERROR_SELECTOR_REQUEST), 0);
 	} */
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
-	client_info->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
+	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
 #ifdef _WIN32
-	GetCurrentDirectory(PATH_MAX, client_info->path_file);
-	client_info->path_file[strlen(client_info->path_file)] = '\\';
+	GetCurrentDirectory(PATH_MAX, c->path_file);
+	c->path_file[strlen(c->path_file)] = '\\';
 #else
-	strcpy(client_info->path_file, S_ROOT_PATH);
+	strcpy(c->path_file, S_ROOT_PATH);
 #endif
-	strcat(client_info->path_file, client_selector.selector);
-	write_log(INFO, "PATH+SELECTOR %d bytes: %s", strlen(client_info->path_file), client_info->path_file);
+	strcat(c->path_file, client_selector.selector);
+	write_log(INFO, "PATH+SELECTOR %d bytes: %s", strlen(c->path_file), c->path_file);
 
 	// avoid trasversal path	
-	if (check_security_path(client_info->path_file)) {
+	if (check_security_path(c->path_file)) {
 		write_log(INFO, "eh eh nice try where u wanna go?");
 		if (MODE_CLIENT_PROCESSING == 0) {
-			close_socket_kill_thread(sd, 0);
+			close_socket_kill_thread(c->socket, 0);
 		}else{
-			close_socket_kill_process(sd, 0);
+			close_socket_kill_process(c->socket, 0);
 		}
 	}
-	type = type_path(client_info->path_file);
+	type = type_path(c->path_file);
 
 	// if is a dir we check the content if match with words 
 	if (type == '1') {
-		send_content_of_dir(client_info, &client_selector);
+		send_content_of_dir(c, &client_selector);
 	} else if (type == '3') { // if is an error send the error message
 		char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
 		strcpy(temp, "3\t");
 		strcat(temp, client_selector.selector);
 		strcat(temp, "\n.\n"); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
-		send(sd, temp, strlen(temp), 0);
+		send(c->socket, temp, strlen(temp), 0);
 		// close socket and thread
 	} else { // if is only a file
-		load_file_memory_and_send(client_info);
+		load_file_memory_and_send(c);
 	}
 
 	if (MODE_CLIENT_PROCESSING == 0) {
-		close_socket_kill_thread(sd, 0);
+		close_socket_kill_thread(c->socket, 0);
 	}else{
-		close_socket_kill_process(sd, 0);
+		close_socket_kill_process(c->socket, 0);
 	}
 	return 0;
 }
