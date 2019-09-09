@@ -27,14 +27,14 @@
 // max length of IP is 15 254.254.254.254 + 1 char for ':'
 // + 5 char for port 65000 + 1 char for the terminating null byte
 #define ADDR_MAXLEN 22
-
 #define MAX_FILE_NAME 255 // in Linux the max file name is 255 bytes
+#define MAX_REQUEST_LEN  5000 // we can change that with logs
+
 #ifdef _WIN32
 // under Win32 the PATH_MAX and MAX_PATH are already defined
 // their length is 260 chars
 #else
 #define PATH_MAX 4096 // in Linux the max path is 4096 chars
-#define MAX_REQUEST_LEN  5000 // we can change that with logs
 #endif
 
 // windows needs it as a number, linux as a string

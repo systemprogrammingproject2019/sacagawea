@@ -409,7 +409,7 @@ int thread_management(client_args *client_info) {
 	tHandle = CreateThread( 
 			NULL,            // default security attributes
 			0,               // use default stack size  
-			thread_function, // thread function name
+			management_function, // thread function name
 			tData,           // argument to thread function 
 			0,               // use default creation flags 
 			lpThreadId       // returns the thread identifier 
