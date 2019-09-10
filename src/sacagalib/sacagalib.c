@@ -33,8 +33,8 @@ se passa un path di 4096 ci sta un buffer overflow.
  */
 
 void print_client_args(client_args *client) {
-	write_log(INFO, "SOCKET: %d;  IP: %s;  PORT: %s",
-			client->socket, client->client_addr, client->client_addr );
+	write_log(INFO, "SOCKET = %d;  IP:port =  %s",
+			client->socket, client->addr);
 }
 
 // this fuction check if string d_name containt at some position the string word

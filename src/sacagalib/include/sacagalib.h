@@ -24,6 +24,14 @@
 #define MAX_CLIENTS 64
 #define SERVER_DOMAIN "localhost"
 
+#ifdef _WIN32
+#define sock_t SOCKET
+#define thread_t HANDLE
+#else
+#define sock_t int
+#define thread_t int
+#endif
+
 // max length of IP is 15 254.254.254.254 + 1 char for ':'
 // + 5 char for port 65000 + 1 char for the terminating null byte
 #define ADDR_MAXLEN 22
@@ -41,8 +49,13 @@
 #define SOCK_RECVBUF_LEN   65536
 #define S_SOCK_RECVBUF_LEN "65536"
 
-int SERVER_PORT;
-char MODE_CLIENT_PROCESSING;
+// this struct contains all the server's settings
+typedef struct struct_settings_t {
+	int port;
+	char mode;
+	char homedir[PATH_MAX];
+} settings_t;
+
 fd_set fds_set;
 
 #ifndef _WIN32
@@ -55,15 +68,12 @@ pthread_mutex_t *mutex;
 #endif
 
 struct struct_client_args{
-	char client_addr[ADDR_MAXLEN];
-#ifdef _WIN32
-	SOCKET socket;
-#else
-	int socket;
-#endif
-	char *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
-	char *file_to_send;
-	long len_file;
+	char    addr[ADDR_MAXLEN];
+	sock_t  socket;
+	char    *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
+	char    *file_to_send;
+	long    len_file;
+	const settings_t settings;
 };
 
 typedef struct struct_client_args client_args;
@@ -84,42 +94,31 @@ EXPORTED int check_not_match(char d_name[PATH_MAX+1], char *word);
 EXPORTED selector request_to_selector( char *input );
 EXPORTED long unsigned int *management_function(client_args* c);
 // EXPORTED void process_fuction(client_args *client_info);
-#ifdef _WIN32
-EXPORTED HANDLE thread_management(client_args *client_info);
-#else
-EXPORTED int thread_management(client_args *client_info);
-#endif
+EXPORTED thread_t thread_management(client_args *client_info);
 EXPORTED int process_management(client_args *client_info);
 
 // the name is self explanatory
-#ifdef _WIN32
-void close_socket_kill_thread(SOCKET sd, int errcode);
-void close_socket_kill_process(SOCKET sd, int errcode);
-#else
-void close_socket_kill_thread(int sd, int errcode);
-void close_socket_kill_process(int sd, int errcode);
-#endif
+void close_socket_kill_thread(sock_t sd, int errcode);
+void close_socket_kill_process(sock_t sd, int errcode);
 
 // socket.c
+sock_t SERVER_SOCKET; // the server's main socket
+EXPORTED sock_t open_socket();
 #ifdef _WIN32
-SOCKET client_socket[MAX_CLIENTS];
-SOCKET SERVER_SOCKET;        // the server socket's handle
-EXPORTED SOCKET open_socket();
-EXPORTED int listen_descriptor(SOCKET);
+sock_t client_socket[MAX_CLIENTS];
+EXPORTED int listen_descriptor(const settings_t*, sock_t);
 #else
-int SERVER_SOCKET; // the server socket's file descriptor
-int open_socket();
-int listen_descriptor();
+int listen_descriptor(const settings_t*);
 #endif
 
 EXPORTED int check_security_path();
 EXPORTED int load_file_memory_linux(char *path);
 
 // config.c
-EXPORTED int check_if_conf(const char* line);
+EXPORTED int check_if_conf(const char* line, settings_t*);
 EXPORTED char* do_regex(const char* pattern, const char* str);
-EXPORTED int read_and_check_conf();
-EXPORTED void config_handler(int signum);
+EXPORTED int read_and_check_conf(settings_t*);
+EXPORTED void config_handler(settings_t*, int signum);
 
 // gopher.c
 EXPORTED char type_path(char path[PATH_MAX]);

@@ -52,26 +52,30 @@ int main(int argc, char *argv[]){
 	// chiamo load file in memory per testare se funzionava
 	//load_file_memory_posix( "conf/sacagawea.conf");
 
+	settings_t settings;
+	settings.port = DEFAULT_SERVER_PORT;
+	settings.mode = 't';
+
 	// check the sacagawea.conf
-	read_and_check_conf();
+	read_and_check_conf(&settings);
 	// check if some variable are setted by command line
 	int c;
 	opterr = 0;
 	while ((c = getopt(argc, argv, "ptP:")) != -1) {
 		switch (c) {
 			case 'p':
-				MODE_CLIENT_PROCESSING = 1;
-				write_log(INFO, "mode change p: %d", MODE_CLIENT_PROCESSING);
+				settings.mode = 'p';
+				write_log(INFO, "mode change: 'p'");
 				break;
 
 			case 'P':
-				SERVER_PORT = atoi(optarg);
-				write_log(INFO, "port change: %d", SERVER_PORT);
+				settings.port = atoi(optarg);
+				write_log(INFO, "port change: %d", settings.port);
 				break;
 
 			case 't':
-				MODE_CLIENT_PROCESSING = 0;
-				write_log(INFO, "mode change t: %d", MODE_CLIENT_PROCESSING);
+				settings.mode = 't';
+				write_log(INFO, "mode change: 't'");
 				break;
 
 			case '?':
@@ -82,7 +86,7 @@ int main(int argc, char *argv[]){
 	}
 
 	write_log(INFO, "Server port: %d, mode: %s",
-			SERVER_PORT, MODE_CLIENT_PROCESSING?"multiprocess":"multithreaded");
+			settings.port, (settings.mode == 'p')?"multiprocess":"multithreaded");
 
 #ifndef _WIN32
 	//spawn process who manages the logs file
@@ -162,7 +166,7 @@ int main(int argc, char *argv[]){
 		write_log(ERROR, "System call fork() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	if (pid == 0){ /* child process */
+	if (pid == 0) { /* child process */
 		// close write pipe
 		close( pipe_conf[1] );
 		// call log management
@@ -218,7 +222,7 @@ int main(int argc, char *argv[]){
 #endif
 
 	// open socket call
-	SERVER_SOCKET = open_socket();
+	SERVER_SOCKET = open_socket(&settings);
 
 #ifndef _WIN32
 	/* declare FD_SET and initialize it */
@@ -227,7 +231,7 @@ int main(int argc, char *argv[]){
 	FD_SET(SERVER_SOCKET, &fds_set);
 	//per controlare roba da me "non eliminare"
 	for (int i = 0; i <= max_num_s ; ++i) {
-		write_log(INFO, "i: %d  is set:  %d",i,FD_ISSET(i, &fds_set));
+		write_log(INFO, "i: %d  is set:  %d", i, FD_ISSET(i, &fds_set));
 	}
 #endif
 
@@ -235,16 +239,16 @@ int main(int argc, char *argv[]){
 	/* Loop waiting for incoming connects or for incoming data
 		on any of the connected sockets.   */
 	do {
-		if (listen_descriptor(SERVER_SOCKET)) {
+		if (listen_descriptor(&settings, SERVER_SOCKET)) {
 			break;
 		}
-	} while(true);
+	} while (true);
 #else
 	do {
-		if (listen_descriptor()) {
+		if (listen_descriptor(&settings)) {
 			break;
 		}
-	} while(true);
+	} while (true);
 #endif
 
 	// we are out of select loop so we have to close all sockets

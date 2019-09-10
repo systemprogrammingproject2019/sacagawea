@@ -18,36 +18,46 @@
 
 // this function check if a line contain a new config, FINITA
 // RETURN true if change SERVER_PORT, false in all other cases
-int check_if_conf(const char* line) {
-	char* match;
-
+int check_if_conf(const char* line, settings_t* settings) {
+	char* match = NULL;
+	char matched = false;
 	int port_change = false;
 	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
 	// if line is type "mode [t/p]"
-	if ( strlen( match = do_regex( ("^" S_MODE "[[:space:]]+([tp])"), line) ) ) {
+	match = do_regex(("^" S_MODE "[[:blank:]]+([tp])"), line);
+	if (strlen(match)) {
+		matched = true;
 		char mode;
 		mode = match[0];
 		if (mode == S_MODE_THREADED) {
-			MODE_CLIENT_PROCESSING = 0;
+			write_log(DEBUG, "check_if_conf: new mode: 'multithread'");
+			settings->mode = 't';
 		}
 		if (mode == S_MODE_MULTIPROCESS) {
-			MODE_CLIENT_PROCESSING = 1;
+			write_log(DEBUG, "check_if_conf: new mode: 'multiprocess'");
+			settings->mode = 'p';
 		}
 		//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
-	} else {
-		if( strlen( match = do_regex(("^" S_PORT "[[:space:]]+([0-9]+)"), line) ) ) {
-			// if line is "port XXX" with XXX a port number
-			long int val;
-			val = strtol(match, NULL, 10);
-			fprintf(stdout,"%d  -  %s\n", val , match);
+	}
+	if (matched == true) free(match);
+	matched = false;
 
-			if ( (val != SERVER_PORT) && (val < 65536) ) {
-				fprintf(stdout,"here\n");
-				SERVER_PORT = val;
-				port_change = true;
-			}
+	match = do_regex(("^" S_PORT "[[:blank:]]+([[:digit:]]{1,5})"), line);
+	if (strlen(match)) {
+		matched = true;
+		// if line is "port XXX" with XXX a port number
+		long int val;
+		val = strtol(match, NULL, 10);
+
+		if ((val != 0) && (val != settings->port) && (val < 65536)) {
+			write_log(DEBUG, "check_if_conf: new port: '%d'", val);
+			settings->port = val;
+			port_change = true;
 		}
 	}
+	if (matched == true) free(match);
+	matched = false;
+
 	return port_change;
 }
 
@@ -83,7 +93,7 @@ int check_if_conf(const char* line) {
 char* do_regex(const char* pattern, const char* str) {
 #ifdef _WIN32
 	PCRE2_SIZE BUFLEN = 256;
-	char *r = malloc(BUFLEN);
+	char *r = calloc(BUFLEN, sizeof(char));
 	pcre2_code *re;
 	int errorcode, rc;
 	PCRE2_SIZE *ovector;
@@ -156,7 +166,7 @@ char* do_regex(const char* pattern, const char* str) {
 	}
 
 
-	char* r = malloc(regmatch[1].rm_eo - regmatch[1].rm_so + 1);
+	char* r = calloc(regmatch[1].rm_eo - regmatch[1].rm_so + 1, sizeof(char));
 	memcpy(r, &str[regmatch[1].rm_so], regmatch[1].rm_eo - regmatch[1].rm_so);
 	r[regmatch[1].rm_eo - regmatch[1].rm_so] = '\0';
 	/* Free memory allocated to the pattern buffer by regcomp() */
@@ -166,7 +176,7 @@ char* do_regex(const char* pattern, const char* str) {
 }
 
 // this function read the sacagawea.conf line by line  FINITA
-int read_and_check_conf() {
+int read_and_check_conf(settings_t* settings) {
 	// some declaretion 
 	FILE *fp;
 	const size_t max_line_size = 128;
@@ -176,7 +186,7 @@ int read_and_check_conf() {
 	fp = fopen(SACAGAWEACONF_PATH , "r");
 	if (fp == NULL) {
 		write_log(ERROR, S_ERROR_FOPEN, (char*) strerror(errno));
-	 	close_socket_kill_process( SERVER_SOCKET, 5);
+	 	close_socket_kill_process(SERVER_SOCKET, 5);
 	}
 
 	//readline or max_line_size chars
@@ -186,7 +196,7 @@ int read_and_check_conf() {
 				break;
 			} else {
 				write_log(ERROR, S_ERROR_FGETS, strerror(errno));
-				close_socket_kill_process( SERVER_SOCKET, 5);
+				close_socket_kill_process(SERVER_SOCKET, 5);
 			}
 		}
 		size_t line_len = strlen(line);
@@ -197,7 +207,7 @@ int read_and_check_conf() {
 			line[line_len - 1] = '\0';
 		}
 		// check if the line is a config line
-		if ( (line_len <= max_line_size) && (check_if_conf(line)) ) {
+		if ((line_len <= max_line_size) && (check_if_conf(line, settings))) {
 			port_change = true;
 		}
 	};
@@ -208,13 +218,13 @@ int read_and_check_conf() {
 #ifndef _WIN32
 // check this fuction
 // this function is called when SIGHUP coming 
-void config_handler(int signum) {
+void config_handler(settings_t* settings, int signum) {
 	/* Check sagacawea.conf, if the return's value is true the socket SERVER_PORT 
 	change so we have to close the socket finish the instaured connection
 	and restart the socket with the new SERVER_PORT */
-	fprintf( stdout, "config file %d\n", read_and_check_conf() );
-	if ( read_and_check_conf() ) {
-		write_log(INFO, "SERVER_SOCKET CHANGE %d",SERVER_SOCKET);
+	// fprintf( stdout, "config file %d\n", read_and_check_conf(&settings));
+	if (read_and_check_conf(&settings)) {
+		write_log(INFO, "SERVER_SOCKET CHANGE %d", SERVER_SOCKET);
 		/* shutdown with SHUT_WR stop the socket response, he don't send data anymore on that socket.
 		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */
 		if (shutdown(SERVER_SOCKET, SHUT_WR) < 0) {
@@ -233,40 +243,40 @@ void config_handler(int signum) {
 
 		// now we accept all remaining connected comunication which did 3WHS
 		int new_s;
-		unsigned int client_addr_len;
-		// client_addr to take ip:port of client
-		struct sockaddr_in client_addr;
+		unsigned int addr_len;
+		// addr to take ip:port of client
+		struct sockaddr_in addr;
 		// client_info for save all info of client
 		client_args *client_info;
 		client_info = (client_args*) malloc(sizeof(client_args));
 		memset(client_info, 0, sizeof(client_args));
 
 		do {
-			memset(&client_addr, 0, sizeof(client_addr));
-			client_addr_len = sizeof(client_addr); // save sizeof sockaddr struct becouse accept need it
+			memset(&addr, 0, sizeof(addr));
+			addr_len = sizeof(addr); // save sizeof sockaddr struct becouse accept need it
 			new_s = accept(SERVER_SOCKET,
-					(__SOCKADDR_ARG) &client_addr,
-					&client_addr_len);
+					(__SOCKADDR_ARG) &addr,
+					&addr_len);
 			if (new_s < 0){
 				if (errno != EWOULDBLOCK){
 					write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
-					close_socket_kill_process( SERVER_SOCKET, 5);
+					close_socket_kill_process(SERVER_SOCKET, 5);
 				}
 				break;
 			}
-			/* we create a t/p for management the incoming connection, call the right function with (socket , client_addr) as argument */
-			snprintf( client_info->client_addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-			write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->client_addr);
+			/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
+			snprintf( client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
+			write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
 			client_info->socket = new_s;
 
-			if (MODE_CLIENT_PROCESSING == 0) {
+			if (settings->mode == 't') {
 				thread_management(client_info);
 			} else {
-				if (MODE_CLIENT_PROCESSING == 1) {
+				if (settings->mode == 'p') {
 					process_management(client_info);
 				} else {
-					write_log(ERROR, "WRONG MODE PLS CHECK: %d", MODE_CLIENT_PROCESSING );
-					close_socket_kill_process( SERVER_SOCKET, 5);
+					write_log(ERROR, "WRONG MODE PLS CHECK: %d", settings->mode );
+					close_socket_kill_process(SERVER_SOCKET, 5);
 				}
 			}
 		} while ( new_s != 0);
@@ -275,7 +285,7 @@ void config_handler(int signum) {
 		close(EX_SERVER_SOCKET);
 		// Leave the closed socket from fds_set 
 		FD_CLR(EX_SERVER_SOCKET, &fds_set);
-		if( EX_SERVER_SOCKET == max_num_s) {
+		if (EX_SERVER_SOCKET == max_num_s) {
 			while (FD_ISSET(max_num_s , &fds_set) == false) {
 				max_num_s--;
 			}

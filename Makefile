@@ -10,7 +10,7 @@ BUILD_SL    := $(BUILD)/linux
 BUILD_WIN_SL:= $(BUILD)/win32
 BIN         := ./bin
 
-CFLAGS  := -Wall -O3 -g 
+CFLAGS  := -Wall -O3 -g
 
 #included by both Linux and windows
 INC      := -I$(INCLUDE)
@@ -120,7 +120,7 @@ win32server: $(SVR_SOURCES)
 	@echo "#####################"
 	@echo 
 
-	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea -lpcre2-8 -lpcre2-posix -lshlwapi
+	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.exe $(SVR_SOURCES) -lws2_32 -lsacagawea
 
 	@echo 
 	@echo Win32 server built successfully

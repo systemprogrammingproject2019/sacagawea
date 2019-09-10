@@ -26,6 +26,68 @@
 
 int load_file_memory_and_send(client_args *client_info) {
 #ifdef _WIN32
+	LPVOID data = NULL;
+	HANDLE hFile = CreateFileA(
+			client_info->path_file,
+			GENERIC_READ,
+			1,       // Security arrtibutes: 0 means the file is locked
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL,
+			NULL
+	);
+	if (hFile == INVALID_HANDLE_VALUE) {
+		write_log(ERROR, "Failed to CreateFile %s, with error: %d",
+				client_info->path_file, GetLastError());
+		return false;
+	}
+
+	// we pass the name of the file mapping to the sender thread
+	// instead of the actual file, as the linux version does 
+	GetFileSizeEx(hFile, &(client_info->len_file));
+	write_log(DEBUG, "client_info->len_file: %d", client_info->len_file);
+	client_info->file_to_send = "mapped_file";
+	HANDLE hMapFile = CreateFileMappingA(
+			hFile,
+			NULL,
+			PAGE_READONLY,
+			HIWORD(client_info->len_file), // these macros convert a normal number into the kind
+			LOWORD(client_info->len_file), // of numbers required for this kind of functions
+			client_info->file_to_send
+	);
+	if (hMapFile == NULL) {
+		write_log(ERROR, "CreateFileMappingA failed wirh error: %d",
+				GetLastError());
+		return false;
+	}
+
+	// ULONG bytesRead = 0;
+	// if (!ReadFile(hFile, data, client_info->len_file, &bytesRead, NULL)) {
+	// 	DWORD err = GetLastError();
+	// 	write_log(ERROR, "Failed to ReadFile %s, with error: %d",
+	// 			client_info->path_file, GetLastError());
+	// 	return false;
+	// }
+	// if (bytesRead != client_info->len_file) {
+	// 	write_log(WARNING, "File dimesion (%lld bytes) and bytes read (%lld) differ",
+	// 			client_info->len_file, bytesRead);
+	// }
+
+	LPDWORD lpThreadId = 0;
+	HANDLE tHandle = CreateThread( 
+			NULL,           // default security attributes
+			0,              // use default stack size  
+			thread_sender,  // thread function name
+			client_info,    // argument to thread function 
+			0,              // use default creation flags 
+			lpThreadId      // returns the thread identifier 
+	);
+
+	WaitForSingleObject(tHandle, INFINITE);
+	CloseHandle(hMapFile);
+	CloseHandle(hFile);
+
+	return true;
 #else
 	// open get file descriptor associated to file
 	int fd = open(client_info->path_file, O_RDONLY, S_IRUSR | S_IWUSR);
@@ -59,8 +121,8 @@ int load_file_memory_and_send(client_args *client_info) {
 	
 	// mapping file in memory using MMAP this means, more faster and more simpliest.
 	struct stat stat_fd;
-	if ( fstat(fd,&stat_fd) == -1 ) {
-		write_log(ERROR, "fstat() failed on %s request, becouse: %s\n",client_info->client_addr, strerror(errno));
+	if (fstat(fd,&stat_fd) == -1) {
+		write_log(ERROR, "fstat() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
 		// release lock with F_UNLCK flag and close FD
 		lck.l_type = F_UNLCK;
 		fcntl(fd, F_OFD_SETLK, &lck);
@@ -68,7 +130,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		return 0;
 	}
 	client_info->len_file = stat_fd.st_size;
-	client_info->file_to_send = mmap( NULL, (client_info->len_file+1), PROT_READ, MAP_PRIVATE, fd, 0);
+	client_info->file_to_send = mmap(NULL, (client_info->len_file + 1), PROT_READ, MAP_PRIVATE, fd, 0);
 
 	// old version with malloc
 	//FILE *fp = fdopen(fd, "r");
@@ -95,11 +157,11 @@ int load_file_memory_and_send(client_args *client_info) {
 
 	//fclose(fp);
 	close(fd);
-	// create thread to send the file at client
+	// create thread to send the file to the client
 	pthread_t tid;
-	pthread_create(&tid, NULL, (void *) thread_sender, (void *)client_info);
-	pthread_join( tid, NULL);
-	return 0;
+	pthread_create(&tid, NULL, (void *) thread_sender, (void *) client_info);
+	pthread_join(tid, NULL);
+	return true;
 #endif
 }
 
@@ -112,7 +174,7 @@ int check_security_path(char path[PATH_MAX]) {
 	int i = 0;
 
 	for (i = 0; i < strlen( path ); ++i) {
-		if ( strncmp( &path[i], "/../" , 4) == 0 ){
+		if (strncmp(&path[i], "/../", 4) == 0) {
 			return true;
 		} 
 	}
