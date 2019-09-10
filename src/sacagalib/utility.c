@@ -12,6 +12,7 @@
 #else
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
@@ -27,7 +28,7 @@ int load_file_memory_and_send(client_args *client_info) {
 #ifdef _WIN32
 #else
 	// open get file descriptor associated to file
-	int fd = open(client_info->path_file, O_RDWR);
+	int fd = open(client_info->path_file, O_RDONLY, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
 		write_log(ERROR, "open() failed: %s\n", strerror(errno));
 		exit(5);
@@ -55,31 +56,44 @@ int load_file_memory_and_send(client_args *client_info) {
 	//fcntl(fd, F_SETLKW, &lck);
 	fcntl(fd, F_OFD_SETLKW, &lck);
 	// now we have the lock "load file in memory"
-	/* initialize the memory for load the file, 
-	fseek put the FP at END ftell say the position ( file size ), we come back at start with SEEK_SET*/
-	FILE *fp = fdopen(fd, "r");
-	if (fp == NULL) {
-		write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
-		exit(5);
+	
+	// mapping file in memory using MMAP this means, more faster and more simpliest.
+	struct stat stat_fd;
+	if ( fstat(fd,&stat_fd) == -1 ) {
+		write_log(ERROR, "fstat() failed on %s request, becouse: %s\n",client_info->client_addr, strerror(errno));
+		// release lock with F_UNLCK flag and close FD
+		lck.l_type = F_UNLCK;
+		fcntl(fd, F_OFD_SETLK, &lck);
+		close(fd);
+		return 0;
 	}
-	fseek(fp, 0, SEEK_END);
-	long len = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
+	client_info->len_file = stat_fd.st_size;
+	client_info->file_to_send = mmap( NULL, (client_info->len_file+1), PROT_READ, MAP_PRIVATE, fd, 0);
 
-	client_info->file_to_send = malloc((len + 1));
-	client_info->len_file = len;
-	if ( fread(client_info->file_to_send, 1, len, fp) < len ) {
-		write_log(ERROR, "fread() failed: %s\n", strerror(errno));
-		exit(5);
-	}
-	client_info->file_to_send[len] = '\0';
+	// old version with malloc
+	//FILE *fp = fdopen(fd, "r");
+	//if (fp == NULL) {
+	//	write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
+	//	exit(5);
+	//}
+	//fseek(fp, 0, SEEK_END);
+	//client_info->len_file = ftell(fp);
+	//fseek(fp, 0, SEEK_SET);
+
+	// client_info->file_to_send = malloc((client_info->len_file + 1));
+	// if ( fread(client_info->file_to_send, 1, client_info->len_file, fp) < client_info->len_file ) {
+	//	write_log(ERROR, "fread() failed: %s\n", strerror(errno));
+	//	exit(5);
+	//}
+	//client_info->file_to_send[client_info->len_file] = '\0';
+
 
 	// release lock with F_UNLCK flag and FP FD
 	lck.l_type = F_UNLCK;
 	//fcntl(fd, F_SETLK, &lck);
 	fcntl(fd, F_OFD_SETLK, &lck);
 
-	fclose(fp);
+	//fclose(fp);
 	close(fd);
 	// create thread to send the file at client
 	pthread_t tid;
