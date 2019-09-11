@@ -25,8 +25,12 @@ const char log_lv_name[][10] = {"ERROR", "WARNING", "INFO", "DEBUG"};
 
 void log_management() {
 	write_log(INFO, "Process for sacagawea.log created");
+
+#ifdef _WIN32
+#else
 	char *read_line;
 	int len_string, check;
+#endif
 
 	// open logs file and check if an error occured
 #ifdef _WIN32
@@ -121,12 +125,6 @@ void write_log(int log_lv, const char* error_string, ...) {
 	va_list args;
 	va_start(args, error_string);
 	#define LOG_STR_LEN 1024
-
-	#ifdef _WIN32
-	DWORD dwBytesToWrite;
-	DWORD dwBytesWritten;
-	#else
-	#endif
 
 	char* log_string = malloc(LOG_STR_LEN);
 	char* ds = date_string();

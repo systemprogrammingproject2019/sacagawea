@@ -185,7 +185,7 @@ int main(int argc, char *argv[]){
 	sigemptyset (&block_mask);
 	sigaddset (&block_mask, SIGHUP);
 	/* Set up the structure to specify the new action. */
-	new_action.sa_handler = config_handler;
+	new_action.sa_handler = (__sighandler_t) config_handler;
 	new_action.sa_mask = block_mask;
 	sigemptyset (&new_action.sa_mask);
 	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 

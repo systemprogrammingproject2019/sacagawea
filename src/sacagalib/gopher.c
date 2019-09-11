@@ -10,6 +10,8 @@
 #include <dirent.h>
 
 #ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
 #include <shlwapi.h>
 #else
 #include <pthread.h>
@@ -190,6 +192,7 @@ void *thread_sender(client_args* c) {
 	// write to sacagawea.log through the pipe
 #ifdef _WIN32
 	closesocket(c->socket);
+	return NULL;
 #else
 	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma mi sembra veramente inteligente come cosa.
 	allora curl legge finche il socket è aperto. quindi quando inviavo il file anche se inviato tutto

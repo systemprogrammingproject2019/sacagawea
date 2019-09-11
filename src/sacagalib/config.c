@@ -95,17 +95,16 @@ char* do_regex(const char* pattern, const char* str) {
 	PCRE2_SIZE BUFLEN = 256;
 	char *r = calloc(BUFLEN, sizeof(char));
 	pcre2_code *re;
-	int errorcode, rc;
-	PCRE2_SIZE *ovector;
+	int err, rc;
 	pcre2_match_data *match_data;
 	PCRE2_SIZE erroroffset;
 
 	/* Compile regular expression */
 	re = pcre2_compile (
-			pattern,               /* the pattern */
+			(unsigned char *) pattern, /* the pattern */
 			PCRE2_ZERO_TERMINATED, /* indicates pattern is zero-terminated */
 			0,                     /* default options */
-			&errorcode,            /* for error code */
+			&err,                  /* for error code */
 			&erroroffset,          /* for error offset */
 			NULL                   /* use default compile context */
 	);
@@ -113,24 +112,17 @@ char* do_regex(const char* pattern, const char* str) {
 	/* Compilation failed: print the error message and exit. */
 	if (re == NULL) {
 		PCRE2_UCHAR buffer[256];
-		pcre2_get_error_message(errorcode, buffer, sizeof(buffer));
-		write_log("PCRE2 compilation failed at offset %d: %s", (int)erroroffset, buffer);
+		pcre2_get_error_message(err, buffer, sizeof(buffer));
+		write_log(ERROR, "PCRE2 compilation failed at offset %d: %s", (int)erroroffset, buffer);
 		exit(1);
 	}
 
-	unsigned int offset = 0;
-	unsigned int len = strlen(str);
 	match_data = pcre2_match_data_create(20, NULL);
-	rc = pcre2_match(re, str, -1, 0, 0, match_data, NULL);
+	rc = pcre2_match(re, (unsigned char *) str, -1, 0, 0, match_data, NULL);
 	if (rc <= 0) {
 		// printf("No match!\n");
 	} else {
-		ovector = pcre2_get_ovector_pointer(match_data);
-		// printf("Match succeeded at offset %llu\n", ovector[0]);
-		/* Use ovector to get matched strings */
-		PCRE2_SPTR start = str + ovector[0];
-		PCRE2_SIZE slen = ovector[2] - ovector[0];
-		pcre2_substring_copy_bynumber(match_data, 1, r, &BUFLEN);
+		pcre2_substring_copy_bynumber(match_data, 1, (unsigned char*) r, &BUFLEN);
 	}
 	pcre2_match_data_free(match_data);
 	pcre2_code_free(re);
@@ -212,6 +204,8 @@ int read_and_check_conf(settings_t* settings) {
 		}
 	};
 
+	fclose(fp);
+
 	return port_change;
 }
 
@@ -223,7 +217,7 @@ void config_handler(settings_t* settings, int signum) {
 	change so we have to close the socket finish the instaured connection
 	and restart the socket with the new SERVER_PORT */
 	// fprintf( stdout, "config file %d\n", read_and_check_conf(&settings));
-	if (read_and_check_conf(&settings)) {
+	if (read_and_check_conf(settings)) {
 		write_log(INFO, "SERVER_SOCKET CHANGE %d", SERVER_SOCKET);
 		/* shutdown with SHUT_WR stop the socket response, he don't send data anymore on that socket.
 		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */

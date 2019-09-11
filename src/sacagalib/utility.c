@@ -26,7 +26,6 @@
 
 int load_file_memory_and_send(client_args *client_info) {
 #ifdef _WIN32
-	LPVOID data = NULL;
 	HANDLE hFile = CreateFileA(
 			client_info->path_file,
 			GENERIC_READ,
@@ -42,7 +41,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		return false;
 	}
 
-	GetFileSizeEx(hFile, &(client_info->len_file));
+	GetFileSizeEx(hFile, (PLARGE_INTEGER) &(client_info->len_file));
 
 	// we pass the name of the file mapping to the sender thread
 	// instead of the actual file, as the linux version does 
@@ -78,7 +77,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	HANDLE tHandle = CreateThread( 
 			NULL,           // default security attributes
 			0,              // use default stack size  
-			thread_sender,  // thread function name
+			(LPTHREAD_START_ROUTINE) thread_sender,  // thread function name
 			client_info,    // argument to thread function 
 			0,              // use default creation flags 
 			lpThreadId      // returns the thread identifier 

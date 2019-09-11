@@ -76,8 +76,8 @@ struct struct_client_args{
 	sock_t  socket;
 	char    *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
 	char    *file_to_send;
-	long    len_file;
-	const settings_t settings;
+	size_t  len_file;
+	settings_t settings;
 };
 
 typedef struct struct_client_args client_args;
