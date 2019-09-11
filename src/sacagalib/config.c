@@ -24,7 +24,7 @@ int check_if_conf(const char* line, settings_t* settings) {
 	int port_change = false;
 	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
 	// if line is type "mode [t/p]"
-	match = do_regex(("^" S_MODE "[[:blank:]]+([tp])"), line);
+	match = do_regex(("^" S_MODE "[[:space:]]+([tp])"), line);
 	if (strlen(match)) {
 		matched = true;
 		char mode;
@@ -42,7 +42,7 @@ int check_if_conf(const char* line, settings_t* settings) {
 	if (matched == true) free(match);
 	matched = false;
 
-	match = do_regex(("^" S_PORT "[[:blank:]]+([[:digit:]]{1,5})"), line);
+	match = do_regex(("^" S_PORT "[[:space:]]+([[:digit:]]{1,5})"), line);
 	if (strlen(match)) {
 		matched = true;
 		// if line is "port XXX" with XXX a port number
@@ -136,7 +136,7 @@ char* do_regex(const char* pattern, const char* str) {
 	regmatch_t regmatch[2];
 
 	/* Compile regular expression */
-	reti = regcomp(&regex, pattern, 0);
+	reti = regcomp(&regex, pattern, REG_EXTENDED);
 	if (reti) {
 		write_log(ERROR, "Could not compile regex\n");
 		exit(1);
