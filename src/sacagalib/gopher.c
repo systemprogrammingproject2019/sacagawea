@@ -150,7 +150,7 @@ void *thread_sender(client_args* c) {
 				hMapFile,      // handle to map object
 				FILE_MAP_READ, // read/write permission
 				0,
-				HIWORD(c->len_file),
+				HIDWORD(c->len_file),
 				0
 		);
 		if (pBuf == NULL) {

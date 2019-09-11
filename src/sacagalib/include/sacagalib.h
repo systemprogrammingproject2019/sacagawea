@@ -16,6 +16,10 @@
 #define LOG_LEVEL DEBUG
 #endif
 
+// need these for separating higher and lower bits for "File Mapping" functions
+#define LODWORD(l) ((DWORD) (((DWORDLONG) (l)) & 0xffffffff))
+#define HIDWORD(l) ((DWORD) ((((DWORDLONG) (l)) >> 32) & 0xffffffff))
+
 #define true     1
 #define false    0
 #define SACAGAWEACONF_PATH "sacagawea.conf"

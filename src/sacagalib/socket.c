@@ -220,9 +220,9 @@ int listen_descriptor(const settings_t* settings, sock_t svr_socket) {
 							(struct sockaddr *) &address,
 							&address_len)
 							) == SOCKET_ERROR) {
-						int e = WSAGetLastError();
-						if (e != WSAEWOULDBLOCK) {
-							write_log(ERROR, "accept failed with error: %d\n", e);
+						if (WSAGetLastError() != WSAEWOULDBLOCK) {
+							write_log(ERROR, "accept failed with error: %d",
+									WSAGetLastError());
 						}
 						break;
 					}
@@ -231,7 +231,7 @@ int listen_descriptor(const settings_t* settings, sock_t svr_socket) {
 							inet_ntoa(address.sin_addr), address.sin_port);
 					client_info->socket = new_socket;
 
-					printf("New connection estabilished at socket - %I64d from %s\n",
+					write_log(INFO, "New connection estabilished at socket - %I64d from %s",
 							client_info->socket, client_info->addr);
 					if (settings->mode == 't') {
 						thread_management(client_info);
@@ -239,7 +239,8 @@ int listen_descriptor(const settings_t* settings, sock_t svr_socket) {
 						if (settings->mode == 'p') {
 							process_management(client_info);
 						}else{
-							write_log(ERROR, "WRONG MODE PLS CHECK: %d\n", settings->mode);
+							write_log(ERROR, "WRONG MODE PLS CHECK: %c\n",
+									settings->mode);
 							exit(5);
 						}
 					}

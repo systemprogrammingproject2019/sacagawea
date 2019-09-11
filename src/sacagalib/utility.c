@@ -47,12 +47,15 @@ int load_file_memory_and_send(client_args *client_info) {
 	GetFileSizeEx(hFile, &(client_info->len_file));
 	write_log(DEBUG, "client_info->len_file: %d", client_info->len_file);
 	client_info->file_to_send = "mapped_file";
+	write_log(DEBUG, "hidword: %lld; lodword: %lld; sum: %lld",
+			HIDWORD(client_info->len_file), LODWORD(client_info->len_file),
+			HIDWORD(client_info->len_file) + LODWORD(client_info->len_file));
 	HANDLE hMapFile = CreateFileMappingA(
 			hFile,
 			NULL,
 			PAGE_READONLY,
-			HIWORD(client_info->len_file), // these macros convert a normal number into the kind
-			LOWORD(client_info->len_file), // of numbers required for this kind of functions
+			HIDWORD(client_info->len_file), // these macros convert a normal number into the kind
+			LODWORD(client_info->len_file), // of numbers required for this kind of functions
 			client_info->file_to_send
 	);
 	if (hMapFile == NULL) {

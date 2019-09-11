@@ -25,62 +25,64 @@
 
 #include "sacagalib.h"
 
-int read_request(sock_t sd, char *input) {
+int read_request(sock_t sd, char* buf, int buflen) {
 	/* Receive data on this connection until the recv \n of finish line.
-	If any other failure occurs, we will returt true.    */
+	If any other failure occurs, we will returt true.*/
 	int check;
-#ifdef _WIN32
-	int err;
-#endif
 	int read_bytes = 0;
-	int stopcheck = false;
-	int keep_going = true;
+	int keep_going = 2;
 
-	while (keep_going) {
-		if ((MAX_REQUEST_LEN - read_bytes) <= 0) {
+	while (keep_going != 0) {
+		if (read_bytes >= buflen) {
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
-			write_log(ERROR, "recv() of sd - %d, failed because of wrong input. Closing the connection", sd, strerror(errno));
+			write_log(ERROR, "recv() of sd - %d, failed because of wrong input. Closing the connection",
+					sd, strerror(errno));
 			return true;
 		}
-		check = recv(sd, &input[read_bytes], 1, 0);
-		if (check < 0) {
+		check = recv(sd, &buf[read_bytes], 1, 0);
+		if (check > 0) {
+			for (int x = 0; x < check; x++) {
+				write_log(DEBUG, "received byte: '0x%x'",
+						buf[read_bytes + x]);
+			}
+			read_bytes += check;
+			if (keep_going == 1) {
+				if (buf[(read_bytes - 1)] == '\n') {
+					keep_going = 0;
+				} else {
+					keep_going = 2;
+				}
+			}
+			if (buf[(read_bytes - 1)] == '\r') {
+				keep_going = 1;
+			}
+		} else if (check == 0) {
+			printf("	Connection closed %I64d\n", sd);
+			// client close the connection so we can stop read and responce
+			return true;
+		} else {
 		#ifdef _WIN32
-			if ((err = WSAGetLastError()) != WSAEWOULDBLOCK) {
+			if (WSAGetLastError() != WSAEWOULDBLOCK) {
 				// if recv fail the error can be server side or client side so we close the connection and go on 
-				write_log(ERROR, "recv() of sd - %d, failed with error: %d. Closing the connection.", sd, err);
+				write_log(ERROR, "recv() of sd - %d, failed with error: %d. Closing the connection.",
+						sd, WSAGetLastError());
 				return true;
 			}
-			write_log(WARNING, "recv() of sd - %d WSAEWOULDBLOCK", sd);
+			// write_log(WARNING, "recv() of sd - %d WSAEWOULDBLOCK", sd);
 			continue;
 		#else
 			if (errno != EWOULDBLOCK) {
 				// if recv fail the error can be server side or client side so we close the connection and go on 
-				write_log(ERROR, "recv() of sd - %d, failed with error: %s. Closing the connection.", sd, strerror(errno));
+				write_log(ERROR, "recv() of sd - %d, failed with error: %s. Closing the connection.",
+						sd, strerror(errno));
 				return true;
 			}
-			write_log(WARNING, "recv() of sd - %d EWOULDBLOCK", sd );
+			// write_log(WARNING, "recv() of sd - %d EWOULDBLOCK", sd );
 			continue;
 		#endif
 		}
 		/* Check to see if the connection has been closed by the client, so recv return 0  */
-		if (check == 0) {
-			printf("	Connection closed %I64d\n", sd);
-			// client close the connection so we can stop read and responce
-			return true;
-		}
-		if (check > 0) {
-			read_bytes += check;
-			if( stopcheck ){
-				if( input[(read_bytes-1)] == '\n' ) {
-					keep_going = false;
-				}else{
-					stopcheck = false;
-				}
-			}
-			if( input[(read_bytes-1)] == '\r' ) {
-				stopcheck = true;
-			}
-		}
+
 	}
 	return false;
 }
@@ -242,10 +244,10 @@ long unsigned int *management_function(client_args* c) {
 
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
-	char *input = calloc(PATH_MAX, sizeof(char));
+	char* input = calloc(MAX_REQUEST_LEN, sizeof(char));
 
 	// read request from client->socket ( client socket ) and put in *input, if fail return true otherwise false
-	if ((check = read_request(c->socket, input))) {
+	if ((check = read_request(c->socket, input, MAX_REQUEST_LEN))) {
 		if ((c->settings).mode == 't') {
 			close_socket_kill_thread(c->socket, 0);
 		} else {
@@ -262,9 +264,7 @@ long unsigned int *management_function(client_args* c) {
 	memset(&client_selector, '\0', sizeof(client_selector));
 
 	client_selector = request_to_selector(input);
-	/* if ( client_selector == NULL ){
-		send( client->socket, S_ERROR_SELECTOR_REQUEST, strlen(S_ERROR_SELECTOR_REQUEST), 0);
-	} */
+	free(input); // freeing input as soon as it's not necessary anymore
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
