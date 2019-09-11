@@ -30,10 +30,10 @@ int load_file_memory_and_send(client_args *client_info) {
 	HANDLE hFile = CreateFileA(
 			client_info->path_file,
 			GENERIC_READ,
-			1,       // Security arrtibutes: 0 means the file is locked
+			0, // Security arrtibutes: 0 means the file is locked
 			NULL,
 			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL,
+			FILE_ATTRIBUTE_READONLY,
 			NULL
 	);
 	if (hFile == INVALID_HANDLE_VALUE) {
@@ -42,14 +42,12 @@ int load_file_memory_and_send(client_args *client_info) {
 		return false;
 	}
 
+	GetFileSizeEx(hFile, &(client_info->len_file));
+
 	// we pass the name of the file mapping to the sender thread
 	// instead of the actual file, as the linux version does 
-	GetFileSizeEx(hFile, &(client_info->len_file));
-	write_log(DEBUG, "client_info->len_file: %d", client_info->len_file);
 	client_info->file_to_send = "mapped_file";
-	write_log(DEBUG, "hidword: %lld; lodword: %lld; sum: %lld",
-			HIDWORD(client_info->len_file), LODWORD(client_info->len_file),
-			HIDWORD(client_info->len_file) + LODWORD(client_info->len_file));
+
 	HANDLE hMapFile = CreateFileMappingA(
 			hFile,
 			NULL,

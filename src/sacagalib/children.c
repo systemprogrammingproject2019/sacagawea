@@ -41,10 +41,6 @@ int read_request(sock_t sd, char* buf, int buflen) {
 		}
 		check = recv(sd, &buf[read_bytes], 1, 0);
 		if (check > 0) {
-			for (int x = 0; x < check; x++) {
-				write_log(DEBUG, "received byte: '0x%x'",
-						buf[read_bytes + x]);
-			}
 			read_bytes += check;
 			if (keep_going == 1) {
 				if (buf[(read_bytes - 1)] == '\n') {
