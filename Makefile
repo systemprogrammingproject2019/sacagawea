@@ -105,7 +105,7 @@ linuxserver: $(SVR_SOURCES)
 	@echo "#####################"
 	@echo 
 
-	$(CC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread -lrt -lpcre2-8 -lpcre2-posix
+	$(CC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea.out $(SVR_SOURCES) -lsacagawea -lpthread -lrt
 
 	@echo 
 	@echo Linux server built successfully
