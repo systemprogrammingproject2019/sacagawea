@@ -7,30 +7,31 @@
 #include "sacagalib.h"
 
 int main(int argc, char *argv[]){
-	// chiamo load file in memory per testare se funzionava
-	//load_file_memory_posix( "conf/sacagawea.conf");
-
 	HANDLE hMapFile = strtol(argv[1], NULL, 10);
+
+	// open file mapping
 	LPTSTR pBuf = (LPTSTR) MapViewOfFile(
 			hMapFile, // handle to map object
 			FILE_MAP_ALL_ACCESS,  // read/write permission
 			0,
 			0,
-			sizeof(client_args));
-
-
+			sizeof(client_args)
+	);
 	if (pBuf == NULL) {
 		write_log(ERROR, "MapViewOfFile failed wirh error: %d",
 				GetLastError());
 		exit(1);
 	}
-	client_args* c = calloc(1, sizeof(client_args));
-	memcpy(c, pBuf, sizeof(client_args));
+
+	// copying client_args into a local variable, so we can delete
+	// the file mapping asap. This way, we dont risk it will never be closed
+	// if the management_function fails
+	client_args c;
+	memcpy(&c, pBuf, sizeof(client_args));
 	UnmapViewOfFile(pBuf);
 	CloseHandle(hMapFile);
-	management_function(c);
 
-	free(c);
+	management_function(&c);
 	exit(1);
 }
 #endif

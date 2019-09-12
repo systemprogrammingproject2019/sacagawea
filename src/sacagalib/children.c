@@ -98,11 +98,15 @@ int process_management(client_args *client_info) {
 	// This structure specifies the STDIN and STDOUT handles for redirection.
 	ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
 	siStartInfo.cb = sizeof(STARTUPINFO); 
+
+	// parent's security attributes, with bInheritHandle set to TRUE
+	// so the FIle Mapping gets inherited by the child process
 	SECURITY_ATTRIBUTES sa;
 	sa.nLength = sizeof(SECURITY_ATTRIBUTES); 
 	sa.bInheritHandle = TRUE; 
 	sa.lpSecurityDescriptor = NULL;
 
+	// creating an anonymous (nameless) File Mapping
 	HANDLE hMapFile = CreateFileMappingA(
 			INVALID_HANDLE_VALUE,
 			&sa,
@@ -117,8 +121,7 @@ int process_management(client_args *client_info) {
 		exit(1);
 	}
 
-	write_log(DEBUG, "hMapFile: %lld", hMapFile);
-
+	// open file mapping
 	LPCTSTR pBuf = (LPTSTR) MapViewOfFile(hMapFile,   // handle to map object
 			FILE_MAP_ALL_ACCESS, // read/write permission
 			0,
@@ -129,9 +132,13 @@ int process_management(client_args *client_info) {
 				GetLastError());
 		exit(1);
 	}
+	// write client_info into the file mapping
 	memcpy((PVOID)pBuf, client_info, sizeof(client_args));
 
+	// pass the handle number as the 1st argument
+	// (this is why we dont need a named file mapping, we just use the handle)
 	sprintf(szCmdline, "sacagawea-mp.exe %lld", hMapFile);
+
 	// Create the child process.
 	bSuccess = CreateProcess(
 			NULL, 
@@ -161,6 +168,8 @@ int process_management(client_args *client_info) {
 
 	UnmapViewOfFile(pBuf);
 	CloseHandle(hMapFile);
+
+	// need to close the socket here too, else it stays open in this process
 	closesocket(client_info->socket);
 #else
 	int pid;
