@@ -86,8 +86,7 @@ int read_request(sock_t sd, char* buf, int buflen) {
 // this function spawn process to management the new client request 
 int process_management(client_args *client_info) {
 #ifdef _WIN32
-	// TODO: create a sacagalogs.exe
-	TCHAR szCmdline[] = TEXT("sacagalogs.exe");
+	char szCmdline[64];
 	PROCESS_INFORMATION piProcInfo; 
 	STARTUPINFO siStartInfo;
 	int bSuccess = false;
@@ -99,23 +98,52 @@ int process_management(client_args *client_info) {
 	// This structure specifies the STDIN and STDOUT handles for redirection.
 	ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
 	siStartInfo.cb = sizeof(STARTUPINFO); 
-	// siStartInfo.hStdError = g_hChildStd_OUT_Wr;
-	// siStartInfo.hStdOutput = g_hChildStd_OUT_Wr;
-	// siStartInfo.hStdInput = g_hChildStd_IN_Rd;
-	// siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+	SECURITY_ATTRIBUTES sa;
+	sa.nLength = sizeof(SECURITY_ATTRIBUTES); 
+	sa.bInheritHandle = TRUE; 
+	sa.lpSecurityDescriptor = NULL;
 
-	// Create the child process. 
+	HANDLE hMapFile = CreateFileMappingA(
+			INVALID_HANDLE_VALUE,
+			&sa,
+			PAGE_READWRITE,
+			0,
+			sizeof(client_args),
+			NULL
+	);
+	if (hMapFile == NULL) {
+		write_log(ERROR, "CreateFileMappingA failed wirh error: %d",
+				GetLastError());
+		exit(1);
+	}
+
+	write_log(DEBUG, "hMapFile: %lld", hMapFile);
+
+	LPCTSTR pBuf = (LPTSTR) MapViewOfFile(hMapFile,   // handle to map object
+			FILE_MAP_ALL_ACCESS, // read/write permission
+			0,
+			0,
+			sizeof(client_args));
+	if (pBuf == NULL) {
+		write_log(ERROR, "MapViewOfFile failed wirh error: %d",
+				GetLastError());
+		exit(1);
+	}
+	memcpy((PVOID)pBuf, client_info, sizeof(client_args));
+
+	sprintf(szCmdline, "sacagawea-mp.exe %lld", hMapFile);
+	// Create the child process.
 	bSuccess = CreateProcess(
-		NULL, 
-		szCmdline,     // command line
-		NULL,          // default security attributes
-		NULL,          // primary thread security attributes
-		TRUE,          // handles are inherited
-		0,             // creation flags
-		NULL,          // use parent's environment
-		NULL,          // use parent's current directory
-		&siStartInfo,  // STARTUPINFO pointer
-		&piProcInfo    // receives PROCESS_INFORMATION
+			NULL, 
+			szCmdline,     // command line
+			NULL,          // default security attributes
+			NULL,          // primary thread security attributes
+			TRUE,          // IMPORTANT: handles are inherited
+			0,             // creation flags
+			NULL,          // use parent's environment
+			NULL,          // use parent's current directory
+			&siStartInfo,  // STARTUPINFO pointer
+			&piProcInfo    // receives PROCESS_INFORMATION
 	);
 
 	// If an error occurs, exit the application. 
@@ -130,6 +158,10 @@ int process_management(client_args *client_info) {
 		CloseHandle(piProcInfo.hProcess);
 		CloseHandle(piProcInfo.hThread);
 	}
+
+	UnmapViewOfFile(pBuf);
+	CloseHandle(hMapFile);
+	closesocket(client_info->socket);
 #else
 	int pid;
 	if ((pid = fork()) < 0) {
@@ -360,5 +392,5 @@ void close_socket_kill_process(sock_t sd, int errcode) {
 #else
 	close(sd);
 #endif
-	_exit(errcode);
+	exit(errcode);
 }

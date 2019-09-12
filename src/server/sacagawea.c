@@ -112,13 +112,13 @@ int main(int argc, char *argv[]){
 		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	mutex = (pthread_mutex_t *)mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, mutex_d, 0);
+	mutex = (pthread_mutex_t *) mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, mutex_d, 0);
 	if (mutex == MAP_FAILED) {
 		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
 	 	exit(5);
 	} 
 	/* shm_open open the SHARED_COND_MEM or create it like a file, indeed cond_d is a descriptor */
-	cond_d = shm_open( SHARED_COND_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
+	cond_d = shm_open(SHARED_COND_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
 	if (cond_d < 0) {
 		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
 	 	exit(5);
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]){
 		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	cond = (pthread_cond_t *)mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, cond_d, 0);
+	cond = (pthread_cond_t *) mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, cond_d, 0);
 	if (cond == MAP_FAILED) {
 		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
 	 	exit(5);

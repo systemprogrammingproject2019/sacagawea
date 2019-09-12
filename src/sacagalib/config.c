@@ -144,19 +144,10 @@ char* do_regex(const char* pattern, const char* str) {
 
 	/* Execute regular expression */
 	reti = regexec(&regex, str, 2, regmatch, 0);
-	if (!reti) {
-		// puts("Match");
-	} else if (reti == REG_NOMATCH) {
+	if (reti == REG_NOMATCH) {
 		// puts("No match");
 		return "\0";
-	} else {
-		// this one gets triggered when no match is found...?
-		regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-		// write_log(ERROR, "Regex match failed: %s\n", msgbuf);
-		return "\0";
-		// exit(1);
 	}
-
 
 	char* r = calloc(regmatch[1].rm_eo - regmatch[1].rm_so + 1, sizeof(char));
 	memcpy(r, &str[regmatch[1].rm_so], regmatch[1].rm_eo - regmatch[1].rm_so);
