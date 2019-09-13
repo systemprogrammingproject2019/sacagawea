@@ -136,10 +136,10 @@ $(BIN)/sacagawea-mp.exe: $(LIB_SRC)/win32-multiprocess/mp.c
 .PHONY: clean lrun wrun linux win32 linuxserver win32server linuxlib win32lib win32mp
 
 lrun:
-	cd bin && ./sacagawea.out
+	cd bin && ./sacagawea.out -P6969
 
 wrun:
-	cd bin && wine ./sacagawea.exe
+	cd bin && wine ./sacagawea.exe -P6969
 
 clean:
 	rm -rf $(BIN)

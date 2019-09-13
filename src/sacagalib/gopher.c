@@ -28,7 +28,7 @@
 
 #include "sacagalib.h"
 
-void send_content_of_dir(client_args *client_info, selector *client_selector) {
+void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	write_log(INFO, "%s", client_info->path_file);
 // #ifdef _WIN32
 
@@ -47,7 +47,7 @@ void send_content_of_dir(client_args *client_info, selector *client_selector) {
 	// open dir 
 	folder = opendir(client_info->path_file);
 	if (folder == NULL) {
-		close_socket_kill_process( SERVER_SOCKET, 5);
+		close_socket_kill_process((client_info->settings).socket, 5);
 	}
 
 	while ((subFile = readdir(folder)) != NULL) {
@@ -290,14 +290,14 @@ char type_path(char path[PATH_MAX]) {
 	FILE* popen_output_stream = popen(command , "r");
 	if (popen_output_stream == NULL) { 
 		write_log(ERROR,"popen() failed: %s\n", strerror(errno));
-	 	close_socket_kill_process( SERVER_SOCKET, 5);
+	 	close_socket_kill_process(settings->socket, 5);
 	}
 	char popen_output[20]; // is useless read all output, i need only the first section and the max is "application/gopher"
 
 	if (fgets((char *) &popen_output, 20, popen_output_stream) == NULL) {
-		if ( !feof(popen_output_stream)) {
+		if (!feof(popen_output_stream)) {
 			write_log(ERROR, S_ERROR_FGETS, strerror(errno));
-			close_socket_kill_process( SERVER_SOCKET, 5);
+			close_socket_kill_process(settings->socket, 5);
 		}
 	}
 	//fprintf( stdout, "%s\n", popen_output); 

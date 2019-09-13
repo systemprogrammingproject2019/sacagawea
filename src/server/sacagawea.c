@@ -38,8 +38,12 @@ pthread_condattr_t cattr;
 
 void close_all() {
 #ifdef _WIN32
+	closesocket(settings->socket);
 	WSACleanup();
 #else
+	// close socket
+	close(settings->socket);
+
 	// destroy the allocated attr for, condition variable
 	pthread_condattr_destroy(&cattr);
 	pthread_mutexattr_destroy(&mattr);
@@ -86,44 +90,32 @@ void sighup_handler(int signum) {
 	and restart the socket with the new SERVER_PORT */
 	// fprintf( stdout, "config file %d\n", read_and_check_conf(&settings));
 	if (read_and_check_conf(settings)) {
-		write_log(INFO, "SERVER_SOCKET CHANGE %d", SERVER_SOCKET);
-		/* shutdown with SHUT_WR stop the socket response, he don't send data anymore on that socket.
+		write_log(INFO, "settings->socket CHANGE %d", settings->socket);
+		/* shutdown with SHUT_WR stop the socket response, he doesn't send data anymore on that socket.
 		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */
-		if (shutdown(SERVER_SOCKET, SHUT_WR) < 0) {
+		if (shutdown(settings->socket, SHUT_WR) < 0) {
 			write_log(ERROR, "shutdown() failed: %s", (char*) strerror(errno));
-			close_socket_kill_process(SERVER_SOCKET, 5);
+			close_socket_kill_process(settings->socket, 5);
 		}
-		int EX_SERVER_SOCKET = SERVER_SOCKET;
+		int old_socket = settings->socket;
 		// Open the new listen socket at new PORT
-		SERVER_SOCKET = open_socket(settings);
-		// Add new socket at set of socket to select
-		FD_SET(SERVER_SOCKET, &fds_set);
-		// in case, set the new max descriptor 
-		if (SERVER_SOCKET > max_num_s) {  
-			max_num_s = SERVER_SOCKET;
-		}
+		settings->socket = open_socket(settings);
 
-		while (accept_wrapper(settings));
+		// close the old server socket --- it is still open on all children
+		// threads/processes (until they die/close it) because
+		// they were only given a copy of it,
+		close(old_socket);
 
-		// close definitely the listen server socket
-		close(EX_SERVER_SOCKET);
-		// Leave the closed socket from fds_set 
-		FD_CLR(EX_SERVER_SOCKET, &fds_set);
-		if (EX_SERVER_SOCKET == max_num_s) {
-			while (FD_ISSET(max_num_s , &fds_set) == false) {
-				max_num_s--;
-			}
-		}
+		while (listen_descriptor(settings));
+
+		close_all();
 	}
 }
 #endif
 
 int main(int argc, char *argv[]) {
-	// chiamo load file in memory per testare se funzionava
-	//load_file_memory_posix( "conf/sacagawea.conf");
 
 	settings = calloc(1, sizeof(settings_t));
-
 	settings->port = DEFAULT_SERVER_PORT;
 	settings->mode = 't';
 
@@ -248,8 +240,8 @@ int main(int argc, char *argv[]) {
 	close(pipe_conf[0]);
 #endif
 
-#ifndef _WIN32
 	// Creating sigaction for SIGHUP
+#ifndef _WIN32
 	struct sigaction new_action;
 	/* Block other SIGHUP signals while handler runs. */
 	sigset_t block_mask;
@@ -270,8 +262,8 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
-#ifndef _WIN32
 	// Creating sigaction for SIGINT
+#ifndef _WIN32
 	struct sigaction sigint_action;
 	/* Block other SIGINT signals while handler runs. */
 	sigset_t sigint_block_mask;
@@ -300,50 +292,11 @@ int main(int argc, char *argv[]) {
 #endif
 
 	// open socket call
-	SERVER_SOCKET = open_socket(settings);
+	settings->socket = open_socket(settings);
 
-#ifndef _WIN32
-	/* declare FD_SET and initialize it */
-	FD_ZERO(&fds_set);
-	max_num_s = SERVER_SOCKET;
-	FD_SET(SERVER_SOCKET, &fds_set);
-	//per controlare roba da me "non eliminare"
-	for (int i = 0; i <= max_num_s ; ++i) {
-		write_log(INFO, "i: %d  is set:  %d", i, FD_ISSET(i, &fds_set));
-	}
-#endif
-
-#ifdef _WIN32
 	/* Loop waiting for incoming connects or for incoming data
 		on any of the connected sockets.   */
-	do {
-		if (listen_descriptor(settings, SERVER_SOCKET)) {
-			break;
-		}
-	} while (true);
-#else
-	do {
-		if (listen_descriptor(settings)) {
-			break;
-		}
-	} while (true);
-#endif
-
-	// we are out of select loop so we have to close all sockets
-#ifdef _WIN32
-	for (int i = 0; i < MAX_CLIENTS; i++) {
-		SOCKET s = client_socket[i];
-		if (s > 0) {
-			closesocket(s);
-		}
-	}
-#else
-	for (int i = 0; i <= max_num_s; ++i) {
-		if (FD_ISSET(i, &fds_set)) {
-			close(i);
-		}
-	}
-#endif
+	while (listen_descriptor(settings));
 
 	close_all();
 }

@@ -169,7 +169,7 @@ int read_and_check_conf(settings_t* settings) {
 	fp = fopen(SACAGAWEACONF_PATH , "r");
 	if (fp == NULL) {
 		write_log(ERROR, S_ERROR_FOPEN, (char*) strerror(errno));
-	 	close_socket_kill_process(SERVER_SOCKET, 5);
+	 	close_socket_kill_process(settings->socket, 5);
 	}
 
 	//readline or max_line_size chars
@@ -179,7 +179,7 @@ int read_and_check_conf(settings_t* settings) {
 				break;
 			} else {
 				write_log(ERROR, S_ERROR_FGETS, strerror(errno));
-				close_socket_kill_process(SERVER_SOCKET, 5);
+				close_socket_kill_process(settings->socket, 5);
 			}
 		}
 		size_t line_len = strlen(line);

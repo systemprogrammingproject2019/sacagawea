@@ -15,8 +15,7 @@
 
 #include "sacagalib.h"
 
-// int SERVER_PORT = DEFAULT_SERVER_PORT;
-char MODE_CLIENT_PROCESSING = (char) 0; // 0 = thread --- 1 = subProcess
+inline int accept_wrapper(settings_t*);
 
 // this fuction opens a listening socket
 sock_t open_socket(const settings_t* settings) {
@@ -160,9 +159,8 @@ sock_t open_socket(const settings_t* settings) {
 #endif
 }
 
-#ifdef _WIN32
-int listen_descriptor(const settings_t* settings, sock_t svr_socket) {
-	sock_t new_socket, s;
+int listen_descriptor(const settings_t* settings) {
+	sock_t new_socket;
 	int num_fd_ready;//, addrlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in address;
 	client_args* client_info = malloc(sizeof(client_args));
@@ -174,142 +172,53 @@ int listen_descriptor(const settings_t* settings, sock_t svr_socket) {
 	timeout.tv_sec  = 13 * 60;
 	timeout.tv_usec = 0;
 
-	fd_set working_set;
-	// char str_addr[ADDR_MAXLEN];
-
-	// /* create a copy of fds_set called working_set, is a FD_SET to work on  */
-	memcpy(&working_set, &fds_set, sizeof(fds_set));
-
 	// Prepare the socket set for network I/O notification
-	FD_ZERO(&working_set);
+	FD_ZERO(&fds_set);
 	// Always look for connection attempts
-	FD_SET(svr_socket, &working_set);
-
-	//add child sockets to fd set
-	for (int i = 0; i < MAX_CLIENTS; i++) {
-		s = client_socket[i];
-		if (s > 0) {
-			FD_SET(s, &working_set);
-		}
-	}
-
-	//wait for an activity on any of the sockets, timeout is NULL , so wait indefinitely
-	if ((num_fd_ready = select(0, &working_set, NULL, NULL, &timeout)) == SOCKET_ERROR) {
-		write_log(ERROR, "select failed with error: %d\n", WSAGetLastError());
-		exit(EXIT_FAILURE);
-	}
-
-	for (int i = 0; i <= MAX_CLIENTS && num_fd_ready > 0; ++i) {
-		// Check to see if the i-th descriptor is ready
-		if (FD_ISSET(svr_socket, &working_set)) {
-			/* if we come there, the descriptor is readable. */
-			num_fd_ready -= 1;
-
-			if (i == SERVER_SOCKET) {
-				printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
-				/* Accept all incoming connections that are queued up on the listening socket
-					* before we loop back and call select again. */
-				do {
-					/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
-					then we have accepted all of them.
-					Any other failure on accept will cause us to end the server.  */
-					memset(&address, 0, sizeof(address));
-					int address_len = (int) sizeof(address);
-					if ((new_socket = 
-							accept(svr_socket,
-							(struct sockaddr *) &address,
-							&address_len)
-							) == SOCKET_ERROR) {
-						if (WSAGetLastError() != WSAEWOULDBLOCK) {
-							write_log(ERROR, "accept failed with error: %d",
-									WSAGetLastError());
-						}
-						break;
-					}
-					/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
-					snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", 
-							inet_ntoa(address.sin_addr), address.sin_port);
-					client_info->socket = new_socket;
-
-					write_log(INFO, "New connection estabilished at socket - %I64d from %s",
-							client_info->socket, client_info->addr);
-					if (settings->mode == 't') {
-						thread_management(client_info);
-					} else {
-						if (settings->mode == 'p') {
-							process_management(client_info);
-						}else{
-							write_log(ERROR, "WRONG MODE PLS CHECK: %c\n",
-									settings->mode);
-							exit(5);
-						}
-					}
-				} while (new_socket != INVALID_SOCKET);
-			}
-		}
-	}
-	return false;
-}
-#else
-// this function call the select() and check the FDS_SET if some socket is readable
-int listen_descriptor(const settings_t* settings) {
-	// Some declaretion of useful variable
-	int i, num_fd_ready, check;
-	struct timeval timeout;
-	fd_set working_set;
-	//char str_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
-
-	/* Initialize the timeval struct to 13 minutes. If no
-	   activity after 13 minutes this program will end. */
-	timeout.tv_sec  = 13 * 60;
-	timeout.tv_usec = 0;
-
-	/* create a copy of fds_set called working_set, is a FD_SET to work on  */
-	memcpy(&working_set, &fds_set, sizeof(fds_set));
+	FD_SET(settings->socket, &fds_set);
 
 	// start select and check if failed
 	write_log(INFO, "Waiting on select()...");
-	check = select(max_num_s + 1, &working_set, NULL, NULL, &timeout);
-	/* if errno==EINTR the select is interrupted becouse of sigaction 
-	so we have to repeat select, not exit(5) */
-	if ((check < 0) && (errno != EINTR)) {
-		write_log(ERROR, "select() failed: %s\n", strerror(errno));
-		exit(5);
-	}// Chek if select timed out
-	if (check == 0) {
-		write_log(ERROR, "select() timed out. End program.\n");
-		return true;
-	}
-	/* 1 or more descriptors are readable we have to check which they are */
-	num_fd_ready = check;
-	// for, for check all ready FD in fds_set until, FD are finish or we check all the ready fd
 
-
-	// qui ci sta un for perche avevo fatto una versione differente prima , devo sistemare don't worry
-	// in realta il for non serve perche prima inserivo anche le nuove connessioni dentro FD_SET cosi
-	// creavo il thread/processo solo quando era effettivamente leggibile, ma non cambiava nulla anzi
-	// mi complicavo la vita a dover creare un dizionario per salvarmi informazioni ecc... dopo lo sistemo
-	for (i = 0; i <= max_num_s && num_fd_ready > 0; ++i) {
-		// Check to see if the i-esimo descriptor is ready
-		if (FD_ISSET(i, &working_set)) {
-			/* if we come there, the descriptor is readable. */
-			num_fd_ready -= 1;
-
-			if (i == SERVER_SOCKET) {
-				printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
-				/*Accept all incoming connections that are queued up on the listening socket before we
-				loop back and call select again. */
-				while (accept_wrapper(settings));
-					
-			}
-		} // End of select loop
-	}
-	return false; 
-}
-#endif
+sel:
+	// we only need to monitor the settings->socket, so the first arg of select
+	// can just be "settings->socket + 1", which is the highest number of fd
+	// we need to monitor
+	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, &timeout);
 
 #ifdef _WIN32
+	if (num_fd_ready == SOCKET_ERROR) {
+		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
+		exit(EXIT_FAILURE);
+	} 
 #else
+	// if select returns a number lesser than 0, an error occurred
+	if (num_fd_ready < 0) {
+		/* if errno==EINTR the select is interrupted becouse of sigaction 
+		so we have to repeat select, not exit(5) */
+		if (errno == EINTR) {
+			goto sel;
+		}
+		write_log(ERROR, "select failed: %s", strerror(errno));
+		return false;
+	}
+#endif
+	else if (num_fd_ready == 0) {
+		write_log(ERROR, "select timed out. Exiting...");
+		return false;
+	}
+
+	// if settings->socket is ready to be read, read it
+	if (FD_ISSET(settings->socket, &fds_set)) {
+		printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
+		/*Accept all incoming connections that are queued up on the listening socket before we
+		loop back and call select again. */
+		accept_wrapper(settings);
+	}
+	return true; 
+}
+
+
 inline int accept_wrapper(settings_t* settings) {
 	struct sockaddr_in addr;
 	client_args* client_info = (client_args*) calloc(1, sizeof(client_args));
@@ -320,15 +229,22 @@ inline int accept_wrapper(settings_t* settings) {
 	Any other failure on accept will cause us to end the server.  */
 	size_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
 	memset(&addr, 0, addr_len);
-	int new_s = accept(SERVER_SOCKET, 
-			(__SOCKADDR_ARG) &addr,
+	int new_s = accept(settings->socket, 
+			(struct sockaddr*) &addr,
 			&addr_len);
+	
 	if (new_s < 0) {
+	#ifdef _WIN32
+		if (WSAGetLastError() != WSAEWOULDBLOCK) {
+			write_log(ERROR, "socket accept() failed with error: %d", WSAGetLastError());
+			exit(5);
+		}
+	#else
 		if (errno != EWOULDBLOCK) {
 			write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
 			exit(5);
 		}
-		return false;
+	#endif
 	}
 	/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
 	snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
@@ -347,4 +263,3 @@ inline int accept_wrapper(settings_t* settings) {
 	}
 	return true;
 }
-#endif

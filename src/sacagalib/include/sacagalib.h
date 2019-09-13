@@ -56,6 +56,7 @@
 // this struct contains all the server's settings
 typedef struct struct_settings_t {
 	int port;
+	sock_t socket;
 	char mode;
 	char homedir[PATH_MAX];
 } settings_t;
@@ -108,14 +109,11 @@ void close_socket_kill_thread(sock_t sd, int errcode);
 void close_socket_kill_process(sock_t sd, int errcode);
 
 // socket.c
-sock_t SERVER_SOCKET; // the server's main socket
 EXPORTED sock_t open_socket(const settings_t* settings);
 #ifdef _WIN32
 sock_t client_socket[MAX_CLIENTS];
-EXPORTED int listen_descriptor(const settings_t*, sock_t);
-#else
-int listen_descriptor(const settings_t*);
 #endif
+EXPORTED int listen_descriptor(const settings_t*);
 
 EXPORTED int check_security_path();
 EXPORTED int load_file_memory_linux(char *path);

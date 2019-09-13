@@ -178,8 +178,8 @@ int process_management(client_args *client_info) {
 	}
 	if (pid == 0) {
 		// child who have to management the connection
-		// close server_socket
-		//close(SERVER_SOCKET);
+		// close settings->socket
+		//close(settings->socket);
 		printf("Son spawned ready to serv\n");
 		management_function(client_info);
 		printf("Son finish to serv\n");
@@ -195,11 +195,13 @@ int process_management(client_args *client_info) {
 }
 
 // this fuction check if the input contain a selector or not and return it
-selector request_to_selector(char *input) {
+selector request_to_selector(char* input) {
 	int read_bytes = 0;
 	selector client_selector;
-	memset(&client_selector, '\0' , sizeof(client_selector));
+	memset(&client_selector, '\0', sizeof(client_selector));
 	client_selector.num_words = -1; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
+
+	write_log(DEBUG, "selector: %s", input);
 
 	//if path starts with "/", ignore it
 	if (input[0] == '/') {
@@ -294,7 +296,7 @@ long unsigned int* management_function(client_args* c) {
 	
 	// if we are there, print that message
 	write_log(DEBUG, "RECEIVED: \"%s\"\n%d bytes at %p\n",
-			input, check, &input );
+			input, check, &input);
 
 	// check if the input contain a selector or not
 	selector client_selector;
