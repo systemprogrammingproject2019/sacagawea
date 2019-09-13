@@ -132,7 +132,6 @@ char* do_regex(const char* pattern, const char* str) {
 	// using posix regexes for the linux version
 	regex_t regex;
 	int reti;
-	char msgbuf[100];
 	regmatch_t regmatch[2];
 
 	/* Compile regular expression */

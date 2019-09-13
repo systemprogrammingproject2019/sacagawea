@@ -15,7 +15,7 @@
 
 #include "sacagalib.h"
 
-int accept_wrapper(settings_t*);
+int accept_wrapper(const settings_t*);
 
 // this fuction opens a listening socket
 sock_t open_socket(const settings_t* settings) {
@@ -160,9 +160,7 @@ sock_t open_socket(const settings_t* settings) {
 }
 
 int listen_descriptor(const settings_t* settings) {
-	sock_t new_socket;
 	int num_fd_ready;//, addrlen = sizeof(struct sockaddr_in);
-	struct sockaddr_in address;
 	client_args* client_info = malloc(sizeof(client_args));
 
 	// copy current settings struct into client_info
@@ -180,7 +178,9 @@ int listen_descriptor(const settings_t* settings) {
 	// start select and check if failed
 	write_log(INFO, "Waiting on select()...");
 
+#ifndef _WIN32
 sel:
+#endif
 	// we only need to monitor the settings->socket, so the first arg of select
 	// can just be "settings->socket + 1", which is the highest number of fd
 	// we need to monitor
@@ -219,7 +219,7 @@ sel:
 }
 
 
-int accept_wrapper(settings_t* settings) {
+int accept_wrapper(const settings_t* settings) {
 	int new_s;
 	struct sockaddr_in addr;
 	client_args* client_info = (client_args*) calloc(1, sizeof(client_args));
@@ -228,8 +228,8 @@ int accept_wrapper(settings_t* settings) {
 	/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
 	then we have accepted all of them.
 	Any other failure on accept will cause us to end the server.  */
-	size_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
-	memset(&addr, 0, addr_len);
+	socklen_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
+	memset(&addr, 0, (size_t) addr_len);
 	do {
 		new_s = accept(settings->socket, 
 				(struct sockaddr*) &addr,

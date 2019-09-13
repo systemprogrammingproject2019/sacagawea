@@ -7,7 +7,7 @@
 #include "sacagalib.h"
 
 int main(int argc, char *argv[]){
-	HANDLE hMapFile = strtol(argv[1], NULL, 10);
+	HANDLE hMapFile = (HANDLE) strtoll(argv[1], NULL, 10);
 
 	// open file mapping
 	LPTSTR pBuf = (LPTSTR) MapViewOfFile(

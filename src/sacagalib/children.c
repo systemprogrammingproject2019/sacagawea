@@ -137,7 +137,7 @@ int process_management(client_args *client_info) {
 
 	// pass the handle number as the 1st argument
 	// (this is why we dont need a named file mapping, we just use the handle)
-	sprintf(szCmdline, "sacagawea-mp.exe %lld", hMapFile);
+	sprintf(szCmdline, "sacagawea-mp.exe %I64d", (long long) hMapFile);
 
 	// Create the child process.
 	bSuccess = CreateProcess(
