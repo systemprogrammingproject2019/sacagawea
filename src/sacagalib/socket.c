@@ -15,7 +15,7 @@
 
 #include "sacagalib.h"
 
-inline int accept_wrapper(settings_t*);
+int accept_wrapper(settings_t*);
 
 // this fuction opens a listening socket
 sock_t open_socket(const settings_t* settings) {
@@ -219,7 +219,8 @@ sel:
 }
 
 
-inline int accept_wrapper(settings_t* settings) {
+int accept_wrapper(settings_t* settings) {
+	int new_s;
 	struct sockaddr_in addr;
 	client_args* client_info = (client_args*) calloc(1, sizeof(client_args));
 	memcpy(&(client_info->settings), settings, sizeof(settings_t));
@@ -229,37 +230,43 @@ inline int accept_wrapper(settings_t* settings) {
 	Any other failure on accept will cause us to end the server.  */
 	size_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
 	memset(&addr, 0, addr_len);
-	int new_s = accept(settings->socket, 
-			(struct sockaddr*) &addr,
-			&addr_len);
-	
-	if (new_s < 0) {
-	#ifdef _WIN32
-		if (WSAGetLastError() != WSAEWOULDBLOCK) {
-			write_log(ERROR, "socket accept() failed with error: %d", WSAGetLastError());
-			exit(5);
+	do {
+		new_s = accept(settings->socket, 
+				(struct sockaddr*) &addr,
+				&addr_len);
+		
+		if (new_s < 0) {
+		#ifdef _WIN32
+			if (WSAGetLastError() != WSAEWOULDBLOCK) {
+				write_log(ERROR, "socket accept() failed with error: %d", WSAGetLastError());
+				exit(5);
+			}
+		#else
+			if (errno != EWOULDBLOCK) {
+				write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
+				exit(5);
+			}
+		#endif
 		}
-	#else
-		if (errno != EWOULDBLOCK) {
-			write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
-			exit(5);
-		}
-	#endif
-	}
-	/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
-	snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
-	write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
-	client_info->socket = new_s;
+		/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
+		snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
+		write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
+		client_info->socket = new_s;
 
-	if (settings->mode == 't') {
-		thread_management(client_info);
-	} else {
-		if (settings->mode == 'p') {
-			process_management(client_info);
+		if (settings->mode == 't') {
+			thread_management(client_info);
 		} else {
-			write_log(ERROR, "Multithread/multiprocess mode not set correctly");
-			exit(5);
+			if (settings->mode == 'p') {
+				process_management(client_info);
+			} else {
+				write_log(ERROR, "Multithread/multiprocess mode not set correctly");
+				exit(5);
+			}
 		}
-	}
+#ifdef _WIN32
+	} while (new_s != INVALID_SOCKET);
+#else
+	} while (new_s != -1);
+#endif
 	return true;
 }
