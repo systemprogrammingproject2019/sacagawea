@@ -275,7 +275,7 @@ selector request_to_selector(char *input) {
 // this fuction is the real management of the client responce with thread as son
 // needs to be "long unsigned int *" because win32 wants that, whereas
 // linux has no preference (only needs a "void *")
-long unsigned int *management_function(client_args* c) {
+long unsigned int* management_function(client_args* c) {
 	char type; // will containt the type of selector
 	int check;
 

@@ -60,6 +60,8 @@ typedef struct struct_settings_t {
 	char homedir[PATH_MAX];
 } settings_t;
 
+extern settings_t* settings;
+
 fd_set fds_set;
 
 #ifndef _WIN32
@@ -107,7 +109,7 @@ void close_socket_kill_process(sock_t sd, int errcode);
 
 // socket.c
 sock_t SERVER_SOCKET; // the server's main socket
-EXPORTED sock_t open_socket();
+EXPORTED sock_t open_socket(const settings_t* settings);
 #ifdef _WIN32
 sock_t client_socket[MAX_CLIENTS];
 EXPORTED int listen_descriptor(const settings_t*, sock_t);
@@ -122,7 +124,6 @@ EXPORTED int load_file_memory_linux(char *path);
 EXPORTED int check_if_conf(const char* line, settings_t*);
 EXPORTED char* do_regex(const char* pattern, const char* str);
 EXPORTED int read_and_check_conf(settings_t*);
-EXPORTED void config_handler(settings_t*, int signum);
 
 // gopher.c
 EXPORTED char type_path(char path[PATH_MAX]);

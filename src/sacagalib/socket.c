@@ -254,20 +254,10 @@ int listen_descriptor(const settings_t* settings, sock_t svr_socket) {
 // this function call the select() and check the FDS_SET if some socket is readable
 int listen_descriptor(const settings_t* settings) {
 	// Some declaretion of useful variable
-	struct sockaddr_in addr;
 	int i, num_fd_ready, check;
-	unsigned int addr_len;
 	struct timeval timeout;
 	fd_set working_set;
 	//char str_addr[ (12+3+1+5) ]; // max lenght of IP is 16 254.254.254.254 + 5 char for port 65000
-	int new_s;
-
-	// struct defined in sacagawea.h for contain client information
-	client_args *client_info = (client_args*) malloc(sizeof(client_args));
-	memset(client_info, 0, sizeof(client_args));
-
-	// copy current settings struct into client_info
-	memcpy(&(client_info->settings), settings, sizeof(settings_t));
 
 	/* Initialize the timeval struct to 13 minutes. If no
 	   activity after 13 minutes this program will end. */
@@ -309,43 +299,52 @@ int listen_descriptor(const settings_t* settings) {
 				printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
 				/*Accept all incoming connections that are queued up on the listening socket before we
 				loop back and call select again. */
-				do {
-					/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
-					then we have accepted all of them.
-					Any other failure on accept will cause us to end the server.  */
-					memset(&addr, 0, sizeof(addr));
-					addr_len = sizeof(addr); // save sizeof sockaddr struct becouse accept need it
-					new_s = accept(SERVER_SOCKET, 
-							(__SOCKADDR_ARG) &addr,
-							&addr_len);
-					if (new_s < 0) {
-						if (errno != EWOULDBLOCK) {
-							write_log(ERROR, "socket accept() failed: %s\n", strerror(errno) );
-							exit(5);
-						}
-						break;
-					}
-					/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
-					snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
-					write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
-					client_info->socket = new_s;
-
-					if (settings->mode == 't') {
-						thread_management(client_info);
-					} else {
-						if (settings->mode == 'p') {
-							process_management(client_info);
-						} else {
-							write_log(ERROR, "Multithread/multiprocess mode not set correctly");
-							exit(5);
-						}
-					}
-
-				} while (new_s != -1);
+				while (accept_wrapper(settings));
 					
 			}
 		} // End of select loop
 	}
 	return false; 
+}
+#endif
+
+#ifdef _WIN32
+#else
+inline int accept_wrapper(settings_t* settings) {
+	struct sockaddr_in addr;
+	client_args* client_info = (client_args*) calloc(1, sizeof(client_args));
+	memcpy(&(client_info->settings), settings, sizeof(settings_t));
+
+	/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
+	then we have accepted all of them.
+	Any other failure on accept will cause us to end the server.  */
+	size_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
+	memset(&addr, 0, addr_len);
+	int new_s = accept(SERVER_SOCKET, 
+			(__SOCKADDR_ARG) &addr,
+			&addr_len);
+	if (new_s < 0) {
+		if (errno != EWOULDBLOCK) {
+			write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
+			exit(5);
+		}
+		return false;
+	}
+	/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
+	snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
+	write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
+	client_info->socket = new_s;
+
+	if (settings->mode == 't') {
+		thread_management(client_info);
+	} else {
+		if (settings->mode == 'p') {
+			process_management(client_info);
+		} else {
+			write_log(ERROR, "Multithread/multiprocess mode not set correctly");
+			exit(5);
+		}
+	}
+	return true;
 }
 #endif

@@ -24,6 +24,8 @@
 
 #include "sacagalib.h"
 
+settings_t* settings;
+
 #ifndef _WIN32
 /* A condition variable/mutex attribute object (attr) allows you to manage the characteristics
 	of condition variables/mutex in your application by defining a set of values to be used for a
@@ -32,8 +34,12 @@
 // - like close_all() - without unnecessary complications
 pthread_mutexattr_t mattr;
 pthread_condattr_t cattr;
+#endif
 
-void close_all(){
+void close_all() {
+#ifdef _WIN32
+	WSACleanup();
+#else
 	// destroy the allocated attr for, condition variable
 	pthread_condattr_destroy(&cattr);
 	pthread_mutexattr_destroy(&mattr);
@@ -44,37 +50,102 @@ void close_all(){
 	//unlink shared memory
 	shm_unlink(SHARED_MUTEX_MEM);
 	shm_unlink(SHARED_COND_MEM);
+#endif
+	free(settings);
 	exit(1);
+}
+
+#ifdef _WIN32
+BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
+	// "return true" kills the process
+	switch (fdwCtrlType)
+	{
+	// Handle the CTRL-C signal. 
+	case CTRL_C_EVENT:
+		close_all();
+		// return TRUE;
+
+	// CTRL-CLOSE: confirm that the user wants to exit. 
+	case CTRL_CLOSE_EVENT:
+		close_all();
+		// return TRUE;
+
+	default:
+		read_and_check_conf(settings);
+		return FALSE;
+	}
 }
 #endif
 
-int main(int argc, char *argv[]){
+#ifndef _WIN32
+// check this fuction
+// this function is called when a SIGHUP is received 
+void sighup_handler(int signum) {
+	/* Check sagacawea.conf, if the return's value is true the socket SERVER_PORT 
+	change so we have to close the socket finish the instaured connection
+	and restart the socket with the new SERVER_PORT */
+	// fprintf( stdout, "config file %d\n", read_and_check_conf(&settings));
+	if (read_and_check_conf(settings)) {
+		write_log(INFO, "SERVER_SOCKET CHANGE %d", SERVER_SOCKET);
+		/* shutdown with SHUT_WR stop the socket response, he don't send data anymore on that socket.
+		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */
+		if (shutdown(SERVER_SOCKET, SHUT_WR) < 0) {
+			write_log(ERROR, "shutdown() failed: %s", (char*) strerror(errno));
+			close_socket_kill_process(SERVER_SOCKET, 5);
+		}
+		int EX_SERVER_SOCKET = SERVER_SOCKET;
+		// Open the new listen socket at new PORT
+		SERVER_SOCKET = open_socket(settings);
+		// Add new socket at set of socket to select
+		FD_SET(SERVER_SOCKET, &fds_set);
+		// in case, set the new max descriptor 
+		if (SERVER_SOCKET > max_num_s) {  
+			max_num_s = SERVER_SOCKET;
+		}
+
+		while (accept_wrapper(settings));
+
+		// close definitely the listen server socket
+		close(EX_SERVER_SOCKET);
+		// Leave the closed socket from fds_set 
+		FD_CLR(EX_SERVER_SOCKET, &fds_set);
+		if (EX_SERVER_SOCKET == max_num_s) {
+			while (FD_ISSET(max_num_s , &fds_set) == false) {
+				max_num_s--;
+			}
+		}
+	}
+}
+#endif
+
+int main(int argc, char *argv[]) {
 	// chiamo load file in memory per testare se funzionava
 	//load_file_memory_posix( "conf/sacagawea.conf");
 
-	settings_t settings;
-	settings.port = DEFAULT_SERVER_PORT;
-	settings.mode = 't';
+	settings = calloc(1, sizeof(settings_t));
+
+	settings->port = DEFAULT_SERVER_PORT;
+	settings->mode = 't';
 
 	// check the sacagawea.conf
-	read_and_check_conf(&settings);
+	read_and_check_conf(settings);
 	// check if some variable are setted by command line
 	int c;
 	opterr = 0;
 	while ((c = getopt(argc, argv, "ptP:")) != -1) {
 		switch (c) {
 			case 'p':
-				settings.mode = 'p';
+				settings->mode = 'p';
 				write_log(INFO, "mode change: 'p'");
 				break;
 
 			case 'P':
-				settings.port = atoi(optarg);
-				write_log(INFO, "port change: %d", settings.port);
+				settings->port = atoi(optarg);
+				write_log(INFO, "port change: %d", settings->port);
 				break;
 
 			case 't':
-				settings.mode = 't';
+				settings->mode = 't';
 				write_log(INFO, "mode change: 't'");
 				break;
 
@@ -86,7 +157,7 @@ int main(int argc, char *argv[]){
 	}
 
 	write_log(INFO, "Server port: %d, mode: %s",
-			settings.port, (settings.mode == 'p')?"multiprocess":"multithreaded");
+			settings->port, (settings->mode == 'p')?"multiprocess":"multithreaded");
 
 #ifndef _WIN32
 	//spawn process who manages the logs file
@@ -185,7 +256,7 @@ int main(int argc, char *argv[]){
 	sigemptyset (&block_mask);
 	sigaddset (&block_mask, SIGHUP);
 	/* Set up the structure to specify the new action. */
-	new_action.sa_handler = (__sighandler_t) config_handler;
+	new_action.sa_handler = (__sighandler_t) sighup_handler;
 	new_action.sa_mask = block_mask;
 	sigemptyset (&new_action.sa_mask);
 	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 
@@ -221,8 +292,15 @@ int main(int argc, char *argv[]){
 	}
 #endif
 
+#ifdef _WIN32
+	if (!SetConsoleCtrlHandler(consoleEventHandler, true)) {
+		write_log(ERROR, "SetConsoleCtrlHandler Failed with error: %lld", GetLastError());
+		exit(5);
+	}
+#endif
+
 	// open socket call
-	SERVER_SOCKET = open_socket(&settings);
+	SERVER_SOCKET = open_socket(settings);
 
 #ifndef _WIN32
 	/* declare FD_SET and initialize it */
@@ -239,13 +317,13 @@ int main(int argc, char *argv[]){
 	/* Loop waiting for incoming connects or for incoming data
 		on any of the connected sockets.   */
 	do {
-		if (listen_descriptor(&settings, SERVER_SOCKET)) {
+		if (listen_descriptor(settings, SERVER_SOCKET)) {
 			break;
 		}
 	} while (true);
 #else
 	do {
-		if (listen_descriptor(&settings)) {
+		if (listen_descriptor(settings)) {
 			break;
 		}
 	} while (true);
@@ -259,15 +337,13 @@ int main(int argc, char *argv[]){
 			closesocket(s);
 		}
 	}
-	WSACleanup();
 #else
 	for (int i = 0; i <= max_num_s; ++i) {
 		if (FD_ISSET(i, &fds_set)) {
 			close(i);
 		}
 	}
+#endif
 
 	close_all();
-
-#endif
 }
