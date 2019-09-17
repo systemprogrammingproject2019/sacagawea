@@ -138,7 +138,6 @@ void *thread_sender(client_args* c) {
 #ifdef _WIN32
 	SYSTEM_INFO sysnfo;
 	GetSystemInfo(&sysnfo);
-	int err1132counter = 0;
 	ULARGE_INTEGER bs;
 #endif
 
