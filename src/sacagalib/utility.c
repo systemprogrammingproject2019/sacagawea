@@ -78,6 +78,10 @@ int load_file_memory_and_send(client_args *client_info) {
 			lpThreadId      // returns the thread identifier 
 	);
 
+	// the file handle is not needed by the file map, so we can close it
+	// before waiting for the thread to finish. This way, the thread can
+	// write onto the log file sacagawea.log if sacagawea.log is the file
+	// that's being requested
 	CloseHandle(hFile);
 	WaitForSingleObject(tHandle, INFINITE);
 	CloseHandle(hMapFile);
