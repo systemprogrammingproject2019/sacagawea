@@ -28,6 +28,10 @@
 #define MAX_CLIENTS 64
 #define SERVER_DOMAIN "localhost"
 
+#define WIN32_PIPE_NAME "\\\\.\\pipe\\logger"
+#define WIN32_PIPE_BUFSIZE 1024
+#define WIN32_MAX_PIPES 64
+
 #ifdef _WIN32
 #define sock_t SOCKET
 #define thread_t HANDLE
@@ -78,7 +82,14 @@ struct struct_client_args{
 	char    addr[ADDR_MAXLEN];
 	sock_t  socket;
 	char    *path_file; // is the path of file in the server ROOT_PATH + SELECTOR
+	
+	// on win32 its a handle to a file mapping,
+	// whereas on linux its the address to the mapped file
+#ifdef _WIN32
+	HANDLE  file_to_send;
+#else
 	char    *file_to_send;
+#endif
 	size_t  len_file;
 	settings_t settings;
 };

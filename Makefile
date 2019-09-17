@@ -37,7 +37,7 @@ all: linux win32
 linux: makedirs linuxlib linuxserver
 	@cp -u sacagawea.conf bin
 
-win32: makedirs win32lib win32server win32mp
+win32: makedirs win32lib win32server win32mp win32logger
 	@cp -u sacagawea.conf bin
 	@cp -u lib/libpcre2-8-0.dll bin
 
@@ -130,10 +130,15 @@ win32server: $(SVR_SOURCES)
 
 win32mp: $(BIN)/sacagawea-mp.exe
 
+win32logger: $(BIN)/sacagawea-logger.exe
+
 $(BIN)/sacagawea-mp.exe: $(LIB_SRC)/win32-multiprocess/mp.c
 	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea-mp.exe $(LIB_SRC)/win32-multiprocess/mp.c -lws2_32 -lsacagawea
 
-.PHONY: clean lrun wrun linux win32 linuxserver win32server linuxlib win32lib win32mp
+$(BIN)/sacagawea-logger.exe: $(LIB_SRC)/win32-multiprocess/logger.c
+	$(WCC) $(CFLAGS) $(LIB_INC) -L${BIN} -Wl,-rpath=. -o ${BIN}/sacagawea-logger.exe $(LIB_SRC)/win32-multiprocess/logger.c -lws2_32 -lsacagawea
+
+.PHONY: clean lrun wrun linux win32 linuxserver win32server linuxlib win32lib win32mp win32logger
 
 lrun:
 	cd bin && ./sacagawea.out -P6969

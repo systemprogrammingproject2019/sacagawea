@@ -230,11 +230,16 @@ int accept_wrapper(const settings_t* settings) {
 	Any other failure on accept will cause us to end the server.  */
 	socklen_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
 	memset(&addr, 0, (size_t) addr_len);
-	do {
-		new_s = accept(settings->socket, 
+	while (true) {
+		new_s = accept(settings->socket,
 				(struct sockaddr*) &addr,
 				&addr_len);
-		
+	#ifdef _WIN32
+		if (new_s == INVALID_SOCKET) { break; }
+	#else
+		if (new_s == -1) { break; }
+	#endif
+
 		if (new_s < 0) {
 		#ifdef _WIN32
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
@@ -263,10 +268,6 @@ int accept_wrapper(const settings_t* settings) {
 				exit(5);
 			}
 		}
-#ifdef _WIN32
-	} while (new_s != INVALID_SOCKET);
-#else
-	} while (new_s != -1);
-#endif
+	}
 	return true;
 }

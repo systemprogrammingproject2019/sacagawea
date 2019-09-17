@@ -133,66 +133,79 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 // This fuction management the thread which have to send the FILE at client
 void *thread_sender(client_args* c) {
 	/* this cicle send the file at client and save the number of bytes sent */
-	long bytes_sent = 0, temp;
+	size_t bytes_sent = 0, temp;
+
+#ifdef _WIN32
+	SYSTEM_INFO sysnfo;
+	GetSystemInfo(&sysnfo);
+	int err1132counter = 0;
+	ULARGE_INTEGER bs;
+#endif
+
 	while (bytes_sent < c->len_file) {
 		// logic for sending the file
 	#ifdef _WIN32
-		write_log(DEBUG, "c->file_to_send: %s", c->file_to_send);
-		HANDLE hMapFile = OpenFileMappingA(
-				FILE_MAP_READ,   // read/write access
-				FALSE,           // do not inherit the name
-				c->file_to_send  // name of mapping object
-		);
-		if (hMapFile == NULL) {
+		if (c->file_to_send == NULL) {
 			write_log(ERROR, "OpenFileMappingA failed wirh error: %d",
 					GetLastError());
 			return false;
 		}
+		// write_log(DEBUG, "HIDWORD(bytes_sent) = %ld, LODWORD(bytes_sent) = %ld, sum = %ld",
+		// 		HIDWORD(bytes_sent), LODWORD(bytes_sent),
+		// 		HIDWORD(bytes_sent) + LODWORD(bytes_sent));
+		bs.QuadPart = bytes_sent;
 		char* pBuf = (LPTSTR) MapViewOfFile(
-				hMapFile,      // handle to map object
-				FILE_MAP_READ, // read/write permission
-				0,
-				HIDWORD(c->len_file),
-				0
+				c->file_to_send,      // handle to map object
+				FILE_MAP_READ,        // read permission
+				bs.HighPart,
+				bs.LowPart,
+				min(sysnfo.dwAllocationGranularity, c->len_file - bytes_sent)
 		);
 		if (pBuf == NULL) {
 			write_log(ERROR, "MapViewOfFile failed wirh error: %d",
 					GetLastError());
 			return false;
 		}
-		temp = send(c->socket, pBuf, (c->len_file - bytes_sent), 0);
-		if (temp == SOCKET_ERROR) {
-			write_log(ERROR, "Sending file at %s, with socket %d failed with error: %d\n",
-					c->addr, c->socket, WSAGetLastError());
-		}
+		temp = send(c->socket, pBuf, min(sysnfo.dwAllocationGranularity, c->len_file - bytes_sent), 0);
 		UnmapViewOfFile(pBuf);
-		CloseHandle(hMapFile);
+		if (temp == SOCKET_ERROR) {
+			if (WSAGetLastError() != WSAEWOULDBLOCK) {
+				write_log(ERROR, "Sending file at %s, with socket %d failed with error: %d\n",
+					c->addr, c->socket, WSAGetLastError());
+				close_socket_kill_thread(c->socket, 5);
+			}
+		}
 	#else
 		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
 		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);
 		if (temp < 0) {
-			write_log(ERROR, "Sending file at %s, with socket %d failed because of: %s\n",
-					c->addr, c->socket, strerror(errno));
-			close_socket_kill_thread(c->socket, 5);
-		}
-		if (temp == 0) {
+			if (temp != EWOULDBLOCK) {
+				write_log(ERROR, "Sending file at %s, with socket %d failed because of: %s\n",
+						c->addr, c->socket, strerror(errno));
+				close_socket_kill_thread(c->socket, 5);
+			}
+		} else if (temp == 0) {
 			write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
 					c->addr, c->socket);
 			close_socket_kill_thread(c->socket, 5);
 		}
 	#endif
-		bytes_sent += temp;
-		write_log(INFO, "sent %ld bytes\n", bytes_sent);
+		else {
+			bytes_sent += temp;
+		}
+	#ifdef _WIN32
+		// Without this, MapViewOfFile doesnt work for huge files
+		Sleep(1);
+	#endif
 	}
-
-	// at end we send a \n, useless for the fuction of gopher server
-	char c2[] = "\n";
-	send(c->socket, c2, strlen(c2), 0);
+	printf("\n");
+	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
 
 	// write to sacagawea.log through the pipe
 #ifdef _WIN32
+	CloseHandle(c->file_to_send);
 	closesocket(c->socket);
-	ExitThread(1);
+	// ExitThread(1);
 #else
 	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma mi sembra veramente inteligente come cosa.
 	allora curl legge finche il socket è aperto. quindi quando inviavo il file anche se inviato tutto
@@ -213,17 +226,18 @@ void *thread_sender(client_args* c) {
 		sleep(0.5);
 	}
 	if (check < 0) {
-		write_log(ERROR, "recv() failed: %s\n", strerror(errno));
+		write_log(ERROR, "recv() failed: %s", strerror(errno));
 		close_socket_kill_thread(c->socket, 5);
 	}
 	close(c->socket);
-	
+#endif
+
 	// if we sent all the file without error we wake up logs_uploader
 	write_log(INFO, "file length %ld\n", bytes_sent, c->len_file);
 
 	if (bytes_sent >= c->len_file) {
 		// get string to write on logs file
-		long len_logs_string;
+		long len_logs_string = 0;
 		char* ds = date_string();
 		len_logs_string += strlen(ds) + 1; // for date string + 1 space
 		len_logs_string += strlen(c->path_file) + 1;
@@ -231,21 +245,116 @@ void *thread_sender(client_args* c) {
 		char *logs_string = malloc(sizeof(char) * len_logs_string);
 
 		if (logs_string == NULL) {
+		#ifdef _WIN32
+			write_log(ERROR, "malloc() failed with error: %d", GetLastError());
+			ExitThread(0);
+		#else
 			write_log(ERROR, "malloc() failed: %s\n", strerror(errno));
 			pthread_exit(NULL);
+		#endif
 		}
 		if (snprintf(logs_string, len_logs_string, "%s %s %s\n", ds,
 				c->path_file, c->addr) < 0) {
-			write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
+		#ifdef _WIN32
+			write_log(ERROR, "snprintf() failed with error: %d", GetLastError());
+			ExitThread(0);
+		#else
+			write_log(ERROR, "snprintf() failed: %s", strerror(errno));
 			pthread_exit(NULL);
+		#endif
 		}
 		free(ds);
+		// sent logs string, first we sent the strlen after the string
+		len_logs_string = strlen(logs_string);
 
+	#ifdef _WIN32
+		HANDLE hPipe; 
+		TCHAR  chBuf[WIN32_PIPE_BUFSIZE]; 
+		BOOL   fSuccess = FALSE; 
+		DWORD  cbRead, cbWritten, dwMode; 
+
+		// Try to open the named pipe;
+		while (1) {
+			hPipe = CreateFile(
+				WIN32_PIPE_NAME,   // pipe name
+				GENERIC_READ |  // read and write access
+				GENERIC_WRITE,
+				0,              // no sharing
+				NULL,           // default security attributes
+				OPEN_EXISTING,  // opens existing pipe
+				0,              // default attributes
+				NULL            // no template file
+			);
+			// Break if the pipe handle is valid.
+			if (hPipe != INVALID_HANDLE_VALUE) {
+				break; 
+			}
+			// Exit if an error other than ERROR_PIPE_BUSY occurs.
+			if (GetLastError() != ERROR_PIPE_BUSY) {
+				write_log(ERROR, "Could not open pipe. CreateFile failed with error: %ld\n",
+						GetLastError());
+				ExitThread(0);
+			}
+
+			// All pipe instances are busy, so wait for 5 seconds.
+			if (!WaitNamedPipe(WIN32_PIPE_NAME, 5000)) {
+				write_log(ERROR, "Could not open pipe: 5 second wait timed out.");
+				ExitThread(0);
+			}
+		}
+		// The pipe connected; change to message-read mode.
+		dwMode = PIPE_READMODE_MESSAGE;
+		fSuccess = SetNamedPipeHandleState(
+				hPipe,    // pipe handle
+				&dwMode,  // new pipe mode
+				NULL,     // don't set maximum bytes
+				NULL      // don't set maximum time
+		);
+		if (!fSuccess) {
+			write_log(ERROR, "SetNamedPipeHandleState failed with error: %ld\n",
+					GetLastError());
+			ExitThread(0);
+		}
+
+		fSuccess = WriteFile(
+				hPipe,      // pipe handle
+				logs_string, // message
+				len_logs_string,  // message length
+				&cbWritten, // bytes written
+				NULL        // not overlapped
+		);
+		if (!fSuccess) {
+			write_log(ERROR, "WriteFile to pipe failed with error: %ld", GetLastError()); 
+			ExitThread(0);
+		}
+
+		// write_log(DEBUG, "Message sent to server, receiving reply as follows:\n");
+	
+		do {
+			// Read from the pipe.
+			fSuccess = ReadFile(
+					hPipe,    // pipe handle
+					chBuf,    // buffer to receive reply
+					WIN32_PIPE_BUFSIZE * sizeof(char),  // size of buffer
+					&cbRead,  // number of bytes read
+					NULL);    // not overlapped
+
+			if (!fSuccess && GetLastError() != ERROR_MORE_DATA)
+				break;
+
+			printf("\"%s\"\n", chBuf); 
+		} while (!fSuccess);  // repeat loop if ERROR_MORE_DATA 
+
+		if (!fSuccess) {
+			write_log(ERROR, "ReadFile from pipe failed with error: %d",
+					GetLastError());
+			ExitThread(0);
+		}
+
+		CloseHandle(hPipe); 
+	#else
 		// lock mutex and wake up process for logs
 		pthread_mutex_lock(mutex);
-		// sent logs string, first we sent the strlen after the string
-		len_logs_string = strlen( logs_string );
-		write_log(INFO, "HERE %ld: %s\n", len_logs_string, logs_string);
 		if (write(pipe_conf[1], &len_logs_string, sizeof(int)) < 0) {
 			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
 	 		exit(5);
@@ -253,13 +362,16 @@ void *thread_sender(client_args* c) {
 		if (write(pipe_conf[1], logs_string, len_logs_string) < 0) {
 			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
 	 		exit(5);
-		}	
+		}
 		// unlock mutex and free
 		pthread_cond_signal(cond);
 		pthread_mutex_unlock(mutex);
+	#endif
 		free(logs_string);
 	}
-	
+#ifdef _WIN32
+	ExitThread(0);
+#else
 	pthread_exit(NULL);
 #endif
 }
@@ -276,10 +388,18 @@ char type_path(char path[PATH_MAX]) {
 	}
 
 	if (PathIsDirectoryA(path)) {
-		write_log(INFO, "Path %s is a directory", path);
+		// write_log(INFO, "Path %s is a directory", path);
 		return '1';
 	}
-	write_log(INFO, "Path %s is a file", path);
+	
+	LPCSTR extension = PathFindExtensionA(path);
+	if (!strcmp(extension, ".exe") || !strcmp(extension, ".bin")
+			|| !strcmp(extension, ".dll") || !strcmp(extension, ".so")
+			|| !strcmp(extension, ".out") || !strcmp(extension, ".lib")
+			|| !strcmp(extension, ".a")   || !strcmp(extension, ".iso")) {
+		return '9';
+	}
+	// write_log(INFO, "Path %s is a file", path);
 	return '0';
 #else
 	// we check the tipe or file with file bash command

@@ -26,7 +26,10 @@
 
 settings_t* settings;
 
-#ifndef _WIN32
+#ifdef _WIN32
+// info for log process
+PROCESS_INFORMATION piProcInfo;
+#else
 /* A condition variable/mutex attribute object (attr) allows you to manage the characteristics
 	of condition variables/mutex in your application by defining a set of values to be used for a
 	condition variable/mutex during its creation.*/
@@ -39,6 +42,7 @@ pthread_condattr_t cattr;
 void close_all() {
 #ifdef _WIN32
 	closesocket(settings->socket);
+	TerminateProcess(piProcInfo.hProcess, 0);
 	WSACleanup();
 #else
 	// close socket
@@ -208,8 +212,7 @@ int main(int argc, char *argv[]) {
 #endif
 
 	// create the pipe for SERVER<->SACALOGS
-#ifdef _WIN32
-#else
+#ifndef _WIN32
 	if (pipe(pipe_conf) != 0){ 
 		write_log(ERROR, "System call pipe() failed because of %s", strerror(errno));
 	 	exit(5);
@@ -223,6 +226,44 @@ int main(int argc, char *argv[]) {
 #endif
 	// now create the process
 #ifdef _WIN32
+	STARTUPINFO siStartInfo;
+	int bLogger = false;
+
+	// Set up members of the PROCESS_INFORMATION structure.
+	ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+ 
+	// Set up members of the STARTUPINFO structure. 
+	// This structure specifies the STDIN and STDOUT handles for redirection.
+	ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
+	siStartInfo.cb = sizeof(STARTUPINFO); 
+
+	// Create the child process.
+	bLogger = CreateProcess(
+			NULL, 
+			"sacagawea-logger.exe",  // command line
+			NULL,          // default security attributes
+			NULL,          // primary thread security attributes
+			TRUE,          // IMPORTANT: handles are inherited
+			0,             // creation flags
+			NULL,          // use parent's environment
+			NULL,          // use parent's current directory
+			&siStartInfo,  // STARTUPINFO pointer
+			&piProcInfo    // receives PROCESS_INFORMATION
+	);
+	// If an error occurs, exit the application. 
+	if (!bLogger) {
+		write_log(ERROR, "CreateProcess failed with error: %I64d",
+				GetLastError());
+		exit(1);
+	} else {
+		// Close handles to the child process and its primary thread.
+		// Some applications might keep these handles to monitor the status
+		// of the child process, for example. 
+
+		CloseHandle(piProcInfo.hProcess);
+		CloseHandle(piProcInfo.hThread);
+	}
+
 #else
 	pid = fork();
 	if (pid < 0){
@@ -231,7 +272,7 @@ int main(int argc, char *argv[]) {
 	}
 	if (pid == 0) { /* child process */
 		// close write pipe
-		close( pipe_conf[1] );
+		close(pipe_conf[1]);
 		// call log management
 		log_management();
 	}

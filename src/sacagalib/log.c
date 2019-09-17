@@ -23,37 +23,15 @@ FILE* log_file;
 
 const char log_lv_name[][10] = {"ERROR", "WARNING", "INFO", "DEBUG"};
 
+#ifndef _WIN32
 void log_management() {
 	write_log(INFO, "Process for sacagawea.log created");
 
-#ifdef _WIN32
-#else
 	char *read_line;
 	int len_string, check;
-#endif
 
 	// open logs file and check if an error occured
-#ifdef _WIN32
-	log_file = CreateFileA (
-		SACAGAWEALOGS_PATH,     // file name
-		FILE_APPEND_DATA,       // open for appending
-		FILE_SHARE_READ,        // share for reading only
-		NULL,                   // default security
-		OPEN_ALWAYS,            // open existing file or create new file 
-		FILE_ATTRIBUTE_NORMAL,  // normal file
-		NULL                    // no attr. template
-	);
-	if (log_file == INVALID_HANDLE_VALUE) {
-		write_log(ERROR, "CreateFileA failed. Unable to open \"%s\"", SACAGAWEALOGS_PATH);
-		return;
-	}	
-#endif
-
 	while (true) {
-#ifdef _WIN32
-		// TODO
-		break;
-#else
 		pthread_mutex_lock(mutex);
 		// this while check if pipe is readable (contains something). if == 1 is readable else we go sleep
 		/*while (poll(&(struct pollfd){ .fd = pipe_conf[0], .events = POLLIN }, 1, 0) != 1) {
@@ -103,7 +81,7 @@ void log_management() {
 
 		// read pipe and write sacagawea.log, until we got \n
 		read_line = (char*) malloc((len_string+1) * sizeof(char));
-		if ( read(pipe_conf[0], read_line, len_string) < 0 ) {
+		if (read(pipe_conf[0], read_line, len_string) < 0) {
 			fprintf(stderr, "read() fail becouse: %s\n", strerror(errno));
 			exit(5);
 		}
@@ -114,12 +92,9 @@ void log_management() {
 		fclose(log_file);
 		free(read_line);
 		pthread_mutex_unlock(mutex);
-#endif
 	}
-#ifdef _WIN32
-	CloseHandle(log_file);
-#endif
 }
+#endif
 
 void write_log(int log_lv, const char* error_string, ...) {
 	va_list args;
@@ -148,6 +123,7 @@ void write_log(int log_lv, const char* error_string, ...) {
 		fprintf(stderr, "%s", log_string);
 	} else if (log_lv <= LOG_LEVEL) {
 		fprintf(stdout, "%s", log_string);
+		// fflush(stdout);
 		// return;
 	}
 

@@ -43,17 +43,20 @@ int load_file_memory_and_send(client_args *client_info) {
 
 	GetFileSizeEx(hFile, (PLARGE_INTEGER) &(client_info->len_file));
 
-	// we pass the name of the file mapping to the sender thread
-	// instead of the actual file, as the linux version does 
-	client_info->file_to_send = "mapped_file";
+	// parent's security attributes, with bInheritHandle set to TRUE
+	// so the FIle Mapping gets inherited by the child process
+	SECURITY_ATTRIBUTES sa;
+	sa.nLength = sizeof(SECURITY_ATTRIBUTES); 
+	sa.bInheritHandle = TRUE; 
+	sa.lpSecurityDescriptor = NULL;
 
 	HANDLE hMapFile = CreateFileMappingA(
 			hFile,
-			NULL,
+			&sa,
 			PAGE_READONLY,
 			HIDWORD(client_info->len_file), // these macros convert a normal number into the kind
 			LODWORD(client_info->len_file), // of numbers required for this kind of functions
-			client_info->file_to_send
+			NULL
 	);
 	if (hMapFile == NULL) {
 		write_log(ERROR, "CreateFileMappingA failed wirh error: %d",
@@ -61,17 +64,9 @@ int load_file_memory_and_send(client_args *client_info) {
 		return false;
 	}
 
-	// ULONG bytesRead = 0;
-	// if (!ReadFile(hFile, data, client_info->len_file, &bytesRead, NULL)) {
-	// 	DWORD err = GetLastError();
-	// 	write_log(ERROR, "Failed to ReadFile %s, with error: %d",
-	// 			client_info->path_file, GetLastError());
-	// 	return false;
-	// }
-	// if (bytesRead != client_info->len_file) {
-	// 	write_log(WARNING, "File dimesion (%lld bytes) and bytes read (%lld) differ",
-	// 			client_info->len_file, bytesRead);
-	// }
+	// we pass the name of the file mapping to the sender thread
+	// instead of the actual file, as the linux version does 
+	client_info->file_to_send = hMapFile;
 
 	LPDWORD lpThreadId = 0;
 	HANDLE tHandle = CreateThread( 
@@ -83,9 +78,9 @@ int load_file_memory_and_send(client_args *client_info) {
 			lpThreadId      // returns the thread identifier 
 	);
 
+	CloseHandle(hFile);
 	WaitForSingleObject(tHandle, INFINITE);
 	CloseHandle(hMapFile);
-	CloseHandle(hFile);
 
 	return true;
 #else
