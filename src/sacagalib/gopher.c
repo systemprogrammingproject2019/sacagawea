@@ -398,6 +398,20 @@ char type_path(char path[PATH_MAX]) {
 			|| !strcmp(extension, ".a")   || !strcmp(extension, ".iso")) {
 		return '9';
 	}
+	if (!strcmp(extension, ".htm")) {
+		return 'h';
+	}
+	if (!strcmp(extension, ".gif")) {
+		return 'g';
+	}
+	if (!strcmp(extension, ".mp3") || !strcmp(extension, ".ogg")
+			|| !strcmp(extension, ".wav") || !strcmp(extension, ".aiff")) {
+		return 's';
+	}
+	if (!strcmp(extension, ".jpg") || !strcmp(extension, ".jpeg")
+			|| !strcmp(extension, ".png") || !strcmp(extension, ".tiff")) {
+		return 'I';
+	}
 	// write_log(INFO, "Path %s is a file", path);
 	return '0';
 #else

@@ -70,14 +70,17 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 	{
 	// Handle the CTRL-C signal. 
 	case CTRL_C_EVENT:
+		write_log(DEBUG, "CTRL+C PRESSED!");
 		close_all();
 		// return TRUE;
 
 	// CTRL-CLOSE: confirm that the user wants to exit. 
 	case CTRL_CLOSE_EVENT:
+		write_log(DEBUG, "CTRL+CLOSE PRESSED!");
 		close_all();
 		// return TRUE;
-
+	case CTRL_BREAK_EVENT:
+		write_log(DEBUG, "CTRL+BREAK PRESSED!");
 	default:
 		read_and_check_conf(settings);
 		return FALSE;
