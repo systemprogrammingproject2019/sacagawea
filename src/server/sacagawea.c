@@ -168,8 +168,20 @@ int main(int argc, char *argv[]) {
 	settings->homedir[strlen(settings->homedir)] = '/';
 	settings->homedir[strlen(settings->homedir) + 1] = '\0';
 #endif
-	gethostname(settings->hostname, sizeof(settings->hostname) - 1);
 
+#ifdef _WIN32
+	if (GetComputerNameA(settings->hostname,
+			&(long unsigned int){sizeof(settings->hostname) - 1}) == 0) {
+		write_log(WARNING, "GetComputerNameA failed with error: %I64d",
+				GetLastError());
+		strcpy(settings->hostname, "localhost");
+	}
+#else
+	if (gethostname(settings->hostname, sizeof(settings->hostname) - 1) != 0) {
+		write_log(WARNING, "gethostname failed: %d", strerror(errno));
+		strcpy(settings->hostname, "localhost");
+	}
+#endif
 	// check the sacagawea.conf
 	read_and_check_conf(settings);
 
