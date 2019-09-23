@@ -209,7 +209,7 @@ selector request_to_selector(char* input) {
 	}
 
 	// check if input start with selector or not
-	if (input[0] == '\t') { // if not, we don't take it
+	if (input[0] == '\t') { // if not, we set selector at empty String
 		client_selector.selector[0] = '\0';
 		read_bytes = 0;
 	} else { // if contain it we take it
@@ -240,7 +240,7 @@ selector request_to_selector(char* input) {
 			client_selector.selector , read_bytes );
 
 	// if the client send a tab \t, it means that the selector is followed by words 
-	// that need to match with the name of the searched file 
+	// ( that need to match with the name of the searched file )
 	if (input[read_bytes] == '\t') {
 		int i = 0;
 		client_selector.words = (char **) malloc( 3*sizeof( char *));
@@ -338,17 +338,18 @@ long unsigned int* management_function(client_args* c) {
 	// if is a dir we check the content if match with words 
 	if (type == '1') {
 		send_content_of_dir(c, &client_selector);
-	} else if (type == '3') { // if is an error send the error message
-		char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
-		strcpy(temp, "3\t");
-		strcat(temp, client_selector.selector);
-		strcat(temp, "\n.\n"); // senza \n non inviava rimaneva in pending nel buffer del socket senza inviare. non so perche
-		send(c->socket, temp, strlen(temp), 0);
+	} else {
+		if (type == '3') { // if is an error send the error message
+			char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
+			strcpy(temp, "3\t");
+			strcat(temp, client_selector.selector);
+			strcat(temp, "\n.\n");
+			send(c->socket, temp, strlen(temp), 0);
 		// close socket and thread
-	} else { // if is only a file
-		load_file_memory_and_send(c);
+		} else { // if is only a file
+			load_file_memory_and_send(c);
+		}
 	}
-
 	if ((c->settings).mode == 't') {
 		close_socket_kill_thread(c->socket, 0);
 	} else {

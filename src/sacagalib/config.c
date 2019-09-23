@@ -145,6 +145,7 @@ char* do_regex(const char* pattern, const char* str) {
 	reti = regexec(&regex, str, 2, regmatch, 0);
 	if (reti == REG_NOMATCH) {
 		// puts("No match");
+		regfree(&regex);
 		return "\0";
 	}
 

@@ -83,6 +83,8 @@ void log_management() {
 		read_line = (char*) malloc((len_string+1) * sizeof(char));
 		if (read(pipe_conf[0], read_line, len_string) < 0) {
 			fprintf(stderr, "read() fail becouse: %s\n", strerror(errno));
+			free(read_line);
+			fclose(log_file);
 			exit(5);
 		}
 		read_line[len_string]='\0';
@@ -126,9 +128,8 @@ void write_log(int log_lv, const char* error_string, ...) {
 		// fflush(stdout);
 		// return;
 	}
-
+	free(formatted_error_string);
 	free(log_string);
-
 	va_end(args);
 }
 
@@ -147,6 +148,7 @@ char* date_string() {
 	if (snprintf(r, len_str+1, "[%s %02d %04d %02d:%02d:%02d]",
 			month, timeinfo->tm_mday, timeinfo->tm_year + 1900, 
 			timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec) < 0) {
+		free(timeinfo);
 		write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
 		exit(5);
 	}

@@ -205,6 +205,7 @@ sel:
 #endif
 	else if (num_fd_ready == 0) {
 		write_log(ERROR, "select timed out. Exiting...");
+		free( client_info );
 		return false;
 	}
 
@@ -215,6 +216,7 @@ sel:
 		loop back and call select again. */
 		accept_wrapper(settings);
 	}
+	//free( client_info );
 	return true; 
 }
 
@@ -231,24 +233,29 @@ int accept_wrapper(const settings_t* settings) {
 	socklen_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
 	memset(&addr, 0, (size_t) addr_len);
 	while (true) {
-		new_s = accept(settings->socket,
-				(struct sockaddr*) &addr,
-				&addr_len);
+		new_s = accept(settings->socket, (struct sockaddr*) &addr, &addr_len);
 	#ifdef _WIN32
-		if (new_s == INVALID_SOCKET) { break; }
+		if (new_s == INVALID_SOCKET) {
+			break;
+		}
 	#else
-		if (new_s == -1) { break; }
+		if (new_s == -1) {
+			break;
+			free(client_info);
+		}
 	#endif
 
 		if (new_s < 0) {
 		#ifdef _WIN32
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
 				write_log(ERROR, "socket accept() failed with error: %d", WSAGetLastError());
+				free(client_info);
 				exit(5);
 			}
 		#else
 			if (errno != EWOULDBLOCK) {
 				write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
+				free(client_info);
 				exit(5);
 			}
 		#endif
@@ -265,6 +272,7 @@ int accept_wrapper(const settings_t* settings) {
 				process_management(client_info);
 			} else {
 				write_log(ERROR, "Multithread/multiprocess mode not set correctly");
+				free(client_info);
 				exit(5);
 			}
 		}

@@ -86,11 +86,11 @@ struct struct_client_args{
 	// on win32 its a handle to a file mapping,
 	// whereas on linux its the address to the mapped file
 #ifdef _WIN32
-	HANDLE  file_to_send;
+	HANDLE file_to_send;
 #else
-	char    *file_to_send;
+	char *file_to_send;
 #endif
-	size_t  len_file;
+	size_t len_file;
 	settings_t settings;
 };
 

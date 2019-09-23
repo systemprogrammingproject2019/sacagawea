@@ -39,6 +39,42 @@ pthread_mutexattr_t mattr;
 pthread_condattr_t cattr;
 #endif
 
+void become_deamon() {
+#ifdef _WIN32
+#else
+	int pid;
+	pid = fork();
+	if (pid < 0) {
+		write_log(ERROR, "System call fork() failed because of %s", strerror(errno));
+	 	exit(5);
+	}
+	if (pid > 0) {
+		write_log(INFO, "Server become a deamon" );
+	 	exit(5);
+	}
+                
+    if( setsid() < 0) {
+		write_log(ERROR, "System call setsid() failed because of %s", strerror(errno));
+	 	exit(5);
+    }
+
+	/* Change the current working directory */
+	if ((chdir( S_ROOT_PATH )) < 0) {
+		write_log(ERROR, "System call chdir() failed because of %s", strerror(errno));
+	 	exit(5);
+	}
+        
+    /* Close out the standard file descriptors */
+	close(STDIN_FILENO);
+	close(STDOUT_FILENO);
+	close(STDERR_FILENO);
+
+	/*resettign File Creation Mask .
+	this set the process mode to 750 becouse umask need the complement*/
+    umask(027);
+#endif
+}
+
 void close_all() {
 #ifdef _WIN32
 	closesocket(settings->socket);
@@ -121,6 +157,8 @@ void sighup_handler(int signum) {
 #endif
 
 int main(int argc, char *argv[]) {
+
+	//become_deamon();
 
 	settings = calloc(1, sizeof(settings_t));
 	settings->port = DEFAULT_SERVER_PORT;
