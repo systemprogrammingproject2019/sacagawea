@@ -45,7 +45,7 @@ sock_t open_socket(const settings_t* settings) {
 	char* port_to_string = malloc(16);
 	snprintf(port_to_string, 15, "%d", settings->port);
 	// Resolve the server address and service (port)
-	err = getaddrinfo(settings->hostname, port_to_string, &hints, &result);
+	err = getaddrinfo(NULL, port_to_string, &hints, &result);
 	if (err != 0) {
 		write_log(ERROR, "getaddrinfo failed: %d", err);
 		WSACleanup();
