@@ -201,7 +201,7 @@ selector request_to_selector(char* input) {
 	memset(&client_selector, '\0', sizeof(client_selector));
 	client_selector.num_words = -1; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
 
-	write_log(DEBUG, "selector: %s", input);
+	write_log(DEBUG, "selector: \"%s\"", input);
 
 	//if path starts with "/", ignore it
 	if (input[0] == '/') {
@@ -307,12 +307,7 @@ long unsigned int* management_function(client_args* c) {
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
-#ifdef _WIN32
-	GetCurrentDirectory(PATH_MAX, c->path_file);
-	c->path_file[strlen(c->path_file)] = '\\';
-#else
-	strcpy(c->path_file, S_ROOT_PATH);
-#endif
+	strcpy(c->path_file, (c->settings).homedir);
 	// security check to avoid memory corruption
 	int len_check = strlen(c->path_file) + strlen(client_selector.selector);
 	if (len_check >= PATH_MAX) {

@@ -26,7 +26,7 @@
 #define SACAGAWEALOGS_PATH "sacagawea.log"
 #define DEFAULT_SERVER_PORT 7070
 #define MAX_CLIENTS 64
-#define SERVER_DOMAIN "localhost"
+// #define SERVER_DOMAIN "localhost"
 
 #define WIN32_PIPE_NAME "\\\\.\\pipe\\logger"
 #define WIN32_PIPE_BUFSIZE 1024
@@ -63,6 +63,7 @@ typedef struct struct_settings_t {
 	sock_t socket;
 	char mode;
 	char homedir[PATH_MAX];
+	char hostname[256];
 } settings_t;
 
 extern settings_t* settings;
@@ -158,6 +159,8 @@ EXPORTED int check_security_path(char path[PATH_MAX]);
 #define S_MODE_THREADED     't'
 #define S_MODE_MULTIPROCESS 'p'
 #define S_PORT              "port"
+#define S_HOMEDIR           "home-directory"
+#define S_HOSTNAME          "hostname"
 
 #define S_ERROR_FOPEN "fopen() failed: %s"
 #define S_ERROR_FGETS "fgets() failed: %s"

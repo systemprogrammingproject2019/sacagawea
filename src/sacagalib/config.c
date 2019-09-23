@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #ifdef _WIN32
 #define PCRE2_CODE_UNIT_WIDTH 8 // every char is 8 bits
@@ -23,12 +24,12 @@ int check_if_conf(const char* line, settings_t* settings) {
 	char matched = false;
 	int port_change = false;
 	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
-	// if line is type "mode [t/p]"
+
+	// "mode [t/p]"
 	match = do_regex(("^" S_MODE "[[:space:]]+([tp])"), line);
 	if (strlen(match)) {
 		matched = true;
-		char mode;
-		mode = match[0];
+		char mode = match[0];
 		if (mode == S_MODE_THREADED) {
 			write_log(DEBUG, "check_if_conf: new mode: 'multithread'");
 			settings->mode = 't';
@@ -42,12 +43,12 @@ int check_if_conf(const char* line, settings_t* settings) {
 	if (matched == true) free(match);
 	matched = false;
 
+	// "port [0-9]{1,5}"
 	match = do_regex(("^" S_PORT "[[:space:]]+([[:digit:]]{1,5})"), line);
 	if (strlen(match)) {
 		matched = true;
 		// if line is "port XXX" with XXX a port number
-		long int val;
-		val = strtol(match, NULL, 10);
+		long int val = strtol(match, NULL, 10);
 
 		if ((val != 0) && (val != settings->port) && (val < 65536)) {
 			write_log(DEBUG, "check_if_conf: new port: '%d'", val);
@@ -58,6 +59,42 @@ int check_if_conf(const char* line, settings_t* settings) {
 	if (matched == true) free(match);
 	matched = false;
 
+	// homedir "home-directory [^\n\r]{1,259}"
+	match = do_regex(("^" S_HOMEDIR "[[:space:]]+([^\n\r]{1,259})"), line);
+	if (strlen(match)) {
+		matched = true;
+		// open dir
+		DIR* folder = opendir(match);
+		if (folder == NULL) {
+			write_log(ERROR, "Cant find home-directory: %s", match);
+			exit(1);
+		}
+		strncpy(settings->homedir, match, 259);
+	#ifdef _WIN32
+		if (settings->homedir[strlen(settings->homedir) - 1] != '\\') {
+			settings->homedir[strlen(settings->homedir)] = '\\';
+			settings->homedir[strlen(settings->homedir) + 1] = '\0';
+		}
+	#else
+		if (settings->homedir[strlen(settings->homedir) - 1] != '/') {
+			settings->homedir[strlen(settings->homedir)] = '/';
+			settings->homedir[strlen(settings->homedir) + 1] = '\0';
+		}
+	#endif
+		write_log(DEBUG, "check_if_conf: new homedir: \"%s\"", settings->homedir);
+	}
+	if (matched == true) free(match);
+	matched = false;
+
+	// "hostname [^\n\r]{1,255}"
+	match = do_regex(("^" S_HOSTNAME "[[:space:]]+([^\n\r]{1,255})"), line);
+	if (strlen(match)) {
+		matched = true;
+		strncpy(settings->hostname, match, 255);
+		write_log(DEBUG, "check_if_conf: new hostname: \"%s\"", settings->hostname);
+	}
+	if (matched == true) free(match);
+	matched = false;
 	return port_change;
 }
 
@@ -162,7 +199,7 @@ char* do_regex(const char* pattern, const char* str) {
 int read_and_check_conf(settings_t* settings) {
 	// some declaretion 
 	FILE *fp;
-	const size_t max_line_size = 128;
+	const size_t max_line_size = 512;
 	char line[max_line_size];
 	int port_change = false;
 	//open config file and check if an error occured

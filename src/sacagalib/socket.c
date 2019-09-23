@@ -24,14 +24,9 @@ sock_t open_socket(const settings_t* settings) {
 	int err;
 
 	sock_t ListenSocket = INVALID_SOCKET;
-	// SOCKET ClientSocket = INVALID_SOCKET;
 
 	struct addrinfo *result = NULL;
 	struct addrinfo hints;
-
-	// int iSendResult;
-	// char recvbuf[SOCK_RECVBUF_LEN];
-	// int recvbuflen = SOCK_RECVBUF_LEN;
 
 	// Initialize Winsock
 	if ((WSAStartup(MAKEWORD(2, 2), &wsaData)) == SOCKET_ERROR) {
@@ -45,11 +40,12 @@ sock_t open_socket(const settings_t* settings) {
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags    = AI_PASSIVE;
 
-	// windows requires the port to be a string
+	// windows requires the port to be a string,
+	// because it actually is the "service name"
 	char* port_to_string = malloc(16);
 	snprintf(port_to_string, 15, "%d", settings->port);
-	// Resolve the server address and port
-	err = getaddrinfo(NULL, port_to_string, &hints, &result);
+	// Resolve the server address and service (port)
+	err = getaddrinfo(settings->hostname, port_to_string, &hints, &result);
 	if (err != 0) {
 		write_log(ERROR, "getaddrinfo failed: %d", err);
 		WSACleanup();

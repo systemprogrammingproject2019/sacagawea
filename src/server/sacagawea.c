@@ -28,13 +28,14 @@ settings_t* settings;
 
 #ifdef _WIN32
 // info for log process
-PROCESS_INFORMATION piProcInfo;
+PROCESS_INFORMATION logProcess;
 #else
 /* A condition variable/mutex attribute object (attr) allows you to manage the characteristics
 	of condition variables/mutex in your application by defining a set of values to be used for a
 	condition variable/mutex during its creation.*/
 // these need to be global so they can be closed from an external function
 // - like close_all() - without unnecessary complications
+int logProcess;
 pthread_mutexattr_t mattr;
 pthread_condattr_t cattr;
 #endif
@@ -46,39 +47,39 @@ void become_deamon() {
 	pid = fork();
 	if (pid < 0) {
 		write_log(ERROR, "System call fork() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 	if (pid > 0) {
 		write_log(INFO, "Server become a deamon" );
-	 	exit(5);
+		exit(5);
 	}
-                
-    if( setsid() < 0) {
+
+	if( setsid() < 0) {
 		write_log(ERROR, "System call setsid() failed because of %s", strerror(errno));
-	 	exit(5);
-    }
+		exit(5);
+	}
 
 	/* Change the current working directory */
 	if ((chdir( S_ROOT_PATH )) < 0) {
 		write_log(ERROR, "System call chdir() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
-        
-    /* Close out the standard file descriptors */
+
+	/* Close out the standard file descriptors */
 	close(STDIN_FILENO);
 	close(STDOUT_FILENO);
 	close(STDERR_FILENO);
 
 	/*resettign File Creation Mask .
 	this set the process mode to 750 becouse umask need the complement*/
-    umask(027);
+	umask(027);
 #endif
 }
 
 void close_all() {
 #ifdef _WIN32
 	closesocket(settings->socket);
-	TerminateProcess(piProcInfo.hProcess, 0);
+	TerminateProcess(logProcess.hProcess, 0);
 	WSACleanup();
 #else
 	// close socket
@@ -87,6 +88,9 @@ void close_all() {
 	// destroy the allocated attr for, condition variable
 	pthread_condattr_destroy(&cattr);
 	pthread_mutexattr_destroy(&mattr);
+
+	// kill log process
+	kill(logProcess, 15);
 
 	// close write pipe.
 	close(pipe_conf[1]);
@@ -104,23 +108,14 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 	// "return true" kills the process
 	switch (fdwCtrlType)
 	{
-	// Handle the CTRL-C signal. 
-	case CTRL_C_EVENT:
-		write_log(DEBUG, "CTRL+C PRESSED!");
-		close_all();
-		// return TRUE;
-
-	// CTRL-CLOSE: confirm that the user wants to exit. 
-	case CTRL_CLOSE_EVENT:
-		write_log(DEBUG, "CTRL+CLOSE PRESSED!");
-		close_all();
-		// return TRUE;
 	case CTRL_BREAK_EVENT:
 		write_log(DEBUG, "CTRL+BREAK PRESSED!");
-	default:
 		read_and_check_conf(settings);
-		return FALSE;
+		return TRUE; // dont close the process
+	default:
+		close_all();
 	}
+	return FALSE;
 }
 #endif
 
@@ -159,13 +154,25 @@ void sighup_handler(int signum) {
 int main(int argc, char *argv[]) {
 
 	//become_deamon();
-
+	
+	//fill default settings
 	settings = calloc(1, sizeof(settings_t));
 	settings->port = DEFAULT_SERVER_PORT;
 	settings->mode = 't';
+#ifdef _WIN32
+	GetCurrentDirectory(sizeof(settings->homedir) - 1, settings->homedir);
+	settings->homedir[strlen(settings->homedir)] = '\\';
+	settings->homedir[strlen(settings->homedir) + 1] = '\0';
+#else
+	getcwd(settings->homedir, sizeof(settings->homedir) - 1);
+	settings->homedir[strlen(settings->homedir)] = '/';
+	settings->homedir[strlen(settings->homedir) + 1] = '\0';
+#endif
+	gethostname(settings->hostname, sizeof(settings->hostname) - 1);
 
 	// check the sacagawea.conf
 	read_and_check_conf(settings);
+
 	// check if some variable are setted by command line
 	int c;
 	opterr = 0;
@@ -197,9 +204,6 @@ int main(int argc, char *argv[]) {
 			settings->port, (settings->mode == 'p')?"multiprocess":"multithreaded");
 
 #ifndef _WIN32
-	//spawn process who manages the logs file
-	int pid; /* process identifier */
-
 	/* condition variable and mutex are shared on the same process, but when we fork we create a new
 	addressing for the child, so the global/local variable are not shared like threads.
 	we have to create a shared memory for the 2 process and put on that the mutex and condition variable
@@ -271,7 +275,7 @@ int main(int argc, char *argv[]) {
 	int bLogger = false;
 
 	// Set up members of the PROCESS_INFORMATION structure.
-	ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+	ZeroMemory(&logProcess, sizeof(PROCESS_INFORMATION));
  
 	// Set up members of the STARTUPINFO structure. 
 	// This structure specifies the STDIN and STDOUT handles for redirection.
@@ -289,7 +293,7 @@ int main(int argc, char *argv[]) {
 			NULL,          // use parent's environment
 			NULL,          // use parent's current directory
 			&siStartInfo,  // STARTUPINFO pointer
-			&piProcInfo    // receives PROCESS_INFORMATION
+			&logProcess    // receives PROCESS_INFORMATION
 	);
 	// If an error occurs, exit the application. 
 	if (!bLogger) {
@@ -301,17 +305,17 @@ int main(int argc, char *argv[]) {
 		// Some applications might keep these handles to monitor the status
 		// of the child process, for example. 
 
-		CloseHandle(piProcInfo.hProcess);
-		CloseHandle(piProcInfo.hThread);
+		CloseHandle(logProcess.hProcess);
+		CloseHandle(logProcess.hThread);
 	}
 
 #else
-	pid = fork();
-	if (pid < 0){
+	logProcess = fork();
+	if (logProcess < 0){
 		write_log(ERROR, "System call fork() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
-	if (pid == 0) { /* child process */
+	if (logProcess == 0) { /* child process */
 		// close write pipe
 		close(pipe_conf[1]);
 		// call log management

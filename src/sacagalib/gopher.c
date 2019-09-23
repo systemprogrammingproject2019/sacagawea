@@ -61,7 +61,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 		for (j = 0; j <= client_selector->num_words; j++) {
 			no_match = false;
 			// check if not match
-			if (check_not_match( subFile->d_name, client_selector->words[j])) {
+			if (check_not_match(subFile->d_name, client_selector->words[j])) {
 				no_match = true;
 				break;
 			}
@@ -83,7 +83,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 						"%s%s", client_info->path_file, subFile->d_name);
 			} else {
 				snprintf(path_of_subfile,
-						(strlen(client_info->path_file) + strlen(subFile->d_name) + 1),
+						(strlen(client_info->path_file) + strlen(subFile->d_name) + 2),
 						"%s/%s", client_info->path_file, subFile->d_name);
 			}
 
@@ -95,7 +95,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
 			len_response += strlen(client_selector->selector) + strlen(subFile->d_name) + 2;
 			// for IP of server +\t
-			len_response += strlen(SERVER_DOMAIN) + 1;
+			len_response += strlen((client_info->settings).hostname) + 1;
 			// for actualy opened (client_info->settings).port
 			snprintf(port_str, 6, "%d", (client_info->settings).port);
 			len_response += strlen( port_str );
@@ -107,11 +107,11 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			if (client_selector->selector[(strlen(client_selector->selector)-1)] != '/'){
 				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\n",
 						type, subFile->d_name, client_selector->selector,
-						subFile->d_name, SERVER_DOMAIN, (client_info->settings).port);
+						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 			} else {
 				snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\n",
 						type, subFile->d_name, client_selector->selector,
-						subFile->d_name, SERVER_DOMAIN, (client_info->settings).port);
+						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 			}
 
 			write_log(INFO, "response at %d: %s", client_info->socket, response);
@@ -416,18 +416,18 @@ char type_path(char path[PATH_MAX]) {
 	return '0';
 #else
 	// we check the tipe or file with file bash command
-	char command[(strlen(path) + 10)];
+	char command[(strlen(path) + 10)];  // 9 for "file -bi " + 1 for \0 at end
 	// file with -b option: 
-	strcpy(command, "file -bi "); // 9 for "file -bi " +1 for \0 at end
+	strcpy(command, "file -bi ");
 	strcat(command, path);
 	FILE* popen_output_stream = popen(command , "r");
 	if (popen_output_stream == NULL) { 
 		write_log(ERROR,"popen() failed: %s\n", strerror(errno));
 	 	close_socket_kill_process(settings->socket, 5);
 	}
-	char popen_output[20]; // is useless read all output, i need only the first section and the max is "application/gopher"
+	char popen_output[32]; // is useless read all output, i need only the first section and the max is "application/gopher"
 
-	if (fgets((char *) &popen_output, 20, popen_output_stream) == NULL) {
+	if (fgets((char *) &popen_output, 32, popen_output_stream) == NULL) {
 		if (!feof(popen_output_stream)) {
 			write_log(ERROR, S_ERROR_FGETS, strerror(errno));
 			close_socket_kill_process(settings->socket, 5);
@@ -436,7 +436,7 @@ char type_path(char path[PATH_MAX]) {
 	//fprintf( stdout, "%s\n", popen_output); 
 	if (strncmp(popen_output, "cannot", 6) == 0) {
 		write_log(INFO, "%s", popen_output);
-		while (fgets((char *) &popen_output, 20, popen_output_stream) != NULL) {
+		while (fgets((char *) &popen_output, 32, popen_output_stream) != NULL) {
 			fprintf(stdout, "%s", popen_output); 
 		}
 		fprintf(stdout, "\n"); 
