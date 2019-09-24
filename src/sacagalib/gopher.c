@@ -395,7 +395,10 @@ char type_path(char path[PATH_MAX]) {
 	if (!strcmp(extension, ".exe") || !strcmp(extension, ".bin")
 			|| !strcmp(extension, ".dll") || !strcmp(extension, ".so")
 			|| !strcmp(extension, ".out") || !strcmp(extension, ".lib")
-			|| !strcmp(extension, ".a")   || !strcmp(extension, ".iso")) {
+			|| !strcmp(extension, ".zip") || !strcmp(extension, ".gz")
+			|| !strcmp(extension, ".tgz") || !strcmp(extension, ".bzip2")
+			|| !strcmp(extension, ".a")   || !strcmp(extension, ".iso")
+			|| !strcmp(extension, ".7z")  || !strcmp(extension, ".pdf")) {
 		return '9';
 	}
 	if (!strcmp(extension, ".htm")) {
