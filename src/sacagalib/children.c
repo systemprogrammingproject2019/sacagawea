@@ -281,6 +281,14 @@ long unsigned int* management_function(client_args* c) {
 	char type; // will containt the type of selector
 	int check;
 
+#ifdef _WIN32
+	WSADATA wsaData;
+	if ((WSAStartup(MAKEWORD(2, 2), &wsaData)) == SOCKET_ERROR) {
+		write_log(ERROR, "WSAStartup failed with error: %d", WSAGetLastError());
+		exit(EXIT_FAILURE);
+	}
+#endif
+
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
 	char* input = calloc(MAX_REQUEST_LEN, sizeof(char));

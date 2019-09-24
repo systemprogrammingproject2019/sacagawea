@@ -62,6 +62,14 @@ sock_t open_socket(const settings_t* settings) {
 		exit(EXIT_FAILURE);
 	}
 
+	// Change the socket mode on the listening socket from blocking to
+	// non-block so the application will not block waiting for requests
+	ULONG NonBlock = true;
+	if (ioctlsocket(ListenSocket, FIONBIO, &NonBlock) == SOCKET_ERROR) {
+		write_log(ERROR, "ioctlsocket failed with error %d\n", WSAGetLastError());
+		exit(EXIT_FAILURE);
+	}
+
 	if (setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &(char){true}, sizeof(int)) != 0) {
 		write_log(ERROR, "setsockopt(SO_REUSEADDR) failed with error: %d", WSAGetLastError());
 		closesocket(ListenSocket);
@@ -84,14 +92,6 @@ sock_t open_socket(const settings_t* settings) {
 		write_log(ERROR, "listen failed with error: %d\n", WSAGetLastError());
 		closesocket(ListenSocket);
 		WSACleanup();
-		exit(EXIT_FAILURE);
-	}
-
-	// Change the socket mode on the listening socket from blocking to
-	// non-block so the application will not block waiting for requests
-	ULONG NonBlock = true;
-	if (ioctlsocket(ListenSocket, FIONBIO, &NonBlock) == SOCKET_ERROR){
-		write_log(ERROR, "ioctlsocket failed with error %d\n", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
 
