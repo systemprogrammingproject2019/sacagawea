@@ -160,7 +160,10 @@ int main(int argc, char *argv[]) {
 	settings->port = DEFAULT_SERVER_PORT;
 	settings->mode = 't';
 #ifdef _WIN32
-	GetCurrentDirectory(sizeof(settings->homedir) - 1, settings->homedir);
+	if (GetCurrentDirectoryA(sizeof(settings->homedir) - 1, settings->homedir) == 0) {
+		write_log(ERROR, "GetCurrentDirectoryA failed: %d", strerror(errno));
+		close_all();
+	}
 	settings->homedir[strlen(settings->homedir)] = '\\';
 	settings->homedir[strlen(settings->homedir) + 1] = '\0';
 #else
