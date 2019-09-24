@@ -164,8 +164,8 @@ int main(int argc, char *argv[]) {
 	settings->homedir[strlen(settings->homedir)] = '\\';
 	settings->homedir[strlen(settings->homedir) + 1] = '\0';
 #else
-	if (getcwd(settings->homedir, sizeof(settings->homedir) - 1) != 0) {
-		write_log(ERROR, "gethostname failed: %d", strerror(errno));
+	if (getcwd(settings->homedir, sizeof(settings->homedir) - 1) == NULL) {
+		write_log(ERROR, "getcwd failed: %d", strerror(errno));
 		close_all();
 	}
 	settings->homedir[strlen(settings->homedir)] = '/';

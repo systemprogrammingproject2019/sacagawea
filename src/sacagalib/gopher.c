@@ -390,7 +390,7 @@ char type_path(char path[PATH_MAX]) {
 		// write_log(INFO, "Path %s is a directory", path);
 		return '1';
 	}
-	
+
 	LPCSTR extension = PathFindExtensionA(path);
 	if (!strcmp(extension, ".exe") || !strcmp(extension, ".bin")
 			|| !strcmp(extension, ".dll") || !strcmp(extension, ".so")
@@ -445,7 +445,7 @@ char type_path(char path[PATH_MAX]) {
 		fprintf(stdout, "\n"); 
 	}
 	pclose(popen_output_stream);
-	
+
 
 	if ((strncmp(popen_output, DIR_1, strlen(DIR_1)) == 0) || (strncmp(popen_output, GOPHER_1, strlen(GOPHER_1)) == 0)) {
 		return '1';
