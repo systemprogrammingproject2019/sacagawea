@@ -386,6 +386,7 @@ thread_t thread_management(client_args *client_info) {
 void close_socket_kill_thread(sock_t sd, int errcode) {
 #ifdef _WIN32
 	closesocket(sd);
+	WSACleanup();
 	ExitThread(errcode);
 #else
 	close(sd);

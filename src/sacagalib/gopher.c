@@ -203,7 +203,16 @@ void *thread_sender(client_args* c) {
 	// write to sacagawea.log through the pipe
 #ifdef _WIN32
 	CloseHandle(c->file_to_send);
-	closesocket(c->socket);
+	if (shutdown(c->socket, SD_SEND) != 0) {
+		write_log(ERROR, "shutdown on socket failed with error: %I64d",
+				WSAGetLastError());
+		WSACleanup();
+	}
+	if (closesocket(c->socket) != 0) {
+		write_log(ERROR, "closesocket on socket failed with error: %I64d",
+				WSAGetLastError());
+		WSACleanup();
+	}
 	// ExitThread(1);
 #else
 	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma mi sembra veramente inteligente come cosa.
