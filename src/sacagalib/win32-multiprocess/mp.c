@@ -6,7 +6,12 @@
 
 #include "sacagalib.h"
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
+	WSADATA wsaData;
+	if ((WSAStartup(MAKEWORD(2, 2), &wsaData)) == SOCKET_ERROR) {
+		write_log(ERROR, "WSAStartup failed with error: %d", WSAGetLastError());
+		exit(EXIT_FAILURE);
+	}
 	HANDLE hMapFile = (HANDLE) strtoll(argv[1], NULL, 10);
 
 	// open file mapping

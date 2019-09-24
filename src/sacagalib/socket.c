@@ -232,12 +232,13 @@ int accept_wrapper(const settings_t* settings) {
 		new_s = accept(settings->socket, (struct sockaddr*) &addr, &addr_len);
 	#ifdef _WIN32
 		if (new_s == INVALID_SOCKET) {
+			free(client_info);
 			break;
 		}
 	#else
 		if (new_s == -1) {
-			break;
 			free(client_info);
+			break;
 		}
 	#endif
 
