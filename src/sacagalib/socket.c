@@ -158,15 +158,6 @@ sock_t open_socket(const settings_t* settings) {
 int listen_descriptor(const settings_t* settings) {
 	int num_fd_ready;//, addrlen = sizeof(struct sockaddr_in);
 	
-	// client_args* client_info = malloc(sizeof(client_args));
-
-	// copy current settings struct into client_info
-	// memcpy(&(client_info->settings), settings, sizeof(settings_t));
-
-	struct timeval timeout;
-	timeout.tv_sec  = 13 * 60;
-	timeout.tv_usec = 0;
-
 	// Prepare the socket set for network I/O notification
 	FD_ZERO(&fds_set);
 	// Always look for connection attempts
@@ -181,7 +172,7 @@ sel:
 	// we only need to monitor the settings->socket, so the first arg of select
 	// can just be "settings->socket + 1", which is the highest number of fd
 	// we need to monitor
-	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, &timeout);
+	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, NULL);
 
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
