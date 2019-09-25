@@ -25,6 +25,16 @@
 
 #include "sacagalib.h"
 
+void free_selector( selector* c){
+	int i=0;
+	for( i=0; i<c->num_words; ++i) {
+		free( c->words[i] );
+	}
+	free(c->words);
+	free(c);
+}
+
+
 int read_request(sock_t sd, char* buf, int buflen) {
 	/* Receive data on this connection until the recv \n of finish line.
 	If any other failure occurs, we will returt true.*/

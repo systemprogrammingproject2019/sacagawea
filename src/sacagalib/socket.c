@@ -157,10 +157,11 @@ sock_t open_socket(const settings_t* settings) {
 
 int listen_descriptor(const settings_t* settings) {
 	int num_fd_ready;//, addrlen = sizeof(struct sockaddr_in);
-	client_args* client_info = malloc(sizeof(client_args));
+	
+	// client_args* client_info = malloc(sizeof(client_args));
 
 	// copy current settings struct into client_info
-	memcpy(&(client_info->settings), settings, sizeof(settings_t));
+	// memcpy(&(client_info->settings), settings, sizeof(settings_t));
 
 	struct timeval timeout;
 	timeout.tv_sec  = 13 * 60;
@@ -185,6 +186,7 @@ sel:
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
 		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
+		//free( client_info );
 		exit(EXIT_FAILURE);
 	} 
 #else
@@ -196,13 +198,16 @@ sel:
 			goto sel;
 		}
 		write_log(ERROR, "select failed: %s", strerror(errno));
+		
 		return false;
 	}
 #endif
-	else if (num_fd_ready == 0) {
-		write_log(ERROR, "select timed out. Exiting...");
-		free( client_info );
-		return false;
+	else{
+		if (num_fd_ready == 0) {
+			write_log(ERROR, "select timed out. Exiting...");
+			//free( client_info );
+			return false;
+		}
 	}
 
 	// if settings->socket is ready to be read, read it
@@ -220,16 +225,20 @@ sel:
 int accept_wrapper(const settings_t* settings) {
 	int new_s;
 	struct sockaddr_in addr;
-	client_args* client_info = (client_args*) calloc(1, sizeof(client_args));
-	memcpy(&(client_info->settings), settings, sizeof(settings_t));
+	
 
 	/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
 	then we have accepted all of them.
 	Any other failure on accept will cause us to end the server.  */
 	socklen_t addr_len = sizeof(struct sockaddr_in); // save sizeof sockaddr struct becouse accept need it
 	memset(&addr, 0, (size_t) addr_len);
+
 	while (true) {
+		client_args* client_info = (client_args*) calloc(1, sizeof(client_args));
+		memcpy(&(client_info->settings), settings, sizeof(settings_t));
+		// accept the connected connection which already did 3WHS.
 		new_s = accept(settings->socket, (struct sockaddr*) &addr, &addr_len);
+
 	#ifdef _WIN32
 		if (new_s == INVALID_SOCKET) {
 			free(client_info);
