@@ -165,21 +165,40 @@ void *thread_sender(client_args* c) {
 					GetLastError());
 			return false;
 		}
-		temp = send(c->socket, pBuf, min(sysnfo.dwAllocationGranularity, c->len_file - bytes_sent), 0);
-		UnmapViewOfFile(pBuf);
-		if (temp == SOCKET_ERROR) {
-			if (WSAGetLastError() != WSAEWOULDBLOCK) {
-				write_log(ERROR, "Sending file at %s, with socket %d failed with error: %d\n",
-					c->addr, c->socket, WSAGetLastError());
-				close_socket_kill_thread(c->socket, 5);
+
+		// In windows, pages read from MapViewOfFile need to be aligned
+		// to the granularity of the pages in memory.
+		// In order to comply to this restriction, we divide the sending
+		// process into rounds. In each of these rounds, we either send one
+		// page or, if less than one page remains, send all.
+		size_t bytes_sent_this_round = 0;
+		while (bytes_sent_this_round < sysnfo.dwAllocationGranularity
+				&& bytes_sent < c->len_file) {
+			write_log(DEBUG, "bytes_sent_this_round %d < %d",
+					bytes_sent_this_round, sysnfo.dwAllocationGranularity);
+			temp = send(c->socket, pBuf + bytes_sent_this_round,
+					min(sysnfo.dwAllocationGranularity - bytes_sent_this_round,
+					c->len_file - bytes_sent), 0);
+			if (temp == SOCKET_ERROR) {
+				if (WSAGetLastError() != WSAEWOULDBLOCK) {
+					UnmapViewOfFile(pBuf);
+					write_log(ERROR, "Sending file at %s, with socket %d failed with error: %d",
+						c->addr, c->socket, WSAGetLastError());
+					shutdown(c->socket, SD_SEND);
+					close_socket_kill_thread(c->socket, 5);
+				}
+			} else {
+				bytes_sent_this_round += temp;
+				bytes_sent += temp;
 			}
+			write_log(DEBUG, "bytes_sent %d", bytes_sent);
 		}
 	#else
 		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
 		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);
 		if (temp < 0) {
 			if (temp != EWOULDBLOCK) {
-				write_log(ERROR, "Sending file at %s, with socket %d failed because of: %s\n",
+				write_log(ERROR, "Sending file at %s, with socket %d failed: %s",
 						c->addr, c->socket, strerror(errno));
 				close_socket_kill_thread(c->socket, 5);
 			}
@@ -187,17 +206,16 @@ void *thread_sender(client_args* c) {
 			write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
 					c->addr, c->socket);
 			close_socket_kill_thread(c->socket, 5);
-		}
-	#endif
-		else {
+		} else {
 			bytes_sent += temp;
 		}
+	#endif
 	#ifdef _WIN32
+		UnmapViewOfFile(pBuf);
 		// Without this, MapViewOfFile doesnt work for huge files
 		Sleep(1);
 	#endif
 	}
-	printf("\n");
 	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
 
 	// write to sacagawea.log through the pipe
@@ -417,7 +435,9 @@ char type_path(char path[PATH_MAX]) {
 		return 'g';
 	}
 	if (!strcmp(extension, ".mp3") || !strcmp(extension, ".ogg")
-			|| !strcmp(extension, ".wav") || !strcmp(extension, ".aiff")) {
+			|| !strcmp(extension, ".wav") || !strcmp(extension, ".aiff")
+			|| !strcmp(extension, ".mp4") || !strcmp(extension, ".mpg")
+			|| !strcmp(extension, ".avi") || !strcmp(extension, ".webm")) {
 		return 's';
 	}
 	if (!strcmp(extension, ".jpg") || !strcmp(extension, ".jpeg")
