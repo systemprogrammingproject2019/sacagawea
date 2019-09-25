@@ -129,7 +129,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		return 0;
 	}
 	client_info->len_file = stat_fd.st_size;
-	client_info->file_to_send = mmap(NULL, (client_info->len_file + 1), PROT_READ, MAP_PRIVATE|MAP_NORESERVE, fd, 0);
+	client_info->file_to_send = mmap(NULL, (client_info->len_file + 1), PROT_READ, MAP_PRIVATE, fd, 0);
 
 	// old version with malloc
 	//FILE *fp = fdopen(fd, "r");
