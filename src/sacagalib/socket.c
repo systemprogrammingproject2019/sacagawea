@@ -157,7 +157,9 @@ sock_t open_socket(const settings_t* settings) {
 
 int listen_descriptor(const settings_t* settings) {
 	int num_fd_ready;//, addrlen = sizeof(struct sockaddr_in);
-	
+
+sel_intr:
+	num_fd_ready = 0;
 	// Prepare the socket set for network I/O notification
 	FD_ZERO(&fds_set);
 	// Always look for connection attempts
@@ -166,9 +168,6 @@ int listen_descriptor(const settings_t* settings) {
 	// start select and check if failed
 	write_log(INFO, "Waiting on select()...");
 
-#ifndef _WIN32
-sel:
-#endif
 	// we only need to monitor the settings->socket, so the first arg of select
 	// can just be "settings->socket + 1", which is the highest number of fd
 	// we need to monitor
@@ -176,16 +175,19 @@ sel:
 
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
+		if (WSAGetLastError() == WSAEINTR) {
+			goto sel_intr;
+		}
 		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
 #else
 	// if select returns a number lesser than 0, an error occurred
 	if (num_fd_ready < 0) {
-		/* if errno==EINTR the select is interrupted becouse of sigaction 
+		/* if errno == EINTR the select is interrupted becouse of sigaction 
 		so we have to repeat select, not exit(5) */
 		if (errno == EINTR) {
-			goto sel;
+			goto sel_intr;
 		}
 		write_log(ERROR, "select failed: %s", strerror(errno));
 		

@@ -42,7 +42,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	}
 
 	GetFileSizeEx(hFile, (PLARGE_INTEGER) &(client_info->len_file));
-
+	write_log(DEBUG, "Sending %lld bytes file %s", client_info->len_file, client_info->path_file);
 	// parent's security attributes, with bInheritHandle set to TRUE
 	// so the FIle Mapping gets inherited by the child process
 	SECURITY_ATTRIBUTES sa;

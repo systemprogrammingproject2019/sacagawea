@@ -40,9 +40,8 @@ pthread_mutexattr_t mattr;
 pthread_condattr_t cattr;
 #endif
 
+#ifndef _WIN32
 void become_deamon() {
-#ifdef _WIN32
-#else
 	int pid;
 	pid = fork();
 	if (pid < 0) {
@@ -73,8 +72,9 @@ void become_deamon() {
 	/*resettign File Creation Mask .
 	this set the process mode to 750 becouse umask need the complement*/
 	umask(027);
-#endif
 }
+#endif
+
 
 void close_all() {
 #ifdef _WIN32
@@ -105,7 +105,7 @@ void close_all() {
 
 #ifdef _WIN32
 BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
-	// "return true" kills the process
+	// "return false" kills the process
 	switch (fdwCtrlType)
 	{
 	case CTRL_BREAK_EVENT:
@@ -113,17 +113,15 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 		if (read_and_check_conf(settings)) {
 			write_log(INFO, "settings->socket CHANGE %d", settings->socket);
 
-			// close the old server socket --- it is still open on all children
-			// threads/processes (until they die/close it) because
-			// they were only given a copy of it.
 			closesocket(settings->socket);
 
 			settings->socket = open_socket(settings);
 
-			printf( "ciao" );
+			write_log(DEBUG, "ciao");
 		}
 		return TRUE; // dont close the process
 	default:
+		write_log(DEBUG, "Exiting!");
 		close_all();
 	}
 	return FALSE;
@@ -148,7 +146,7 @@ void sighup_handler(int signum) {
 
 		settings->socket = open_socket(settings);
 
-		printf( "ciao" );
+		write_log(DEBUG, "ciao");
 	}
 }
 #endif
@@ -156,7 +154,7 @@ void sighup_handler(int signum) {
 int main(int argc, char *argv[]) {
 
 	//become_deamon();
-	
+
 	//fill default settings
 	settings = calloc(1, sizeof(settings_t));
 	settings->port = DEFAULT_SERVER_PORT;
@@ -319,7 +317,7 @@ int main(int argc, char *argv[]) {
 	if (!bLogger) {
 		write_log(ERROR, "CreateProcess failed with error: %I64d",
 				GetLastError());
-		exit(1);
+		close_all();
 	} else {
 		// Close handles to the child process and its primary thread.
 		// Some applications might keep these handles to monitor the status
@@ -393,7 +391,7 @@ int main(int argc, char *argv[]) {
 #ifdef _WIN32
 	if (!SetConsoleCtrlHandler(consoleEventHandler, true)) {
 		write_log(ERROR, "SetConsoleCtrlHandler Failed with error: %lld", GetLastError());
-		exit(5);
+		close_all();
 	}
 #endif
 
