@@ -177,9 +177,8 @@ sel:
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
 		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
-		//free( client_info );
 		exit(EXIT_FAILURE);
-	} 
+	}
 #else
 	// if select returns a number lesser than 0, an error occurred
 	if (num_fd_ready < 0) {
@@ -193,22 +192,19 @@ sel:
 		return false;
 	}
 #endif
-	else{
+	else {
 		if (num_fd_ready == 0) {
 			write_log(ERROR, "select timed out. Exiting...");
-			//free( client_info );
 			return false;
 		}
 	}
 
-	// if settings->socket is ready to be read, read it
 	if (FD_ISSET(settings->socket, &fds_set)) {
 		printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
-		/*Accept all incoming connections that are queued up on the listening socket before we
-		loop back and call select again. */
+		/*Accept all incoming connections that are queued up on the listening
+		socket before we loop back and call select again. */
 		accept_wrapper(settings);
 	}
-	//free( client_info );
 	return true; 
 }
 
@@ -216,7 +212,6 @@ sel:
 int accept_wrapper(const settings_t* settings) {
 	int new_s;
 	struct sockaddr_in addr;
-	
 
 	/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
 	then we have accepted all of them.
