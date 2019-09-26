@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
 		// dwWait shows which pipe completed the operation.
 		i = dwWait - WAIT_OBJECT_0;  // determines which pipe
 		if (i < 0 || i > (WIN32_MAX_PIPES - 1)) {
-			printf("Index out of range.\n");
+			write_log(ERROR, "Index out of range.\n");
 			return 0;
 		}
 
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
 				break;
 
 			default: {
-				printf("Invalid pipe state.\n");
+				write_log(ERROR, "Invalid pipe state.\n");
 				return 0;
 			}
 			}
@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) {
 VOID DisconnectAndReconnect(DWORD i) {
 	// Disconnect the pipe instance.
 	if (! DisconnectNamedPipe(Pipe[i].hPipeInst) ) {
-		printf("DisconnectNamedPipe failed with %ld.\n", GetLastError());
+		write_log(ERROR, "DisconnectNamedPipe failed with %ld.\n", GetLastError());
 	}
 
 	// Call a subroutine to connect to the new client.
@@ -241,7 +241,7 @@ BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo) {
 
 	// Overlapped ConnectNamedPipe should return zero.
 	if (fConnected) {
-		printf("ConnectNamedPipe failed with %ld.\n", GetLastError());
+		write_log(ERROR, "ConnectNamedPipe failed with %ld.\n", GetLastError());
 		return 0;
 	}
 
@@ -258,7 +258,7 @@ BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo) {
 
 	// If an error occurs during the connect operation...
 	default: {
-		printf("ConnectNamedPipe failed with %ld.\n", GetLastError());
+		write_log(ERROR, "ConnectNamedPipe failed with %ld.\n", GetLastError());
 		return 0;
 	}
 	}
