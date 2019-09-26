@@ -138,13 +138,11 @@ void sighup_handler(int signum) {
 
 		int new_socket = open_socket(settings);
 
-		
-
-		while (listen_descriptor(settings));
+		while ( listen_descriptor(settings) );
 
 		// close the old server socket --- it is still open on all children
 		// threads/processes (until they die/close it) because
-		// they were only given a copy of it,
+		// they were only given a copy of it.
 		close(settings->socket);
 		settings->socket = new_socket;
 		close_all();
