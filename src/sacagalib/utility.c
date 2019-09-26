@@ -170,8 +170,6 @@ int check_security_path(char path[PATH_MAX]) {
 	1 o facciamo un array di word globale con le parole non accettate
 	2 lasciamo stare tanto giusto "/../" è da scartare, e teoricamente anche i ".." in UTF a 16 bits 32, non ricordo 
 	quanti erano */
-	int i = 0;
-
 	if (strstr(path, "../") != NULL || strstr(path, "..\\") != NULL) {
 		return true;
 	}
