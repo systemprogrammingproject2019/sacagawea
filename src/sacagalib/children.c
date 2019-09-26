@@ -25,10 +25,10 @@
 
 #include "sacagalib.h"
 
-void free_selector( selector* c){
-	int i=0;
-	for( i=0; i<c->num_words; ++i) {
-		free( c->words[i] );
+void free_selector(selector* c) {
+	int i = 0;
+	for(i = 0; i < c->num_words; ++i) {
+		free(c->words[i]);
 	}
 	free(c->words);
 	free(c);

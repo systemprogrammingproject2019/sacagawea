@@ -138,7 +138,7 @@ void *thread_sender(client_args* c) {
 #ifdef _WIN32
 	SYSTEM_INFO sysnfo;
 	GetSystemInfo(&sysnfo);
-	ULARGE_INTEGER bs;
+	DWORD allocationGranularityTimes8 = sysnfo.dwAllocationGranularity * 8;
 #endif
 
 	while (bytes_sent < c->len_file) {
@@ -152,13 +152,12 @@ void *thread_sender(client_args* c) {
 		// write_log(DEBUG, "HIDWORD(bytes_sent) = %ld, LODWORD(bytes_sent) = %ld, sum = %ld",
 		// 		HIDWORD(bytes_sent), LODWORD(bytes_sent),
 		// 		HIDWORD(bytes_sent) + LODWORD(bytes_sent));
-		bs.QuadPart = bytes_sent;
 		char* pBuf = (LPTSTR) MapViewOfFile(
 				c->file_to_send,      // handle to map object
 				FILE_MAP_READ,        // read permission
-				bs.HighPart,
-				bs.LowPart,
-				min(sysnfo.dwAllocationGranularity, c->len_file - bytes_sent)
+				HIDWORD(bytes_sent),
+				LODWORD(bytes_sent),
+				min(allocationGranularityTimes8, c->len_file - bytes_sent)
 		);
 		if (pBuf == NULL) {
 			write_log(ERROR, "MapViewOfFile failed wirh error: %d",
@@ -172,17 +171,17 @@ void *thread_sender(client_args* c) {
 		// process into rounds. In each of these rounds, we either send one
 		// page or, if less than one page remains, send all.
 		size_t bytes_sent_this_round = 0;
-		while (bytes_sent_this_round < sysnfo.dwAllocationGranularity
+		while (bytes_sent_this_round < allocationGranularityTimes8
 				&& bytes_sent < c->len_file) {
 			write_log(DEBUG, "bytes_sent_this_round %d < %d",
-					bytes_sent_this_round, sysnfo.dwAllocationGranularity);
+					bytes_sent_this_round, allocationGranularityTimes8);
 			temp = send(c->socket, pBuf + bytes_sent_this_round,
-					min(sysnfo.dwAllocationGranularity - bytes_sent_this_round,
+					min(allocationGranularityTimes8 - bytes_sent_this_round,
 					c->len_file - bytes_sent), 0);
 			if (temp == SOCKET_ERROR) {
 				if (WSAGetLastError() != WSAEWOULDBLOCK) {
 					UnmapViewOfFile(pBuf);
-					write_log(ERROR, "Sending file at %s, with socket %d failed with error: %d",
+					write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
 						c->addr, c->socket, WSAGetLastError());
 					shutdown(c->socket, SD_SEND);
 					close_socket_kill_thread(c->socket, 5);
@@ -198,7 +197,7 @@ void *thread_sender(client_args* c) {
 		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);
 		if (temp < 0) {
 			if (temp != EWOULDBLOCK) {
-				write_log(ERROR, "Sending file at %s, with socket %d failed: %s",
+				write_log(ERROR, "Sending file to %s, with socket %d failed: %s",
 						c->addr, c->socket, strerror(errno));
 				close_socket_kill_thread(c->socket, 5);
 			}
