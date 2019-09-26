@@ -110,7 +110,18 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 	{
 	case CTRL_BREAK_EVENT:
 		write_log(DEBUG, "CTRL+BREAK PRESSED!");
-		read_and_check_conf(settings);
+		if (read_and_check_conf(settings)) {
+			write_log(INFO, "settings->socket CHANGE %d", settings->socket);
+
+			// close the old server socket --- it is still open on all children
+			// threads/processes (until they die/close it) because
+			// they were only given a copy of it.
+			closesocket(settings->socket);
+
+			settings->socket = open_socket(settings);
+
+			printf( "ciao" );
+		}
 		return TRUE; // dont close the process
 	default:
 		close_all();
@@ -129,7 +140,7 @@ void sighup_handler(int signum) {
 	// fprintf( stdout, "config file %d\n", read_and_check_conf(&settings));
 	if (read_and_check_conf(settings)) {
 		write_log(INFO, "settings->socket CHANGE %d", settings->socket);
-		
+
 		// close the old server socket --- it is still open on all children
 		// threads/processes (until they die/close it) because
 		// they were only given a copy of it.

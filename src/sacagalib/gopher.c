@@ -135,55 +135,79 @@ void *thread_sender(client_args* c) {
 	/* this cicle send the file at client and save the number of bytes sent */
 	size_t bytes_sent = 0, temp;
 
-#ifdef _WIN32	
-	if (c->file_to_send == NULL) {
-		write_log(ERROR, "OpenFileMappingA failed wirh error: %d",
-				GetLastError());
-		return false;
+#ifdef _WIN32
+	SYSTEM_INFO sysnfo;
+	GetSystemInfo(&sysnfo);
+	DWORD multipleOfAllocationGranularity;
+	// Due to send using an "int" as its 3rd parameter, we are forced to
+	// use dimensions bigger than INT_MAX. Also, these dimensions need to be
+	// a multiple of the page size of the OS (dwAllocationGranularity)
+	// because reads done in MapViewOfFile need to be aligned to the page len
+	// 262144B is exactly 256KiB. The choice to use this number is arbitrary.
+	// As our buffer we will use either:
+	//      *  the closest multiple of dwAllocationGranularity to 256KiB
+	//      or, if dwAllocationGranularity is bigger than 256KiB
+	//      *  dwAllocationGranularity
+	if (sysnfo.dwAllocationGranularity < 262144) {
+	multipleOfAllocationGranularity = sysnfo.dwAllocationGranularity 
+			* (262144 / sysnfo.dwAllocationGranularity);
+	} else {
+		multipleOfAllocationGranularity = sysnfo.dwAllocationGranularity;
 	}
-	// write_log(DEBUG, "HIDWORD(bytes_sent) = %ld, LODWORD(bytes_sent) = %ld, sum = %ld",
-	// 		HIDWORD(bytes_sent), LODWORD(bytes_sent),
-	// 		HIDWORD(bytes_sent) + LODWORD(bytes_sent));
-	char* pBuf = (LPTSTR) MapViewOfFile(
-			c->file_to_send,      // handle to map object
-			FILE_MAP_READ,        // read permission
-			HIDWORD(bytes_sent),
-			LODWORD(bytes_sent),
-			c->len_file
-	);
-	if (pBuf == NULL) {
-		write_log(ERROR, "MapViewOfFile failed wirh error: %d",
-				GetLastError());
-		return false;
-	}
+	// write_log(DEBUG, "our granularity is %d", multipleOfAllocationGranularity);
 #endif
-
 	while (bytes_sent < c->len_file) {
 		// logic for sending the file
+	#ifdef _WIN32
+		if (c->file_to_send == NULL) {
+			write_log(ERROR, "OpenFileMappingA failed wirh error: %d",
+					GetLastError());
+			return false;
+		}
 
+		char* pBuf = (LPTSTR) MapViewOfFile(
+				c->file_to_send,      // handle to map object
+				FILE_MAP_READ,        // read permission
+				HIDWORD(bytes_sent),
+				LODWORD(bytes_sent),
+				min(multipleOfAllocationGranularity, c->len_file - bytes_sent)
+		);
+		if (pBuf == NULL) {
+			write_log(ERROR, "MapViewOfFile failed wirh error: %d",
+					GetLastError());
+			return false;
+		}
 
 		// In windows, pages read from MapViewOfFile need to be aligned
 		// to the granularity of the pages in memory.
 		// In order to comply to this restriction, we divide the sending
 		// process into rounds. In each of these rounds, we either send one
 		// page or, if less than one page remains, send all.
+		size_t bytes_sent_this_round = 0;
+		while (bytes_sent_this_round < multipleOfAllocationGranularity
+				&& bytes_sent < c->len_file) {
 			// write_log(DEBUG, "bytes_sent_this_round %d < %d",
-			// 		bytes_sent_this_round, allocationGranularityTimes8);
-	#ifdef _WIN32
-		temp = send(c->socket, pBuf + bytes_sent, c->len_file - bytes_sent, 0);
-		if (temp == SOCKET_ERROR) {
-			if (WSAGetLastError() != WSAEWOULDBLOCK) {
-				UnmapViewOfFile(pBuf);
-				write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
-					c->addr, c->socket, WSAGetLastError());
-				shutdown(c->socket, SD_SEND);
-				close_socket_kill_thread(c->socket, 5);
+			// 		bytes_sent_this_round, multipleOfAllocationGranularity);
+			temp = send(c->socket, pBuf + bytes_sent_this_round,
+					min(multipleOfAllocationGranularity - bytes_sent_this_round,
+					c->len_file - bytes_sent), 0);
+			if (temp == SOCKET_ERROR) {
+				if (WSAGetLastError() != WSAEWOULDBLOCK) {
+					UnmapViewOfFile(pBuf);
+					write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
+						c->addr, c->socket, WSAGetLastError());
+					shutdown(c->socket, SD_SEND);
+					close_socket_kill_thread(c->socket, 5);
+				}
+			} else {
+				bytes_sent_this_round += temp;
+				bytes_sent += temp;
 			}
 		}
+		// write_log(DEBUG, "bytes_sent %lld", bytes_sent);
 	#else
-		// MSG_NOSIGNAL means that if the socket gets broken
-		// it doesnt send SIGPIPE to process
-		temp = send(c->socket, c->file_to_send + bytes_sent, (c->len_file - bytes_sent), MSG_NOSIGNAL);
+		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
+		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);
 		if (temp < 0) {
 			if (temp != EWOULDBLOCK) {
 				write_log(ERROR, "Sending file to %s, with socket %d failed: %s",
@@ -194,15 +218,15 @@ void *thread_sender(client_args* c) {
 			write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
 					c->addr, c->socket);
 			close_socket_kill_thread(c->socket, 5);
-		}
-	#endif
-		else {
+		} else {
 			bytes_sent += temp;
 		}
+	#endif
+	#ifdef _WIN32
+		UnmapViewOfFile(pBuf);
+		// Without this, MapViewOfFile doesnt work for huge files
+	#endif
 	}
-#ifdef _WIN32
-	UnmapViewOfFile(pBuf);
-#endif
 	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
 
 	// write to sacagawea.log through the pipe
@@ -244,9 +268,6 @@ void *thread_sender(client_args* c) {
 	}
 	close(c->socket);
 #endif
-
-	// if we sent all the file without error we wake up logs_uploader
-	write_log(INFO, "file length %ld\n", bytes_sent, c->len_file);
 
 	if (bytes_sent >= c->len_file) {
 		// get string to write on logs file

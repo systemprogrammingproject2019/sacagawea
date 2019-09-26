@@ -331,7 +331,11 @@ long unsigned int* management_function(client_args* c) {
 	if (len_check >= PATH_MAX) {
 		write_log(ERROR, "Exceeded PATH_MAX length: requested path is %d chars long",
 				len_check);
-		close_socket_kill_thread(c->socket, 0);
+		if ((c->settings).mode == 't') {
+			close_socket_kill_thread(c->socket, 0);
+		} else {
+			close_socket_kill_process(c->socket, 0);
+		}
 	}
 	strcat(c->path_file, client_selector.selector);
 	write_log(INFO, "PATH+SELECTOR %d bytes: %s",
