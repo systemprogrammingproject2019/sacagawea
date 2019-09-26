@@ -172,10 +172,8 @@ int check_security_path(char path[PATH_MAX]) {
 	quanti erano */
 	int i = 0;
 
-	for (i = 0; i < strlen( path ); ++i) {
-		if (strncmp(&path[i], "/../", 4) == 0) {
-			return true;
-		} 
+	if (strstr(path, "../") != NULL || strstr(path, "..\\") != NULL) {
+		return true;
 	}
 	return false;
 }
