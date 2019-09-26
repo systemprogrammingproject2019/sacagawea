@@ -129,12 +129,8 @@ void sighup_handler(int signum) {
 	// fprintf( stdout, "config file %d\n", read_and_check_conf(&settings));
 	if (read_and_check_conf(settings)) {
 		write_log(INFO, "settings->socket CHANGE %d", settings->socket);
-		/* shutdown with SHUT_WR stop the socket response, he doesn't send data anymore on that socket.
-		so if a new connection request ( SYN ) coming he don't answert ( SYN ACK ). */
-		if (shutdown(settings->socket, SHUT_WR) < 0) {
-			write_log(ERROR, "shutdown() failed: %s", (char*) strerror(errno));
-			close_socket_kill_process(settings->socket, 5);
-		}// close the old server socket --- it is still open on all children
+		
+		// close the old server socket --- it is still open on all children
 		// threads/processes (until they die/close it) because
 		// they were only given a copy of it.
 		close(settings->socket);
