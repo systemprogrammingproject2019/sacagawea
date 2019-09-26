@@ -6,8 +6,25 @@
 
 #include "sacagalib.h"
 
+BOOL WINAPI mpConsoleEventHandler(DWORD fdwCtrlType) {
+	// "return false" kills the process
+	switch (fdwCtrlType)
+	{
+	case CTRL_BREAK_EVENT:
+		return TRUE; // dont close the process
+	default:
+		return FALSE;
+	}
+	return FALSE;
+}
+
 int main(int argc, char *argv[]) {
 	HANDLE hMapFile = (HANDLE) strtoll(argv[1], NULL, 10);
+
+	if (!SetConsoleCtrlHandler(mpConsoleEventHandler, true)) {
+		write_log(ERROR, "SetConsoleCtrlHandler Failed with error: %lld", GetLastError());
+		exit(1);
+	}
 
 	// open file mapping
 	LPTSTR pBuf = (LPTSTR) MapViewOfFile(
@@ -30,6 +47,10 @@ int main(int argc, char *argv[]) {
 	memcpy(&c, pBuf, sizeof(client_args));
 	UnmapViewOfFile(pBuf);
 	CloseHandle(hMapFile);
+	// if (DuplicateHandle(c->socket, c->socket) != STATUS_SUCCESS) {
+	// 	write_log(ERROR, "DuplicateHandle failed with error: %d", GetLastError());
+	// 	return 1;
+	// }
 
 	management_function(&c);
 	exit(1);

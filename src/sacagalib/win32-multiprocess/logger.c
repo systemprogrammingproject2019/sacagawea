@@ -24,11 +24,28 @@ VOID DisconnectAndReconnect(DWORD);
 BOOL ConnectToNewClient(HANDLE, LPOVERLAPPED);
 VOID GetAnswerToRequest(LPPIPEINST);
 
+BOOL WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
+	// "return false" kills the process
+	switch (fdwCtrlType)
+	{
+	case CTRL_BREAK_EVENT:
+		return TRUE; // dont close the process
+	default:
+		return FALSE;
+	}
+	return FALSE;
+}
+
 PIPEINST Pipe[WIN32_MAX_PIPES];
 HANDLE hEvents[WIN32_MAX_PIPES];
 
 int main(int argc, char *argv[]) {
 	DWORD i, dwWait, cbRet, dwErr;
+
+	if (!SetConsoleCtrlHandler(loggerConsoleEventHandler, true)) {
+		write_log(ERROR, "SetConsoleCtrlHandler Failed with error: %lld", GetLastError());
+		exit(1);
+	}
 
 	int fSuccess;
 	// The initial loop creates several instances of a named pipe
@@ -51,11 +68,11 @@ int main(int argc, char *argv[]) {
 		Pipe[i].oOverlap.hEvent = hEvents[i];
 		Pipe[i].hPipeInst = CreateNamedPipeA(
 				WIN32_PIPE_NAME,         // pipe name
-				PIPE_ACCESS_DUPLEX |     // read/write access
-				FILE_FLAG_OVERLAPPED,    // overlapped mode
-				PIPE_TYPE_MESSAGE |      // message-type pipe
-				PIPE_READMODE_MESSAGE |  // message-read mode
-				PIPE_WAIT,               // blocking mode
+				PIPE_ACCESS_DUPLEX       // read/write access
+				| FILE_FLAG_OVERLAPPED,  // overlapped mode
+				PIPE_TYPE_MESSAGE        // message-type pipe
+				| PIPE_READMODE_MESSAGE  // message-read mode
+				| PIPE_WAIT,             // blocking mode
 				WIN32_MAX_PIPES,         // number of instances
 				WIN32_PIPE_BUFSIZE * sizeof(char),  // output buffer size
 				WIN32_PIPE_BUFSIZE * sizeof(char),  // input buffer size
