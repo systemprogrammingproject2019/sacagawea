@@ -135,17 +135,18 @@ void sighup_handler(int signum) {
 			write_log(ERROR, "shutdown() failed: %s", (char*) strerror(errno));
 			close_socket_kill_process(settings->socket, 5);
 		}
-		int old_socket = settings->socket;
-		// Open the new listen socket at new PORT
-		settings->socket = open_socket(settings);
+
+		int new_socket = open_socket(settings);
+
+		
+
+		while (listen_descriptor(settings));
 
 		// close the old server socket --- it is still open on all children
 		// threads/processes (until they die/close it) because
 		// they were only given a copy of it,
-		close(old_socket);
-
-		while (listen_descriptor(settings));
-
+		close(settings->socket);
+		settings->socket = new_socket;
 		close_all();
 	}
 }
