@@ -103,6 +103,19 @@ void close_all() {
 	exit(1);
 }
 
+void universal_handler() {
+	if (read_and_check_conf(settings, true)) {
+		write_log(INFO, "settings->socket CHANGE %d", settings->socket);
+
+		// close the old server socket --- it is still open on all children
+		// threads/processes (until they die/close it) because
+		// they were only given a copy of it.
+		close(settings->socket);
+
+		settings->socket = open_socket(settings);
+	}
+}
+
 #ifdef _WIN32
 BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 	// "return false" kills the process
@@ -111,11 +124,7 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 	case CTRL_BREAK_EVENT:
 		write_log(DEBUG, "CTRL+BREAK PRESSED!");
 
-		if (read_and_check_conf(settings)) {
-			write_log(INFO, "settings->socket CHANGE %d", settings->socket);
-			closesocket(settings->socket);
-			settings->socket = open_socket(settings);
-		}
+		universal_handler();
 		return TRUE; // dont close the process
 	default:
 		write_log(DEBUG, "Exiting!");
@@ -133,18 +142,7 @@ void sighup_handler(int signum) {
 	change so we have to close the socket finish the instaured connection
 	and restart the socket with the new SERVER_PORT */
 	// fprintf( stdout, "config file %d\n", read_and_check_conf(&settings));
-	if (read_and_check_conf(settings)) {
-		write_log(INFO, "settings->socket CHANGE %d", settings->socket);
-
-		// close the old server socket --- it is still open on all children
-		// threads/processes (until they die/close it) because
-		// they were only given a copy of it.
-		close(settings->socket);
-
-		settings->socket = open_socket(settings);
-
-		write_log(DEBUG, "ciao");
-	}
+	universal_handler();
 }
 #endif
 
@@ -186,7 +184,7 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 	// check the sacagawea.conf
-	read_and_check_conf(settings);
+	read_and_check_conf(settings, false);
 
 	// check if some variable are setted by command line
 	int c;

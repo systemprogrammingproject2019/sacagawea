@@ -19,10 +19,9 @@
 
 // this function check if a line contain a new config, FINITA
 // RETURN true if change SERVER_PORT, false in all other cases
-int check_if_conf(const char* line, settings_t* settings) {
+void read_conf_line(const char* line, settings_t* settings) {
 	char* match = NULL;
 	char matched = false;
-	int port_change = false;
 	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
 
 	// "mode [t/p]"
@@ -31,30 +30,14 @@ int check_if_conf(const char* line, settings_t* settings) {
 		matched = true;
 		char mode = match[0];
 		if (mode == S_MODE_THREADED) {
-			write_log(DEBUG, "check_if_conf: new mode: 'multithread'");
+			write_log(DEBUG, "read_conf_line: new mode: 'multithread'");
 			settings->mode = 't';
 		}
 		if (mode == S_MODE_MULTIPROCESS) {
-			write_log(DEBUG, "check_if_conf: new mode: 'multiprocess'");
+			write_log(DEBUG, "read_conf_line: new mode: 'multiprocess'");
 			settings->mode = 'p';
 		}
 		//fprintf(stdout,"mode change %c: %d\n", mode, MODE_CLIENT_PROCESSING);
-	}
-	if (matched == true) free(match);
-	matched = false;
-
-	// "port [0-9]{1,5}"
-	match = do_regex(("^" S_PORT "[[:space:]]+([[:digit:]]{1,5})"), line);
-	if (strlen(match)) {
-		matched = true;
-		// if line is "port XXX" with XXX a port number
-		long int val = strtol(match, NULL, 10);
-
-		if ((val != 0) && (val != settings->port) && (val < 65536)) {
-			write_log(DEBUG, "check_if_conf: new port: '%d'", val);
-			settings->port = val;
-			port_change = true;
-		}
 	}
 	if (matched == true) free(match);
 	matched = false;
@@ -81,7 +64,7 @@ int check_if_conf(const char* line, settings_t* settings) {
 			settings->homedir[strlen(settings->homedir) + 1] = '\0';
 		}
 	#endif
-		write_log(DEBUG, "check_if_conf: new homedir: \"%s\"", settings->homedir);
+		write_log(DEBUG, "read_conf_line: new homedir: \"%s\"", settings->homedir);
 	}
 	if (matched == true) free(match);
 	matched = false;
@@ -91,15 +74,40 @@ int check_if_conf(const char* line, settings_t* settings) {
 	if (strlen(match)) {
 		matched = true;
 		strncpy(settings->hostname, match, 255);
-		write_log(DEBUG, "check_if_conf: new hostname: \"%s\"", settings->hostname);
+		write_log(DEBUG, "read_conf_line: new hostname: \"%s\"", settings->hostname);
 	}
 	if (matched == true) free(match);
 	matched = false;
+}
+
+// this function check if a line contain a new config, FINITA
+// RETURN true if change SERVER_PORT, false in all other cases
+int check_if_port_change(const char* line, settings_t* settings) {
+	char* match = NULL;
+	char matched = false;
+	int port_change = false;
+
+	// "port [0-9]{1,5}"
+	match = do_regex(("^" S_PORT "[[:space:]]+([[:digit:]]{1,5})"), line);
+	if (strlen(match)) {
+		matched = true;
+		// if line is "port XXX" with XXX a port number
+		long int val = strtol(match, NULL, 10);
+
+		if ((val != 0) && (val != settings->port) && (val < 65536)) {
+			write_log(DEBUG, "check_if_port_change: new port: '%d'", val);
+			settings->port = val;
+			port_change = true;
+		}
+	}
+	if (matched == true) free(match);
+	matched = false;
+
 	return port_change;
 }
 
 // WITHOUT REGEX
-//int check_if_conf(const char* line) {
+//int read_conf_line(const char* line) {
 	// fprintf(stdout, S_LINE_READ_FROM_CONF_FILE, line);
 	// int port_change=false;
 	// // if line is type "mode [t/p]"
@@ -196,7 +204,7 @@ char* do_regex(const char* pattern, const char* str) {
 }
 
 // this function read the sacagawea.conf line by line  FINITA
-int read_and_check_conf(settings_t* settings) {
+int read_and_check_conf(settings_t* settings, int called_from_handler) {
 	// some declaretion 
 	FILE *fp;
 	const size_t max_line_size = 512;
@@ -226,11 +234,18 @@ int read_and_check_conf(settings_t* settings) {
 			// replace '\n' with '\0'
 			line[line_len - 1] = '\0';
 		}
+
 		// check if the line is a config line
-		if ((line_len <= max_line_size) && (check_if_conf(line, settings))) {
-			port_change = true;
+		if (line_len <= max_line_size) {
+			if (!called_from_handler) {
+				// if this was not called from the handler, check 
+				// other settings too
+				read_conf_line(line, settings);
+			}
+			// check for port change
+			port_change = check_if_port_change(line, settings);
 		}
-	};
+	}
 
 	fclose(fp);
 

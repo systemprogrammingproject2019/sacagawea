@@ -132,9 +132,10 @@ EXPORTED int check_security_path();
 EXPORTED int load_file_memory_linux(char *path);
 
 // config.c
-EXPORTED int check_if_conf(const char* line, settings_t*);
+void read_conf_line(const char* line, settings_t* settings);
+int check_if_port_change(const char* line, settings_t*);
 EXPORTED char* do_regex(const char* pattern, const char* str);
-EXPORTED int read_and_check_conf(settings_t*);
+EXPORTED int read_and_check_conf(settings_t*, int);
 
 // gopher.c
 EXPORTED char type_path(char path[PATH_MAX]);
