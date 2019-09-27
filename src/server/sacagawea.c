@@ -112,16 +112,8 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 		write_log(DEBUG, "CTRL+BREAK PRESSED!");
 		if (read_and_check_conf(settings)) {
 			write_log(INFO, "settings->socket CHANGE %d", settings->socket);
-
 			closesocket(settings->socket);
-
 			settings->socket = open_socket(settings);
-
-			/* TODO: THIS IS A VERY DIRTY FIX. WE SHOULD EXIT FROM THE
-			   BLOCKING SELECT WHEN WE RECEIVE THE SIGNAL, BUT CURRENTLY
-			   IT ONLY WORKS FOR MULTITHREAD MODE */
-			while (listen_descriptor(settings));
-			close_all();
 		}
 		return TRUE; // dont close the process
 	default:
