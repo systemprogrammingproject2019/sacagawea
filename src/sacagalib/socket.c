@@ -176,7 +176,6 @@ sel_intr:
 
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
-		write_log(DEBUG, "REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
 		if (WSAGetLastError() == WSAEINTR) {
 			goto sel_intr;
 		}
