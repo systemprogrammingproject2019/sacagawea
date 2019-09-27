@@ -172,14 +172,16 @@ sel_intr:
 	// can just be "settings->socket + 1", which is the highest number of fd
 	// we need to monitor
 	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, NULL);
+	write_log(INFO, "Out of select()...");
 
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
+		write_log(DEBUG, "REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
 		if (WSAGetLastError() == WSAEINTR) {
 			goto sel_intr;
 		}
 		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
-		exit(EXIT_FAILURE);
+		exit(1);
 	}
 #else
 	// if select returns a number lesser than 0, an error occurred
@@ -190,8 +192,7 @@ sel_intr:
 			goto sel_intr;
 		}
 		write_log(ERROR, "select failed: %s", strerror(errno));
-		
-		return false;
+		exit(1);
 	}
 #endif
 	else {

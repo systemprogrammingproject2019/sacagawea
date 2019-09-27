@@ -118,6 +118,12 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 			settings->socket = open_socket(settings);
 
 			write_log(DEBUG, "ciao");
+
+			/* TODO: THIS IS A VERY DIRTY FIX. WE SHOULD EXIT FROM THE
+			   BLOCKING SELECT WHEN WE RECEIVE THE SIGNAL, BUT CURRENTLY
+			   IT ONLY WORKS FOR MULTITHREAD MODE */
+			while (listen_descriptor(settings));
+			close_all();
 		}
 		return TRUE; // dont close the process
 	default:
