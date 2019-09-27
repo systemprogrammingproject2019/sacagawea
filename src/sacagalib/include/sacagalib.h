@@ -125,6 +125,7 @@ void close_socket_kill_child(client_args* c, int errcode);
 EXPORTED sock_t open_socket(const settings_t* settings);
 #ifdef _WIN32
 sock_t client_socket[MAX_CLIENTS];
+EXPORTED void fake_conn(const settings_t* settings, int old_port);
 #endif
 EXPORTED int listen_descriptor(const settings_t*);
 

@@ -110,10 +110,12 @@ BOOL WINAPI consoleEventHandler(DWORD fdwCtrlType) {
 	{
 	case CTRL_BREAK_EVENT:
 		write_log(DEBUG, "CTRL+BREAK PRESSED!");
+		int old_port = settings->port;
 		if (read_and_check_conf(settings)) {
 			write_log(INFO, "settings->socket CHANGE %d", settings->socket);
 			closesocket(settings->socket);
 			settings->socket = open_socket(settings);
+			fake_conn(settings, old_port);
 		}
 		return TRUE; // dont close the process
 	default:

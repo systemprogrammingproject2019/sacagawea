@@ -156,7 +156,7 @@ int process_management(client_args *client_info) {
 			NULL,          // default security attributes
 			NULL,          // primary thread security attributes
 			TRUE,          // IMPORTANT: handles are inherited
-			0,             // creation flags
+			DETACHED_PROCESS,  // creation flags
 			NULL,          // use parent's environment
 			NULL,          // use parent's current directory
 			&siStartInfo,  // STARTUPINFO pointer
