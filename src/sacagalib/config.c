@@ -89,7 +89,7 @@ int check_if_port_change(const char* line, settings_t* settings) {
 
 	// "port [0-9]{1,5}"
 	match = do_regex(("^" S_PORT "[[:space:]]+([[:digit:]]{1,5})"), line);
-	if (strlen(match)) {
+	if ( strlen(match) ) {
 		matched = true;
 		// if line is "port XXX" with XXX a port number
 		long int val = strtol(match, NULL, 10);
@@ -243,12 +243,14 @@ int read_and_check_conf(settings_t* settings, int called_from_handler) {
 				read_conf_line(line, settings);
 			}
 			// check for port change
-			port_change = check_if_port_change(line, settings);
+			int check_return = check_if_port_change(line, settings);
+			if( !check_return ){
+				port_change = true;
+			}
 		}
 	}
 
 	fclose(fp);
-
 	return port_change;
 }
 

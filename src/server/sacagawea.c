@@ -104,7 +104,7 @@ void close_all() {
 }
 
 void universal_handler() {
-	if (read_and_check_conf(settings, true)) {
+	if ( read_and_check_conf(settings, true) ) {
 		write_log(INFO, "settings->socket CHANGE %d", settings->socket);
 
 		// close the old server socket --- it is still open on all children
