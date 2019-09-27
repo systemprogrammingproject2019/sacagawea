@@ -158,7 +158,6 @@ sock_t open_socket(const settings_t* settings) {
 int listen_descriptor(const settings_t* settings) {
 	int num_fd_ready;//, addrlen = sizeof(struct sockaddr_in);
 
-sel_intr:
 	num_fd_ready = 0;
 	// Prepare the socket set for network I/O notification
 	FD_ZERO(&fds_set);
@@ -171,14 +170,15 @@ sel_intr:
 	// we only need to monitor the settings->socket, so the first arg of select
 	// can just be "settings->socket + 1", which is the highest number of fd
 	// we need to monitor
-	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, NULL);
-	write_log(INFO, "Out of select()...");
+	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, 
+#ifdef _WIN32		
+			&(struct timeval){1, 0}); // 1 second timeout
+#else
+			NULL);
+#endif
 
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
-		if (WSAGetLastError() == WSAEINTR) {
-			goto sel_intr;
-		}
 		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
 		exit(1);
 	}
@@ -188,7 +188,7 @@ sel_intr:
 		/* if errno == EINTR the select is interrupted becouse of sigaction 
 		so we have to repeat select, not exit(5) */
 		if (errno == EINTR) {
-			goto sel_intr;
+			return true;
 		}
 		write_log(ERROR, "select failed: %s", strerror(errno));
 		exit(1);
@@ -196,8 +196,7 @@ sel_intr:
 #endif
 	else {
 		if (num_fd_ready == 0) {
-			write_log(ERROR, "select timed out. Exiting...");
-			return false;
+			return true;
 		}
 	}
 
@@ -273,97 +272,3 @@ int accept_wrapper(const settings_t* settings) {
 	}
 	return true;
 }
-
-#ifdef _WIN32
-void fake_conn(const settings_t* settings, int old_port) {
-	WSADATA wsaData;
-	SOCKET ConnectSocket = INVALID_SOCKET;
-	struct addrinfo *result = NULL,
-					*ptr = NULL,
-					hints;
-	int iResult;
-
-	// Initialize Winsock
-	iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-	if (iResult != 0) {
-		printf("WSAStartup failed with error: %d\n", iResult);
-		return;
-	}
-
-	ZeroMemory( &hints, sizeof(hints) );
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-
-	// windows requires the port to be a string,
-	// because it actually is the "service name"
-	char* port_to_string = malloc(16);
-	snprintf(port_to_string, 15, "%d", old_port);
-
-	// Resolve the server address and port
-	iResult = getaddrinfo(settings->hostname, port_to_string, 
-			&hints, &result);
-	free(port_to_string);
-	if (iResult != 0) {
-		printf("getaddrinfo failed with error: %d\n", iResult);
-		WSACleanup();
-		return;
-	}
-
-	// Attempt to connect to an address until one succeeds
-	for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
-
-		// Create a SOCKET for connecting to server
-		ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, 
-			ptr->ai_protocol);
-		if (ConnectSocket == INVALID_SOCKET) {
-			printf("socket failed with error: %d\n", WSAGetLastError());
-			WSACleanup();
-			return;
-		}
-
-		// Connect to server.
-		iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-		if (iResult == SOCKET_ERROR) {
-			closesocket(ConnectSocket);
-			ConnectSocket = INVALID_SOCKET;
-			continue;
-		}
-		break;
-	}
-
-	freeaddrinfo(result);
-
-	if (ConnectSocket == INVALID_SOCKET) {
-		printf("Unable to connect to server!\n");
-		WSACleanup();
-		return;
-	}
-
-	// // Send an initial buffer
-	// iResult = send( ConnectSocket, sendbuf, (int)strlen(sendbuf), 0 );
-	// if (iResult == SOCKET_ERROR) {
-	// 	printf("send failed with error: %d\n", WSAGetLastError());
-	// 	closesocket(ConnectSocket);
-	// 	WSACleanup();
-	// 	return 1;
-	// }
-
-	// printf("Bytes Sent: %ld\n", iResult);
-
-	// shutdown the connection since no more data will be sent
-	iResult = shutdown(ConnectSocket, SD_SEND);
-	if (iResult == SOCKET_ERROR) {
-		printf("shutdown failed with error: %d\n", WSAGetLastError());
-		closesocket(ConnectSocket);
-		WSACleanup();
-		return;
-	}
-
-	// cleanup
-	closesocket(ConnectSocket);
-	WSACleanup();
-
-	return;
-}
-#endif
