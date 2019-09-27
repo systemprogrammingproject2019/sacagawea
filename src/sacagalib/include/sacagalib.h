@@ -117,8 +117,9 @@ EXPORTED thread_t thread_management(client_args *client_info);
 EXPORTED int process_management(client_args *client_info);
 
 // the name is self explanatory
-void close_socket_kill_thread(sock_t sd, int errcode);
-void close_socket_kill_process(sock_t sd, int errcode);
+void close_socket_kill_child(client_args* c, int errcode);
+// void close_socket_kill_thread(sock_t sd, int errcode);
+// void close_socket_kill_process(sock_t sd, int errcode);
 
 // socket.c
 EXPORTED sock_t open_socket(const settings_t* settings);

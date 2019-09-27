@@ -276,13 +276,13 @@ int main(int argc, char *argv[]) {
 
 	// create the pipe for SERVER<->SACALOGS
 #ifndef _WIN32
-	if (pipe(pipe_conf) != 0){ 
+	if (pipe(pipe_conf) != 0) { 
 		write_log(ERROR, "System call pipe() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
 	/* set NON-BLOCKING read pipe, becouse sacalogs don't have to go in blocked mode
 	while try read pipe */
-	if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) != 0){
+	if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) != 0) {
 		write_log(ERROR, "System call fcntl() failed because of %s", strerror(errno));
 	 	exit(5);
 	}
@@ -307,7 +307,7 @@ int main(int argc, char *argv[]) {
 			NULL,          // default security attributes
 			NULL,          // primary thread security attributes
 			TRUE,          // IMPORTANT: handles are inherited
-			0,             // creation flags
+			DETACHED_PROCESS, // creation flags
 			NULL,          // use parent's environment
 			NULL,          // use parent's current directory
 			&siStartInfo,  // STARTUPINFO pointer
@@ -399,7 +399,7 @@ int main(int argc, char *argv[]) {
 	settings->socket = open_socket(settings);
 
 	/* Loop waiting for incoming connects or for incoming data
-		on any of the connected sockets.   */
+		on any of the connected sockets.*/
 	while (listen_descriptor(settings));
 
 	close_all();

@@ -305,11 +305,7 @@ long unsigned int* management_function(client_args* c) {
 
 	// read request from client->socket ( client socket ) and put in *input, if fail return true otherwise false
 	if ((check = read_request(c->socket, input, MAX_REQUEST_LEN))) {
-		if ((c->settings).mode == 't') {
-			close_socket_kill_thread(c->socket, 0);
-		} else {
-			close_socket_kill_process(c->socket, 0);
-		}
+		close_socket_kill_child(c, 0);
 	}
 	
 	// if we are there, print that message
@@ -331,11 +327,7 @@ long unsigned int* management_function(client_args* c) {
 	if (len_check >= PATH_MAX) {
 		write_log(ERROR, "Exceeded PATH_MAX length: requested path is %d chars long",
 				len_check);
-		if ((c->settings).mode == 't') {
-			close_socket_kill_thread(c->socket, 0);
-		} else {
-			close_socket_kill_process(c->socket, 0);
-		}
+		close_socket_kill_child(c, 0);
 	}
 	strcat(c->path_file, client_selector.selector);
 	write_log(INFO, "PATH+SELECTOR %d bytes: %s",
@@ -344,11 +336,7 @@ long unsigned int* management_function(client_args* c) {
 	// avoid trasversal path	
 	if (check_security_path(c->path_file)) {
 		write_log(INFO, "eh eh nice try where u wanna go?");
-		if ((c->settings).mode == 't') {
-			close_socket_kill_thread(c->socket, 0);
-		} else {
-			close_socket_kill_process(c->socket, 0);
-		}
+		close_socket_kill_child(c, 0);
 	}
 	type = type_path(c->path_file);
 
@@ -367,11 +355,7 @@ long unsigned int* management_function(client_args* c) {
 			load_file_memory_and_send(c);
 		}
 	}
-	if ((c->settings).mode == 't') {
-		close_socket_kill_thread(c->socket, 0);
-	} else {
-		close_socket_kill_process(c->socket, 0);
-	}
+	close_socket_kill_child(c, 0);
 	return 0;
 }
 
@@ -422,4 +406,12 @@ void close_socket_kill_process(sock_t sd, int errcode) {
 	close(sd);
 #endif
 	exit(errcode);
+}
+
+void close_socket_kill_child(client_args* c, int errcode) {
+	if ((c->settings).mode == 't') {
+		close_socket_kill_thread(c->socket, 0);
+	} else {
+		close_socket_kill_process(c->socket, 0);
+	}
 }
