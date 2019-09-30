@@ -20,9 +20,9 @@ typedef struct {
 	int fPendingIO;
 } PIPEINST, *LPPIPEINST;
 
-VOID DisconnectAndReconnect(DWORD);
-BOOL ConnectToNewClient(HANDLE, LPOVERLAPPED);
-VOID GetAnswerToRequest(LPPIPEINST);
+VOID disconnect_and_reconnect(DWORD);
+BOOL connect_to_new_client(HANDLE, LPOVERLAPPED);
+VOID get_answer_to_request(LPPIPEINST);
 
 BOOL WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
 	// "return false" kills the process
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		// Call the subroutine to connect to the new client
-		Pipe[i].fPendingIO = ConnectToNewClient(Pipe[i].hPipeInst, &Pipe[i].oOverlap);
+		Pipe[i].fPendingIO = connect_to_new_client(Pipe[i].hPipeInst, &Pipe[i].oOverlap);
 
 		Pipe[i].dwState = Pipe[i].fPendingIO ? CONNECTING_STATE : // still connecting
 				READING_STATE;     // ready to read
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
 			// Pending read operation
 			case READING_STATE:
 				if (!fSuccess || cbRet == 0) {
-					DisconnectAndReconnect(i);
+					disconnect_and_reconnect(i);
 					continue;
 				}
 				Pipe[i].cbRead = cbRet;
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
 			// Pending write operation
 			case WRITING_STATE:
 				if (!fSuccess || cbRet != Pipe[i].cbToWrite) {
-					DisconnectAndReconnect(i);
+					disconnect_and_reconnect(i);
 					continue;
 				}
 				Pipe[i].dwState = READING_STATE;
@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
 			}
 
 			// An error occurred; disconnect from the client.
-			DisconnectAndReconnect(i);
+			disconnect_and_reconnect(i);
 			break;
 
 		// WRITING_STATE:
@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
 			}
 
 			// An error occurred; disconnect from the client.
-			DisconnectAndReconnect(i);
+			disconnect_and_reconnect(i);
 			break;
 
 		default: {
@@ -225,19 +225,19 @@ int main(int argc, char *argv[]) {
 }
 
 
-// DisconnectAndReconnect(DWORD)
+// disconnect_and_reconnect(DWORD)
 // This function is called when an error occurs or when the client
 // closes its handle to the pipe. Disconnect from this client, then
 // call ConnectNamedPipe to wait for another client to connect.
 
-VOID DisconnectAndReconnect(DWORD i) {
+VOID disconnect_and_reconnect(DWORD i) {
 	// Disconnect the pipe instance.
 	if (! DisconnectNamedPipe(Pipe[i].hPipeInst) ) {
 		write_log(ERROR, "DisconnectNamedPipe failed with %ld.\n", GetLastError());
 	}
 
 	// Call a subroutine to connect to the new client.
-	Pipe[i].fPendingIO = ConnectToNewClient(
+	Pipe[i].fPendingIO = connect_to_new_client(
 		Pipe[i].hPipeInst,
 		&Pipe[i].oOverlap);
 
@@ -246,11 +246,11 @@ VOID DisconnectAndReconnect(DWORD i) {
 		READING_STATE;     // ready to read
 	}
 
-	// ConnectToNewClient(HANDLE, LPOVERLAPPED)
+	// connect_to_new_client(HANDLE, LPOVERLAPPED)
 	// This function is called to start an overlapped connect operation.
 	// It returns TRUE if an operation is pending or FALSE if the
 	// connection has been completed.
-BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo) {
+BOOL connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 	BOOL fConnected, fPendingIO = FALSE;
 
 	// Start an overlapped connection for this pipe instance.
@@ -283,7 +283,7 @@ BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo) {
 	return fPendingIO;
 }
 
-VOID GetAnswerToRequest(LPPIPEINST pipe) {
+VOID get_answer_to_request(LPPIPEINST pipe) {
 	DWORD dwBytesWritten;
 	// Sleep(500);
 	HANDLE hLogFile = CreateFileA(
