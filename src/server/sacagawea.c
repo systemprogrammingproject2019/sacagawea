@@ -79,6 +79,7 @@ void become_deamon() {
 void close_all() {
 #ifdef _WIN32
 	closesocket(settings->socket);
+	TerminateThread(logProcess.hThread, 0);
 	TerminateProcess(logProcess.hProcess, 0);
 	WSACleanup();
 #else
@@ -302,7 +303,7 @@ int main(int argc, char *argv[]) {
 			NULL,          // default security attributes
 			NULL,          // primary thread security attributes
 			TRUE,          // IMPORTANT: handles are inherited
-			DETACHED_PROCESS, // creation flags
+			0,             // creation flags
 			NULL,          // use parent's environment
 			NULL,          // use parent's current directory
 			&siStartInfo,  // STARTUPINFO pointer
@@ -313,13 +314,6 @@ int main(int argc, char *argv[]) {
 		write_log(ERROR, "CreateProcess failed with error: %I64d",
 				GetLastError());
 		close_all();
-	} else {
-		// Close handles to the child process and its primary thread.
-		// Some applications might keep these handles to monitor the status
-		// of the child process, for example. 
-
-		CloseHandle(logProcess.hProcess);
-		CloseHandle(logProcess.hThread);
 	}
 
 #else

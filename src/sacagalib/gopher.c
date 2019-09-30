@@ -303,9 +303,8 @@ void *thread_sender(client_args* c) {
 
 	#ifdef _WIN32
 		HANDLE hPipe; 
-		TCHAR  chBuf[WIN32_PIPE_BUFSIZE]; 
 		BOOL   fSuccess = FALSE; 
-		DWORD  cbRead, cbWritten, dwMode; 
+		DWORD  cbWritten, dwMode; 
 
 		// Try to open the named pipe;
 		while (1) {
@@ -330,9 +329,9 @@ void *thread_sender(client_args* c) {
 				ExitThread(0);
 			}
 
-			// All pipe instances are busy, so wait for 5 seconds.
-			if (!WaitNamedPipe(WIN32_PIPE_NAME, 5000)) {
-				write_log(ERROR, "Could not open pipe: 5 second wait timed out.");
+			// All pipe instances are busy, so wait for 10 seconds.
+			if (!WaitNamedPipe(WIN32_PIPE_NAME, 10000)) {
+				write_log(ERROR, "Could not open pipe: 10 second wait timed out.");
 				ExitThread(0);
 			}
 		}
@@ -359,29 +358,6 @@ void *thread_sender(client_args* c) {
 		);
 		if (!fSuccess) {
 			write_log(ERROR, "WriteFile to pipe failed with error: %ld", GetLastError()); 
-			ExitThread(0);
-		}
-
-		// write_log(DEBUG, "Message sent to server, receiving reply as follows:\n");
-	
-		do {
-			// Read from the pipe.
-			fSuccess = ReadFile(
-					hPipe,    // pipe handle
-					chBuf,    // buffer to receive reply
-					WIN32_PIPE_BUFSIZE * sizeof(char),  // size of buffer
-					&cbRead,  // number of bytes read
-					NULL);    // not overlapped
-
-			if (!fSuccess && GetLastError() != ERROR_MORE_DATA)
-				break;
-
-			printf("\"%s\"\n", chBuf); 
-		} while (!fSuccess);  // repeat loop if ERROR_MORE_DATA 
-
-		if (!fSuccess) {
-			write_log(ERROR, "ReadFile from pipe failed with error: %d",
-					GetLastError());
 			ExitThread(0);
 		}
 

@@ -7,18 +7,19 @@
 
 #define CONNECTING_STATE 0
 #define READING_STATE    1
-#define WRITING_STATE    2
+// #define WRITING_STATE    2
 
 typedef struct {
 	OVERLAPPED oOverlap;
 	HANDLE hPipeInst;
 	char chRequest[WIN32_PIPE_BUFSIZE];
 	DWORD cbRead;
-	char chReply[WIN32_PIPE_BUFSIZE];
-	DWORD cbToWrite;
 	DWORD dwState;
 	int fPendingIO;
 } PIPEINST, *LPPIPEINST;
+
+PIPEINST Pipe[WIN32_MAX_PIPES];
+HANDLE hEvents[WIN32_MAX_PIPES];
 
 VOID disconnect_and_reconnect(DWORD);
 BOOL connect_to_new_client(HANDLE, LPOVERLAPPED);
@@ -31,13 +32,11 @@ BOOL WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
 	case CTRL_BREAK_EVENT:
 		return TRUE; // dont close the process
 	default:
+		write_log(DEBUG, "Quitting sacagawea-logger.exe!");
 		return FALSE;
 	}
 	return FALSE;
 }
-
-PIPEINST Pipe[WIN32_MAX_PIPES];
-HANDLE hEvents[WIN32_MAX_PIPES];
 
 int main(int argc, char *argv[]) {
 	DWORD i, dwWait, cbRet, dwErr;
@@ -77,8 +76,8 @@ int main(int argc, char *argv[]) {
 				WIN32_PIPE_BUFSIZE * sizeof(char),  // output buffer size
 				WIN32_PIPE_BUFSIZE * sizeof(char),  // input buffer size
 				INFINITE,                // client time-out
-				NULL);                   // default security attributes
-
+				NULL                     // default security attributes
+		);
 		if (Pipe[i].hPipeInst == INVALID_HANDLE_VALUE) {
 			write_log(ERROR, "CreateNamedPipe failed with error: %I64d",
 					GetLastError());
@@ -121,7 +120,7 @@ int main(int argc, char *argv[]) {
 			// Pending connect operation
 			case CONNECTING_STATE:
 				if (! fSuccess) {
-					printf("Error %ld.\n", GetLastError());
+					write_log(ERROR, "Error %ld.\n", GetLastError());
 					return 0;
 				}
 				Pipe[i].dwState = READING_STATE;
@@ -134,17 +133,17 @@ int main(int argc, char *argv[]) {
 					continue;
 				}
 				Pipe[i].cbRead = cbRet;
-				Pipe[i].dwState = WRITING_STATE;
+				// Pipe[i].dwState = WRITING_STATE;
 				break;
 
 			// Pending write operation
-			case WRITING_STATE:
-				if (!fSuccess || cbRet != Pipe[i].cbToWrite) {
-					disconnect_and_reconnect(i);
-					continue;
-				}
-				Pipe[i].dwState = READING_STATE;
-				break;
+			// case WRITING_STATE:
+			// 	if (!fSuccess || cbRet == 0) {
+			// 		disconnect_and_reconnect(i);
+			// 		continue;
+			// 	}
+			// 	Pipe[i].dwState = READING_STATE;
+			// 	break;
 
 			default: {
 				write_log(ERROR, "Invalid pipe state.\n");
@@ -169,7 +168,6 @@ int main(int argc, char *argv[]) {
 			// The read operation completed successfully.
 			if (fSuccess && Pipe[i].cbRead != 0) {
 				Pipe[i].fPendingIO = FALSE;
-				Pipe[i].dwState = WRITING_STATE;
 				continue;
 			}
 			// The read operation is still pending.
@@ -179,35 +177,7 @@ int main(int argc, char *argv[]) {
 				continue;
 			}
 
-			// An error occurred; disconnect from the client.
-			disconnect_and_reconnect(i);
-			break;
-
-		// WRITING_STATE:
-		// The request was successfully read from the client.
-		// Get the reply data and write it to the client.
-		case WRITING_STATE:
 			get_answer_to_request(&Pipe[i]);
-			fSuccess = WriteFile(
-					Pipe[i].hPipeInst,
-					Pipe[i].chReply,
-					Pipe[i].cbToWrite,
-					&cbRet,
-					&Pipe[i].oOverlap
-			);
-			// The write operation completed successfully.
-			if (fSuccess && cbRet == Pipe[i].cbToWrite) {
-				Pipe[i].fPendingIO = FALSE;
-				Pipe[i].dwState = READING_STATE;
-				continue;
-			}
-
-			// The write operation is still pending.
-			dwErr = GetLastError();
-			if (!fSuccess && (dwErr == ERROR_IO_PENDING)) {
-				Pipe[i].fPendingIO = TRUE;
-				continue;
-			}
 
 			// An error occurred; disconnect from the client.
 			disconnect_and_reconnect(i);
@@ -223,7 +193,6 @@ int main(int argc, char *argv[]) {
 	return 0;
 
 }
-
 
 // disconnect_and_reconnect(DWORD)
 // This function is called when an error occurs or when the client
@@ -244,7 +213,7 @@ VOID disconnect_and_reconnect(DWORD i) {
 	Pipe[i].dwState = Pipe[i].fPendingIO ?
 		CONNECTING_STATE : // still connecting
 		READING_STATE;     // ready to read
-	}
+}
 
 	// connect_to_new_client(HANDLE, LPOVERLAPPED)
 	// This function is called to start an overlapped connect operation.
@@ -301,21 +270,19 @@ VOID get_answer_to_request(LPPIPEINST pipe) {
 		CloseHandle(hLogFile);
 		return;
 	}
+
 	BOOL bErrorFlag = WriteFile(
-			hLogFile,              // open file handle
-			pipe->chRequest,    // start of data to write
-			strlen(pipe->chRequest) + 1,     // number of bytes to write
-			&dwBytesWritten,    // number of bytes that were written
-			NULL              // no overlapped structure
+			hLogFile,                // open file handle
+			pipe->chRequest,         // start of data to write
+			strlen(pipe->chRequest), // number of bytes to write
+			&dwBytesWritten,         // number of bytes that were written
+			NULL                     // no overlapped structure
 	);
 	if (!bErrorFlag) {
 		write_log(WARNING, "WriteFile %s failed with error: %d",
 				SACAGAWEALOGS_PATH, GetLastError());
 	}
 	CloseHandle(hLogFile);
-	// write_log(DEBUG, "[%p] %s\n", pipe->hPipeInst, pipe->chRequest);
-	// strncpy(pipe->chReply, "Default answer from server", WIN32_PIPE_BUFSIZE);
-	// pipe->cbToWrite = (lstrlen(pipe->chReply) + 1) * sizeof(TCHAR);
 }
 
 #endif
