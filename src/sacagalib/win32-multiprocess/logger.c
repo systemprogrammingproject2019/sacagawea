@@ -23,7 +23,7 @@ HANDLE hEvents[WIN32_MAX_PIPES];
 
 VOID disconnect_and_reconnect(DWORD);
 BOOL connect_to_new_client(HANDLE, LPOVERLAPPED);
-VOID get_answer_to_request(LPPIPEINST);
+VOID write_to_log_file(LPPIPEINST);
 
 BOOL WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
 	// "return false" kills the process
@@ -133,17 +133,7 @@ int main(int argc, char *argv[]) {
 					continue;
 				}
 				Pipe[i].cbRead = cbRet;
-				// Pipe[i].dwState = WRITING_STATE;
 				break;
-
-			// Pending write operation
-			// case WRITING_STATE:
-			// 	if (!fSuccess || cbRet == 0) {
-			// 		disconnect_and_reconnect(i);
-			// 		continue;
-			// 	}
-			// 	Pipe[i].dwState = READING_STATE;
-			// 	break;
 
 			default: {
 				write_log(ERROR, "Invalid pipe state.\n");
@@ -177,7 +167,7 @@ int main(int argc, char *argv[]) {
 				continue;
 			}
 
-			get_answer_to_request(&Pipe[i]);
+			write_to_log_file(&Pipe[i]);
 
 			// An error occurred; disconnect from the client.
 			disconnect_and_reconnect(i);
@@ -252,7 +242,7 @@ BOOL connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 	return fPendingIO;
 }
 
-VOID get_answer_to_request(LPPIPEINST pipe) {
+VOID write_to_log_file(LPPIPEINST pipe) {
 	DWORD dwBytesWritten;
 	// Sleep(500);
 	HANDLE hLogFile = CreateFileA(
