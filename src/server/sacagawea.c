@@ -231,31 +231,31 @@ int main(int argc, char *argv[]) {
 	mutex_d = shm_open( SHARED_MUTEX_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
 	if (mutex_d < 0) {
 		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 	if (ftruncate(mutex_d, sizeof(pthread_mutex_t)) != 0) {
 		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 	mutex = (pthread_mutex_t *) mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, mutex_d, 0);
 	if (mutex == MAP_FAILED) {
 		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	} 
 	/* shm_open open the SHARED_COND_MEM or create it like a file, indeed cond_d is a descriptor */
 	cond_d = shm_open(SHARED_COND_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
 	if (cond_d < 0) {
 		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 	if (ftruncate(cond_d, sizeof(pthread_mutex_t)) != 0) {
 		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 	cond = (pthread_cond_t *) mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, cond_d, 0);
 	if (cond == MAP_FAILED) {
 		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 
 	/* PTHREAD_PROCESS_SHARED
@@ -273,13 +273,13 @@ int main(int argc, char *argv[]) {
 #ifndef _WIN32
 	if (pipe(pipe_conf) != 0) { 
 		write_log(ERROR, "System call pipe() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 	/* set NON-BLOCKING read pipe, becouse sacalogs don't have to go in blocked mode
 	while try read pipe */
 	if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) != 0) {
 		write_log(ERROR, "System call fcntl() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 #endif
 	// now create the process
@@ -326,7 +326,7 @@ int main(int argc, char *argv[]) {
 	logProcess = fork();
 	if (logProcess < 0){
 		write_log(ERROR, "System call fork() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 	if (logProcess == 0) { /* child process */
 		// close write pipe
@@ -357,7 +357,7 @@ int main(int argc, char *argv[]) {
 	/* The sigaction() API change the action taken by a process on receipt of SIGHUP signal. */
 	if (sigaction (SIGHUP, &new_action, NULL) < 0) {
 		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 #endif
 
@@ -379,7 +379,7 @@ int main(int argc, char *argv[]) {
 	/* The sigaction() API change the action taken by a process on receipt of SIGINT signal. */
 	if (sigaction (SIGINT, &sigint_action, NULL) < 0) {
 		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 #endif
 
