@@ -243,10 +243,7 @@ int read_and_check_conf(settings_t* settings, int called_from_handler) {
 				read_conf_line(line, settings);
 			}
 			// check for port change
-			int check_return = check_if_port_change(line, settings);
-			if( !check_return ){
-				port_change = true;
-			}
+			port_change |= check_if_port_change(line, settings);
 		}
 	}
 
