@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
 		// The request was successfully read from the client.
 		// Get the reply data and write it to the client.
 		case WRITING_STATE:
-			GetAnswerToRequest(&Pipe[i]);
+			get_answer_to_request(&Pipe[i]);
 			fSuccess = WriteFile(
 					Pipe[i].hPipeInst,
 					Pipe[i].chReply,
