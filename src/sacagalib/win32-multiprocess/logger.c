@@ -7,7 +7,6 @@
 
 #define CONNECTING_STATE 0
 #define READING_STATE    1
-// #define WRITING_STATE    2
 
 typedef struct {
 	OVERLAPPED oOverlap;
@@ -39,7 +38,7 @@ BOOL WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
 }
 
 int main(int argc, char *argv[]) {
-	DWORD i, dwWait, cbRet, dwErr;
+	DWORD i, dwWait, cbRet;
 
 	if (!SetConsoleCtrlHandler(loggerConsoleEventHandler, true)) {
 		write_log(ERROR, "SetConsoleCtrlHandler Failed with error: %lld", GetLastError());
@@ -119,7 +118,7 @@ int main(int argc, char *argv[]) {
 			switch (Pipe[i].dwState) {
 			// Pending connect operation
 			case CONNECTING_STATE:
-				if (! fSuccess) {
+				if (!fSuccess) {
 					write_log(ERROR, "Error %ld.\n", GetLastError());
 					return 0;
 				}
@@ -161,8 +160,7 @@ int main(int argc, char *argv[]) {
 				continue;
 			}
 			// The read operation is still pending.
-			dwErr = GetLastError();
-			if (!fSuccess && (dwErr == ERROR_IO_PENDING)) {
+			if (!fSuccess && (GetLastError() == ERROR_IO_PENDING)) {
 				Pipe[i].fPendingIO = TRUE;
 				continue;
 			}
@@ -179,16 +177,12 @@ int main(int argc, char *argv[]) {
 		}
 		}
 	}
-
 	return 0;
-
 }
 
-// disconnect_and_reconnect(DWORD)
 // This function is called when an error occurs or when the client
 // closes its handle to the pipe. Disconnect from this client, then
 // call ConnectNamedPipe to wait for another client to connect.
-
 VOID disconnect_and_reconnect(DWORD i) {
 	// Disconnect the pipe instance.
 	if (! DisconnectNamedPipe(Pipe[i].hPipeInst) ) {
@@ -205,10 +199,9 @@ VOID disconnect_and_reconnect(DWORD i) {
 		READING_STATE;     // ready to read
 }
 
-	// connect_to_new_client(HANDLE, LPOVERLAPPED)
-	// This function is called to start an overlapped connect operation.
-	// It returns TRUE if an operation is pending or FALSE if the
-	// connection has been completed.
+// This function is called to start an overlapped connect operation.
+// It returns TRUE if an operation is pending or FALSE if the
+// connection has been completed.
 BOOL connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 	BOOL fConnected, fPendingIO = FALSE;
 
@@ -273,6 +266,9 @@ VOID write_to_log_file(LPPIPEINST pipe) {
 				SACAGAWEALOGS_PATH, GetLastError());
 	}
 	CloseHandle(hLogFile);
+
+	// clean the pipe's buffer
+	ZeroMemory(pipe->chRequest, WIN32_PIPE_BUFSIZE);
 }
 
 #endif
