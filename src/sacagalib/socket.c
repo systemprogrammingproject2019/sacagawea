@@ -238,10 +238,10 @@ int accept_wrapper(const settings_t* settings) {
 		}
 	#endif
 
-		unsigned long NonBlock = false;
 	#ifdef _WIN32
 		// Change the socket mode on the accepting socket from non-blocking to
 		// blocking so the application will be able to have blocking sends
+		unsigned long NonBlock = false;
 		if (ioctlsocket(new_s, FIONBIO, &NonBlock) == SOCKET_ERROR) {
 			write_log(ERROR, "ioctlsocket failed with error %d\n",
 					WSAGetLastError());
