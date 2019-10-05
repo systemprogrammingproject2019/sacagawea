@@ -10,21 +10,21 @@
 
 typedef struct {
 	OVERLAPPED oOverlap;
-	HANDLE hPipeInst;
-	char chRequest[WIN32_PIPE_BUFSIZE];
-	DWORD cbRead;
-	DWORD dwState;
-	int fPendingIO;
-} PIPEINST, *LPPIPEINST;
+	HANDLE hPipe;
+	char request[WIN32_PIPE_BUFSIZE];
+	DWORD howMuchToRead;
+	DWORD state; // CONNECTING_STATE or READING_STATE
+	int isIOPending;
+} pipe_struct;
 
-PIPEINST Pipe[WIN32_MAX_PIPES];
+pipe_struct Pipe[WIN32_MAX_PIPES];
 HANDLE hEvents[WIN32_MAX_PIPES];
 
-VOID disconnect_and_reconnect(DWORD);
-BOOL connect_to_new_client(HANDLE, LPOVERLAPPED);
-VOID write_to_log_file(LPPIPEINST);
+void disconnect_and_reconnect(DWORD);
+int connect_to_new_client(HANDLE, LPOVERLAPPED);
+void write_to_log_file(pipe_struct*);
 
-BOOL WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
+int WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
 	// "return false" kills the process
 	switch (fdwCtrlType)
 	{
@@ -38,7 +38,7 @@ BOOL WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
 }
 
 int main(int argc, char *argv[]) {
-	DWORD i, dwWait, cbRet;
+	DWORD i, whichPipe, howManyBytes;
 
 	if (!SetConsoleCtrlHandler(loggerConsoleEventHandler, true)) {
 		write_log(ERROR, "SetConsoleCtrlHandler Failed with error: %lld", GetLastError());
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		Pipe[i].oOverlap.hEvent = hEvents[i];
-		Pipe[i].hPipeInst = CreateNamedPipeA(
+		Pipe[i].hPipe = CreateNamedPipeA(
 				WIN32_PIPE_NAME,         // pipe name
 				PIPE_ACCESS_DUPLEX       // read/write access
 				| FILE_FLAG_OVERLAPPED,  // overlapped mode
@@ -77,16 +77,16 @@ int main(int argc, char *argv[]) {
 				INFINITE,                // client time-out
 				NULL                     // default security attributes
 		);
-		if (Pipe[i].hPipeInst == INVALID_HANDLE_VALUE) {
+		if (Pipe[i].hPipe == INVALID_HANDLE_VALUE) {
 			write_log(ERROR, "CreateNamedPipe failed with error: %I64d",
 					GetLastError());
 			return 0;
 		}
 
 		// Call the subroutine to connect to the new client
-		Pipe[i].fPendingIO = connect_to_new_client(Pipe[i].hPipeInst, &Pipe[i].oOverlap);
+		Pipe[i].isIOPending = connect_to_new_client(Pipe[i].hPipe, &Pipe[i].oOverlap);
 
-		Pipe[i].dwState = Pipe[i].fPendingIO ? CONNECTING_STATE : // still connecting
+		Pipe[i].state = Pipe[i].isIOPending ? CONNECTING_STATE : // still connecting
 				READING_STATE;     // ready to read
 	}
 
@@ -94,44 +94,44 @@ int main(int argc, char *argv[]) {
 		// Wait for the event object to be signaled, indicating
 		// completion of an overlapped read, write, or
 		// connect operation.
-		dwWait = WaitForMultipleObjects(
-				WIN32_MAX_PIPES,    // number of event objects
-				hEvents,      // array of event objects
-				FALSE,        // does not wait for all
-				INFINITE      // waits indefinitely
+		whichPipe = WaitForMultipleObjects(
+				WIN32_MAX_PIPES, // number of event objects
+				hEvents,         // array of event objects
+				FALSE,           // does not wait for all
+				INFINITE         // waits indefinitely
 		);
-		// dwWait shows which pipe completed the operation.
-		i = dwWait - WAIT_OBJECT_0;  // determines which pipe
+		// whichPipe shows which pipe completed the operation.
+		i = whichPipe - WAIT_OBJECT_0;  // determines which pipe
 		if (i < 0 || i > (WIN32_MAX_PIPES - 1)) {
 			write_log(ERROR, "Index out of range.\n");
 			return 0;
 		}
 
 		// Get the result if the operation was pending.
-		if (Pipe[i].fPendingIO) {
+		if (Pipe[i].isIOPending) {
 			fSuccess = GetOverlappedResult(
-					Pipe[i].hPipeInst, // handle to pipe
+					Pipe[i].hPipe,     // handle to pipe
 					&Pipe[i].oOverlap, // OVERLAPPED structure
-					&cbRet,            // bytes transferred
+					&howManyBytes,     // bytes transferred
 					FALSE              // do not wait
 			);
-			switch (Pipe[i].dwState) {
+			switch (Pipe[i].state) {
 			// Pending connect operation
 			case CONNECTING_STATE:
 				if (!fSuccess) {
 					write_log(ERROR, "Error %ld.\n", GetLastError());
 					return 0;
 				}
-				Pipe[i].dwState = READING_STATE;
+				Pipe[i].state = READING_STATE;
 				break;
 
 			// Pending read operation
 			case READING_STATE:
-				if (!fSuccess || cbRet == 0) {
+				if (!fSuccess || howManyBytes == 0) {
 					disconnect_and_reconnect(i);
 					continue;
 				}
-				Pipe[i].cbRead = cbRet;
+				Pipe[i].howMuchToRead = howManyBytes;
 				break;
 
 			default: {
@@ -142,26 +142,26 @@ int main(int argc, char *argv[]) {
 		}
 
 		// The pipe state determines which operation to do next.
-		switch (Pipe[i].dwState) {
+		switch (Pipe[i].state) {
 		// READING_STATE:
 		// The pipe instance is connected to the client
 		// and is ready to read a request from the client.
 		case READING_STATE:
 			fSuccess = ReadFile(
-					Pipe[i].hPipeInst,
-					Pipe[i].chRequest,
+					Pipe[i].hPipe,
+					Pipe[i].request,
 					WIN32_PIPE_BUFSIZE * sizeof(TCHAR),
-					&Pipe[i].cbRead,
+					&Pipe[i].howMuchToRead,
 					&Pipe[i].oOverlap
 			);
 			// The read operation completed successfully.
-			if (fSuccess && Pipe[i].cbRead != 0) {
-				Pipe[i].fPendingIO = FALSE;
+			if (fSuccess && Pipe[i].howMuchToRead != 0) {
+				Pipe[i].isIOPending = FALSE;
 				continue;
 			}
 			// The read operation is still pending.
 			if (!fSuccess && (GetLastError() == ERROR_IO_PENDING)) {
-				Pipe[i].fPendingIO = TRUE;
+				Pipe[i].isIOPending = TRUE;
 				continue;
 			}
 
@@ -183,18 +183,18 @@ int main(int argc, char *argv[]) {
 // This function is called when an error occurs or when the client
 // closes its handle to the pipe. Disconnect from this client, then
 // call ConnectNamedPipe to wait for another client to connect.
-VOID disconnect_and_reconnect(DWORD i) {
+void disconnect_and_reconnect(DWORD i) {
 	// Disconnect the pipe instance.
-	if (! DisconnectNamedPipe(Pipe[i].hPipeInst) ) {
+	if (! DisconnectNamedPipe(Pipe[i].hPipe) ) {
 		write_log(ERROR, "DisconnectNamedPipe failed with %ld.\n", GetLastError());
 	}
 
 	// Call a subroutine to connect to the new client.
-	Pipe[i].fPendingIO = connect_to_new_client(
-		Pipe[i].hPipeInst,
+	Pipe[i].isIOPending = connect_to_new_client(
+		Pipe[i].hPipe,
 		&Pipe[i].oOverlap);
 
-	Pipe[i].dwState = Pipe[i].fPendingIO ?
+	Pipe[i].state = Pipe[i].isIOPending ?
 		CONNECTING_STATE : // still connecting
 		READING_STATE;     // ready to read
 }
@@ -202,8 +202,8 @@ VOID disconnect_and_reconnect(DWORD i) {
 // This function is called to start an overlapped connect operation.
 // It returns TRUE if an operation is pending or FALSE if the
 // connection has been completed.
-BOOL connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
-	BOOL fConnected, fPendingIO = FALSE;
+int connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
+	int fConnected, isIOPending = FALSE;
 
 	// Start an overlapped connection for this pipe instance.
 	fConnected = ConnectNamedPipe(hPipe, lpo);
@@ -217,7 +217,7 @@ BOOL connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 	switch (GetLastError()) {
 	// The overlapped connection in progress.
 	case ERROR_IO_PENDING:
-		fPendingIO = TRUE;
+		isIOPending = TRUE;
 		break;
 
 	// Client is already connected, so signal an event.
@@ -232,11 +232,11 @@ BOOL connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 	}
 	}
 
-	return fPendingIO;
+	return isIOPending;
 }
 
-VOID write_to_log_file(LPPIPEINST pipe) {
-	DWORD dwBytesWritten;
+void write_to_log_file(pipe_struct* pipe) {
+	DWORD bytesWritten;
 	// Sleep(500);
 	HANDLE hLogFile = CreateFileA(
 			SACAGAWEALOGS_PATH,
@@ -254,11 +254,11 @@ VOID write_to_log_file(LPPIPEINST pipe) {
 		return;
 	}
 
-	BOOL bErrorFlag = WriteFile(
+	int bErrorFlag = WriteFile(
 			hLogFile,                // open file handle
-			pipe->chRequest,         // start of data to write
-			strlen(pipe->chRequest), // number of bytes to write
-			&dwBytesWritten,         // number of bytes that were written
+			pipe->request,         // start of data to write
+			strlen(pipe->request), // number of bytes to write
+			&bytesWritten,         // number of bytes that were written
 			NULL                     // no overlapped structure
 	);
 	if (!bErrorFlag) {
@@ -268,7 +268,7 @@ VOID write_to_log_file(LPPIPEINST pipe) {
 	CloseHandle(hLogFile);
 
 	// clean the pipe's buffer
-	ZeroMemory(pipe->chRequest, WIN32_PIPE_BUFSIZE);
+	ZeroMemory(pipe->request, WIN32_PIPE_BUFSIZE);
 }
 
 #endif
