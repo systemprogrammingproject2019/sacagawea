@@ -221,7 +221,8 @@ void *thread_sender(client_args* c) {
 	}
 	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
 
-	// write to sacagawea.log through the pipe
+	char buff;
+	// close the sockets gracefully
 #ifdef _WIN32
 	CloseHandle(c->file_to_send);
 	if (shutdown(c->socket, SD_SEND) != 0) {
@@ -229,6 +230,13 @@ void *thread_sender(client_args* c) {
 				WSAGetLastError());
 		WSACleanup();
 	}
+
+	if (recv(c->socket, &buff, sizeof(buff), 0) < 0) {
+		write_log(ERROR, "recv failed with error: %d", WSAGetLastError());
+		WSACleanup();
+		close_socket_kill_child(c, 0);
+	}
+
 	if (closesocket(c->socket) != 0) {
 		write_log(ERROR, "closesocket on socket failed with error: %I64d",
 				WSAGetLastError());
@@ -247,20 +255,14 @@ void *thread_sender(client_args* c) {
 	/* come detto prima curl finisce la comunicazione quando legge tutto, ma noi non sappiamo quando ha finito
 	quindi faccio questo while che cerca di fare una recv, quando la recv ritorna 0 vuol dire che la curl ha chiuso 
 	la connessione e quindi ha finito di leggere il file. pertanto posso chiudere definitivamente il socket e il thread */
-	char ciao[11];
-	int check;
-	while ((check = recv(c->socket, ciao, 10, MSG_WAITALL)) != 0) {
-	// ho fatto questo loop perche se il client manda più di 10 byte la recv termina anche se ha il MSG_WAITALL
-		//fprintf(stdout, "- %d - %s\n" , check, ciao);
-		sleep(0.5);
-	}
-	if (check < 0) {
+	if (recv(c->socket, &buff, sizeof(buff), 0) < 0) {
 		write_log(ERROR, "recv() failed: %s", strerror(errno));
 		close_socket_kill_child(c, 0);
 	}
 	close(c->socket);
 #endif
 
+	// prepare the message for the logging process
 	if (bytes_sent >= c->len_file) {
 		// get string to write on logs file
 		long len_logs_string = 0;
@@ -299,33 +301,28 @@ void *thread_sender(client_args* c) {
 		DWORD  cbWritten, dwMode; 
 
 		// Try to open the named pipe;
-		while (1) {
-			hPipe = CreateFile(
-				WIN32_PIPE_NAME,   // pipe name
-				GENERIC_READ |  // read and write access
-				GENERIC_WRITE,
-				0,              // no sharing
-				NULL,           // default security attributes
-				OPEN_EXISTING,  // opens existing pipe
-				0,              // default attributes
-				NULL            // no template file
-			);
-			// Break if the pipe handle is valid.
-			if (hPipe != INVALID_HANDLE_VALUE) {
-				break; 
-			}
-			// Exit if an error other than ERROR_PIPE_BUSY occurs.
-			if (GetLastError() != ERROR_PIPE_BUSY) {
-				write_log(ERROR, "Could not open pipe. CreateFile failed with error: %ld\n",
-						GetLastError());
-				ExitThread(0);
-			}
+		hPipe = CreateFile(
+			WIN32_PIPE_NAME,   // pipe name
+			GENERIC_READ |  // read and write access
+			GENERIC_WRITE,
+			0,              // no sharing
+			NULL,           // default security attributes
+			OPEN_EXISTING,  // opens existing pipe
+			0,              // default attributes
+			NULL            // no template file
+		);
+		// Break if the pipe handle is valid.
+		if (hPipe == INVALID_HANDLE_VALUE 
+				&& GetLastError() != ERROR_PIPE_BUSY) {
+			write_log(ERROR, "Could not open pipe. CreateFile failed with error: %ld\n",
+					GetLastError());
+			ExitThread(0);
+		}
 
-			// All pipe instances are busy, so wait for 10 seconds.
-			if (!WaitNamedPipe(WIN32_PIPE_NAME, 10000)) {
-				write_log(ERROR, "Could not open pipe: 10 second wait timed out.");
-				ExitThread(0);
-			}
+		// All pipe instances are busy, so wait for 10 seconds.
+		if (!WaitNamedPipe(WIN32_PIPE_NAME, 10000)) {
+			write_log(ERROR, "Could not open pipe: 10 second wait timed out.");
+			ExitThread(0);
 		}
 		// The pipe connected; change to message-read mode.
 		dwMode = PIPE_READMODE_MESSAGE;
@@ -426,8 +423,9 @@ char type_path(char path[PATH_MAX]) {
 	// we check the tipe or file with file bash command
 	char command[(strlen(path) + 10)];  // 9 for "file -bi " + 1 for \0 at end
 	// file with -b option: 
-	strcpy(command, "file -bi ");
+	strcpy(command, "file -bi \"");
 	strcat(command, path);
+	strcat(command, "\"");
 	FILE* popen_output_stream = popen(command , "r");
 	if (popen_output_stream == NULL) { 
 		write_log(ERROR,"popen() failed: %s\n", strerror(errno));

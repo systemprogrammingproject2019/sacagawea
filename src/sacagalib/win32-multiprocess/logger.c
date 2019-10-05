@@ -83,17 +83,14 @@ int main(int argc, char *argv[]) {
 			return 0;
 		}
 
-		// Call the subroutine to connect to the new client
-		Pipe[i].isIOPending = connect_to_new_client(Pipe[i].hPipe, &Pipe[i].oOverlap);
-
-		Pipe[i].state = Pipe[i].isIOPending ? CONNECTING_STATE : // still connecting
-				READING_STATE;     // ready to read
+		// default values
+		Pipe[i].isIOPending = true;
+		Pipe[i].state = CONNECTING_STATE;
 	}
 
 	while (1) {
 		// Wait for the event object to be signaled, indicating
-		// completion of an overlapped read, write, or
-		// connect operation.
+		// completion of an overlapped read, or connect operation.
 		whichPipe = WaitForMultipleObjects(
 				WIN32_MAX_PIPES, // number of event objects
 				hEvents,         // array of event objects
@@ -132,6 +129,7 @@ int main(int argc, char *argv[]) {
 					continue;
 				}
 				Pipe[i].howMuchToRead = howManyBytes;
+				write_to_log_file(&Pipe[i]);
 				break;
 
 			default: {
@@ -154,18 +152,18 @@ int main(int argc, char *argv[]) {
 					&Pipe[i].howMuchToRead,
 					&Pipe[i].oOverlap
 			);
-			// The read operation completed successfully.
-			if (fSuccess && Pipe[i].howMuchToRead != 0) {
-				Pipe[i].isIOPending = FALSE;
+
+			if (fSuccess && Pipe[i].howMuchToRead != 0) { 
+				Pipe[i].isIOPending = FALSE; 
+				write_to_log_file(&Pipe[i]);
 				continue;
 			}
+
 			// The read operation is still pending.
 			if (!fSuccess && (GetLastError() == ERROR_IO_PENDING)) {
 				Pipe[i].isIOPending = TRUE;
 				continue;
 			}
-
-			write_to_log_file(&Pipe[i]);
 
 			// An error occurred; disconnect from the client.
 			disconnect_and_reconnect(i);
@@ -185,7 +183,7 @@ int main(int argc, char *argv[]) {
 // call ConnectNamedPipe to wait for another client to connect.
 void disconnect_and_reconnect(DWORD i) {
 	// Disconnect the pipe instance.
-	if (! DisconnectNamedPipe(Pipe[i].hPipe) ) {
+	if (!DisconnectNamedPipe(Pipe[i].hPipe)) {
 		write_log(ERROR, "DisconnectNamedPipe failed with %ld.\n", GetLastError());
 	}
 
@@ -222,9 +220,9 @@ int connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 
 	// Client is already connected, so signal an event.
 	case ERROR_PIPE_CONNECTED:
-		if (SetEvent(lpo->hEvent))
-		break;
-
+		if (SetEvent(lpo->hEvent)) {
+			break;
+		}
 	// If an error occurs during the connect operation...
 	default: {
 		write_log(ERROR, "ConnectNamedPipe failed with %ld.\n", GetLastError());
