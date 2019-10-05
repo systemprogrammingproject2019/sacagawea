@@ -178,33 +178,25 @@ void *thread_sender(client_args* c) {
 			return false;
 		}
 
-		// In windows, pages read from MapViewOfFile need to be aligned
-		// to the granularity of the pages in memory.
-		// In order to comply to this restriction, we divide the sending
-		// process into rounds. In each of these rounds, we either send one
-		// page or, if less than one page remains, send all.
-		size_t bytes_sent_this_round = 0;
-		while (bytes_sent_this_round < multipleOfAllocationGranularity
-				&& bytes_sent < c->len_file) {
-			// write_log(DEBUG, "bytes_sent_this_round %d < %d",
-			// 		bytes_sent_this_round, multipleOfAllocationGranularity);
-			temp = send(c->socket, pBuf + bytes_sent_this_round,
-					min(multipleOfAllocationGranularity - bytes_sent_this_round,
-					c->len_file - bytes_sent), 0);
-			if (temp == SOCKET_ERROR) {
-				if (WSAGetLastError() != WSAEWOULDBLOCK) {
-					UnmapViewOfFile(pBuf);
-					write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
-						c->addr, c->socket, WSAGetLastError());
-					shutdown(c->socket, SD_SEND);
-					close_socket_kill_child(c, 0);
-				}
-			} else {
-				bytes_sent_this_round += temp;
-				bytes_sent += temp;
+		// // In windows, pages read from MapViewOfFile need to be aligned
+		// // to the granularity of the pages in memory.
+		// // In order to comply to this restriction, we divide the sending
+		// // process into rounds. In each of these rounds, we either send one
+		// // page or, if less than one page remains, send all.
+		temp = send(c->socket, pBuf,
+				min(multipleOfAllocationGranularity,
+				c->len_file - bytes_sent), 0);
+		if (temp == SOCKET_ERROR) {
+			if (WSAGetLastError() != WSAEWOULDBLOCK) {
+				UnmapViewOfFile(pBuf);
+				write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
+					c->addr, c->socket, WSAGetLastError());
+				shutdown(c->socket, SD_SEND);
+				close_socket_kill_child(c, 0);
 			}
+		} else {
+			bytes_sent += temp;
 		}
-		// write_log(DEBUG, "bytes_sent %lld", bytes_sent);
 	#else
 		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
 		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);

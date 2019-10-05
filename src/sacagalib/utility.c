@@ -108,9 +108,9 @@ int load_file_memory_and_send(client_args *client_info) {
 	lck.l_type = F_WRLCK;
 	// lock entire file
 	lck.l_whence = SEEK_SET; // offset base is start of the file "SEEK_END mean start at end of file"
-	lck.l_start = 0;		 // starting offset is zero
-	lck.l_len = 0;			 // len is zero, which is a special value representing end
-							 // of file (no matter how large the file grows in future)
+	lck.l_start = 0;         // starting offset is zero
+	lck.l_len = 0;           // len is zero, which is a special value representing end
+	                         // of file (no matter how large the file grows in future)
 
 	/* this version use SETLKW with associed lock at couple [i-node,process], so threads share the lock
 	but forked process nope. */

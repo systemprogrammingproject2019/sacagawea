@@ -238,6 +238,20 @@ int accept_wrapper(const settings_t* settings) {
 		}
 	#endif
 
+		unsigned long NonBlock = false;
+	#ifdef _WIN32
+		// Change the socket mode on the accepting socket from non-blocking to
+		// blocking so the application will be able to have blocking sends
+		if (ioctlsocket(new_s, FIONBIO, &NonBlock) == SOCKET_ERROR) {
+			write_log(ERROR, "ioctlsocket failed with error %d\n",
+					WSAGetLastError());
+			closesocket(new_s);
+			exit(EXIT_FAILURE);
+		}
+	#else
+		// in Linux, all sockets created with accept are BLOCKING by default
+	#endif
+
 		if (new_s < 0) {
 		#ifdef _WIN32
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
