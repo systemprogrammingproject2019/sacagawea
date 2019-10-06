@@ -5,13 +5,9 @@
 
 #include "sacagalib.h"
 
-#define CONNECTING_STATE 0
-#define READING_STATE    1
-
 typedef struct {
 	OVERLAPPED oOverlap;
 	HANDLE hPipe;
-	DWORD howMuchToRead;
 } pipe_struct;
 
 char request[WIN32_PIPE_BUFSIZE]; // that will contain the LOGstring read from pipe
@@ -83,7 +79,6 @@ int main(int argc, char *argv[]) {
 		}
 
 		connect_to_new_client(Pipe[i].hPipe, &Pipe[i].oOverlap);
-		
 	}
 
 	while (1) {
@@ -98,7 +93,7 @@ int main(int argc, char *argv[]) {
 		// whichPipe shows which pipe completed the operation.
 		i = whichPipe - WAIT_OBJECT_0;  // determines which pipe
 		if (i < 0 || i > (WIN32_MAX_PIPES - 1)) {
-			write_log(ERROR, "Index out of range.\n");
+			write_log(ERROR, "Pipe index out of range.");
 			return 0;
 		}
 
@@ -109,14 +104,13 @@ int main(int argc, char *argv[]) {
 					&howManyBytes,
 					NULL
 		);
-		if ( !fSuccess ) { 
+		if (!fSuccess) {
 			write_log(ERROR, "ReadFile from Pipe failed with %ld.\n", GetLastError());
-            continue; 
-        } 
+			continue; 
+		} 
 
 		write_to_log_file(request);
 		disconnect_and_reconnect(i);
-		
 	}
 	return 0;
 }
@@ -139,11 +133,10 @@ void disconnect_and_reconnect(DWORD i) {
 void connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 	int fConnected;
 	// Start an overlapped connection for this pipe instance.
-	/* 
-	ConnectNamedPipe wait for a connection from a client
-	in this case connectNamedPipe dont block becouse we pass an LPOVERLAPPER != null
-	and hPipe was created with flag FILE_FLAG_OVERLAPPED.
-	*/
+	/* ConnectNamedPipe waits for a connection from a client
+	   (in this case connectNamedPipe); it doesnt block because
+	   we give it an LPOVERLAPPED != null and hPipe was created
+	   with flag FILE_FLAG_OVERLAPPED. */
 	fConnected = ConnectNamedPipe(hPipe, lpo);
 
 	// Overlapped ConnectNamedPipe should return zero.
@@ -152,14 +145,14 @@ void connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 		return;
 	}
 
-	// here we check the output of ConnectedNamedPipe.
+	// manage ConnectedNamedPipe's return value
 	switch (GetLastError()) {
-		// if is ERROR_IO_PENDING is like EWOULDBLOCK this mean the call wanted block
-		// becouse he still pending for an incoming connection.
+		// in case of ERROR_IO_PENDING: it's just like EWOULDBLOCK, i.e. the call
+		// wanted to block because it still has a pending incoming connection
 		case ERROR_IO_PENDING:
 			break;
-		// if is ERROR_PIPE_CONNECTED this mean that between the start of call CreateNamedPipe
-		// and the call ConnectNamedPipe, someone connected at the pipe.
+		// in case of ERROR_PIPE_CONNECTED: between the start of the call
+		// CreateNamedPipe and the call ConnectNamedPipe, someone connected to the pipe.
 		case ERROR_PIPE_CONNECTED:
 			if (SetEvent(lpo->hEvent)) {
 				break;
@@ -174,11 +167,11 @@ void connect_to_new_client(HANDLE hPipe, LPOVERLAPPED lpo) {
 
 void write_to_log_file(char* pipe) {
 	DWORD bytesWritten;
-	// Sleep(500);
+
 	HANDLE hLogFile = CreateFileA(
 			SACAGAWEALOGS_PATH,
 			FILE_APPEND_DATA,
-			FILE_SHARE_READ, // Security arrtibutes: 0 means the file is locked
+			FILE_SHARE_READ,
 			NULL,
 			OPEN_ALWAYS,
 			FILE_ATTRIBUTE_NORMAL,
@@ -192,11 +185,11 @@ void write_to_log_file(char* pipe) {
 	}
 
 	int bErrorFlag = WriteFile(
-			hLogFile,                // open file handle
+			hLogFile,        // open file handle
 			request,         // start of data to write
 			strlen(request), // number of bytes to write
-			&bytesWritten,         // number of bytes that were written
-			NULL                     // no overlapped structure
+			&bytesWritten,   // number of bytes that were written
+			NULL             // no overlapped structure
 	);
 	if (!bErrorFlag) {
 		write_log(WARNING, "WriteFile %s failed with error: %d",
