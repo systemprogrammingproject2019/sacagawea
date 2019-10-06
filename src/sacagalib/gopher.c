@@ -312,8 +312,7 @@ void *thread_sender(client_args* c) {
 			NULL            // no template file
 		);
 		// Break if the pipe handle is valid.
-		if (hPipe == INVALID_HANDLE_VALUE 
-				&& GetLastError() != ERROR_PIPE_BUSY) {
+		if (hPipe == INVALID_HANDLE_VALUE && GetLastError() != ERROR_PIPE_BUSY) {
 			write_log(ERROR, "Could not open pipe. CreateFile failed with error: %ld\n",
 					GetLastError());
 			ExitThread(0);
@@ -354,6 +353,7 @@ void *thread_sender(client_args* c) {
 	#else
 		// lock mutex and wake up process for logs
 		pthread_mutex_lock(mutex);
+		
 		if (write(pipe_conf[1], &len_logs_string, sizeof(int)) < 0) {
 			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
 	 		exit(5);
