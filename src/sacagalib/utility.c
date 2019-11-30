@@ -46,8 +46,8 @@ int load_file_memory_and_send(client_args *client_info) {
 	// parent's security attributes, with bInheritHandle set to TRUE
 	// so the FIle Mapping gets inherited by the child process
 	SECURITY_ATTRIBUTES sa;
-	sa.nLength = sizeof(SECURITY_ATTRIBUTES); 
-	sa.bInheritHandle = TRUE; 
+	sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+	sa.bInheritHandle = TRUE;
 	sa.lpSecurityDescriptor = NULL;
 
 	HANDLE hMapFile = CreateFileMappingA(

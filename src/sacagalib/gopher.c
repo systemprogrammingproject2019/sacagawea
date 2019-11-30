@@ -214,25 +214,28 @@ void *thread_sender(client_args* c) {
 	char buff;
 	// close the sockets gracefully
 #ifdef _WIN32
-	CloseHandle(c->file_to_send);
 	if (shutdown(c->socket, SD_SEND) != 0) {
 		write_log(ERROR, "shutdown on socket failed with error: %I64d",
 				WSAGetLastError());
-		WSACleanup();
-	}
-
-	if (recv(c->socket, &buff, sizeof(buff), 0) < 0) {
-		write_log(ERROR, "recv failed with error: %d", WSAGetLastError());
-		WSACleanup();
 		close_socket_kill_child(c, 0);
 	}
+
+	int ret;
+	do {
+		ret = recv(c->socket, &buff, sizeof(buff), 0);
+		if (ret < 0) {
+			write_log(ERROR, "recv() failed: %s", WSAGetLastError());
+			close_socket_kill_child(c, 0);
+		}
+	} while(ret != 0);
+
+	CloseHandle(c->file_to_send);
 
 	if (closesocket(c->socket) != 0) {
 		write_log(ERROR, "closesocket on socket failed with error: %I64d",
 				WSAGetLastError());
-		WSACleanup();
+		close_socket_kill_child(c, 0);
 	}
-	// ExitThread(1);
 #else
 	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma mi sembra veramente inteligente come cosa.
 	allora curl legge finche il socket è aperto. quindi quando inviavo il file anche se inviato tutto
@@ -246,13 +249,13 @@ void *thread_sender(client_args* c) {
 	quindi faccio questo while che cerca di fare una recv, quando la recv ritorna 0 vuol dire che la curl ha chiuso 
 	la connessione e quindi ha finito di leggere il file. pertanto posso chiudere definitivamente il socket e il thread */
 	int ret;
-	do{
-		ret=recv(c->socket, &buff, sizeof(buff), 0);
-		if ( ret < 0) {
+	do {
+		ret = recv(c->socket, &buff, sizeof(buff), 0);
+		if (ret < 0) {
 			write_log(ERROR, "recv() failed: %s", strerror(errno));
 			close_socket_kill_child(c, 0);
 		}
-	}while( ret != 0 );
+	} while(ret != 0);
 	close(c->socket);
 #endif
 

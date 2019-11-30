@@ -106,7 +106,7 @@ sock_t open_socket(const settings_t* settings) {
 		address family with the TCP transport (SOCK_STREAM) is used for this socket.*/
 	if ((ListenSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
 		write_log(ERROR, "socket failed: %s", strerror(errno));
-	 	exit(5);
+		exit(5);
 	}
 
 	if (setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {

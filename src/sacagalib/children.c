@@ -307,7 +307,7 @@ long unsigned int* management_function(client_args* c) {
 	if ((check = read_request(c->socket, input, MAX_REQUEST_LEN))) {
 		close_socket_kill_child(c, 0);
 	}
-	
+
 	// if we are there, print that message
 	write_log(DEBUG, "RECEIVED: \"%s\"\n%d bytes at %p\n",
 			input, check, &input);
