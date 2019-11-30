@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.html": "jinja-html",
+			"windows.h": "c",
+			"regex.h": "c",
+			"pcre2.h": "c",
+			"sstream": "c",
+			"regex": "c",
+			"shlwapi.h": "c",
+			"pthread.h": "c"
+		}
+	}
+}
