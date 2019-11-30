@@ -150,7 +150,7 @@ void sighup_handler(int signum) {
 int main(int argc, char *argv[]) {
 
 	//become_deamon();
-
+	
 	//fill default settings
 	settings = calloc(1, sizeof(settings_t));
 	settings->port = DEFAULT_SERVER_PORT;
