@@ -233,8 +233,6 @@ void *thread_sender(client_args* c) {
 
 	CloseHandle(c->file_to_send);
 
-	CloseHandle(c->file_to_send);
-
 	if (closesocket(c->socket) != 0) {
 		write_log(ERROR, "closesocket on socket failed with error: %I64d",
 				WSAGetLastError());
@@ -252,17 +250,10 @@ void *thread_sender(client_args* c) {
 	/* come detto prima curl finisce la comunicazione quando legge tutto, ma noi non sappiamo quando ha finito
 	quindi faccio questo while che cerca di fare una recv, quando la recv ritorna 0 vuol dire che la curl ha chiuso 
 	la connessione e quindi ha finito di leggere il file. pertanto posso chiudere definitivamente il socket e il thread */
-<<<<<<< Updated upstream
 	int ret;
 	do {
 		ret = recv(c->socket, &buff, sizeof(buff), 0);
 		if (ret < 0) {
-=======
-	int ret,i;
-	do{
-		ret=recv(c->socket, &buff, sizeof(buff), 0);
-		if ( ret < 0) {
->>>>>>> Stashed changes
 			write_log(ERROR, "recv() failed: %s", strerror(errno));
 			close_socket_kill_child(c, 0);
 		}
