@@ -69,7 +69,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	client_info->file_to_send = hMapFile;
 
 	LPDWORD lpThreadId = 0;
-	HANDLE tHandle = CreateThread( 
+	HANDLE tHandle = CreateThread(
 			NULL,           // default security attributes
 			0,              // use default stack size  
 			(LPTHREAD_START_ROUTINE) thread_sender,  // thread function name

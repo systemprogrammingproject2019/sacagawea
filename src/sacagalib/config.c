@@ -229,7 +229,7 @@ int read_and_check_conf(settings_t* settings, int called_from_handler) {
 		}
 		size_t line_len = strlen(line);
 		if (line[line_len - 1] != '\n') {
-			write_log(WARNING, "Config line too long: %s", line);
+			write_log(WARNING, "Line doesn't end with '\\n' or is too long: %s", line);
 		} else {
 			// replace '\n' with '\0'
 			line[line_len - 1] = '\0';

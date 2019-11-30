@@ -117,15 +117,17 @@ void write_log(int log_lv, const char* error_string, ...) {
 
 	if (snprintf(log_string, LOG_STR_LEN, "%s %s: %s\n", ds, log_lv_name[log_lv],
 			formatted_error_string) < 0) {
-		write_log(ERROR, "snprintf() failed: %s\n", strerror(errno));
+		fprintf(stderr, "ERROR: snprintf() failed: %s\n", strerror(errno));
 	}
 	free(ds);
 
 	if (log_lv <= WARNING) {
 		fprintf(stderr, "%s", log_string);
+		fflush(stderr);
+		
 	} else if (log_lv <= LOG_LEVEL) {
 		fprintf(stdout, "%s", log_string);
-		// fflush(stdout);
+		fflush(stdout);
 		// return;
 	}
 	free(formatted_error_string);

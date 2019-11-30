@@ -70,7 +70,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			continue;
 		} else {
 			// the file match all word we send the data
-			write_log(INFO, "%s", subFile->d_name);
+			// write_log(INFO, "%s", subFile->d_name);
 			path_of_subfile = (char*) calloc((strlen(client_info->path_file) + strlen(subFile->d_name) + 2), sizeof(char));
 		#ifdef _WIN32
 			if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '\\') {
@@ -113,17 +113,19 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 			}
 
-			write_log(INFO, "response at %d: %s", client_info->socket, response);
-			send(client_info->socket, response, strlen(response), 0);
-
+			// write_log(INFO, "send_content_of_dir response to socket %d: %s", client_info->socket, response);
+			send(client_info->socket, response, strlen(response), 0);	
+			
 			free(response);
 			free(path_of_subfile);
 		}
 	}
 	char end[] = ".\n";
 	send(client_info->socket, end, strlen(end), 0);
-	closedir(folder);
 
+	write_log(INFO, "send_content_of_dir response to socket %d: SENT", client_info->socket);
+
+	closedir(folder);
 	close(client_info->socket);
 }
 
