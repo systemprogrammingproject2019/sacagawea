@@ -30,10 +30,9 @@
 
 void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	write_log(INFO, "%s", client_info->path_file);
-// #ifdef _WIN32
 
-// #else
-// this fuction send each file in a directory which match "words" in the gopher protocol format.
+	// this fuction send each file in a directory which match "words" in the
+	// gopher protocol format.
 
 	DIR *folder;
 	struct dirent *subFile;
@@ -126,7 +125,6 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	closedir(folder);
 
 	close(client_info->socket);
-// #endif
 }
 
 
@@ -138,23 +136,16 @@ void *thread_sender(client_args* c) {
 #ifdef _WIN32
 	SYSTEM_INFO sysnfo;
 	GetSystemInfo(&sysnfo);
-	DWORD multipleOfAllocationGranularity;
-	// Due to send using an "int" as its 3rd parameter, we are forced to
-	// use dimensions bigger than INT_MAX. Also, these dimensions need to be
-	// a multiple of the page size of the OS (dwAllocationGranularity)
-	// because reads done in MapViewOfFile need to be aligned to the page len
-	// 262144B is exactly 256KiB. The choice to use this number is arbitrary.
-	// As our buffer we will use either:
-	//      *  the closest multiple of dwAllocationGranularity to 256KiB
-	//      or, if dwAllocationGranularity is bigger than 256KiB
-	//      *  dwAllocationGranularity
-	if (sysnfo.dwAllocationGranularity < 262144) {
-	multipleOfAllocationGranularity = sysnfo.dwAllocationGranularity 
-			* (262144 / sysnfo.dwAllocationGranularity);
-	} else {
-		multipleOfAllocationGranularity = sysnfo.dwAllocationGranularity;
-	}
-	// write_log(DEBUG, "our granularity is %d", multipleOfAllocationGranularity);
+
+	// In WIN32, "send" has an "int" as its 3rd parameter (size) instead of a
+	// size_t. Due to us needing to support the sending of files with size
+	// greater than INT_MAX, we will need to do multiple "send"s.
+	// Also, these dimensions need to be a multiple of the page size of the OS
+	// (dwAllocationGranularity) because reads done in MapViewOfFile need to be
+	// aligned to the page length. We have therefore chosen to use 
+	// sysnfo.dwAllocationGranularity as our buffer length because trivially
+	// it's a multiple of sysnfo.dwAllocationGranularity
+
 #endif
 	while (bytes_sent < c->len_file) {
 		// logic for sending the file
@@ -170,7 +161,7 @@ void *thread_sender(client_args* c) {
 				FILE_MAP_READ,        // read permission
 				HIDWORD(bytes_sent),
 				LODWORD(bytes_sent),
-				min(multipleOfAllocationGranularity, c->len_file - bytes_sent)
+				min(sysnfo.dwAllocationGranularity, c->len_file - bytes_sent)
 		);
 		if (pBuf == NULL) {
 			write_log(ERROR, "MapViewOfFile failed wirh error: %d",
@@ -178,13 +169,13 @@ void *thread_sender(client_args* c) {
 			return false;
 		}
 
-		// // In windows, pages read from MapViewOfFile need to be aligned
-		// // to the granularity of the pages in memory.
-		// // In order to comply to this restriction, we divide the sending
-		// // process into rounds. In each of these rounds, we either send one
-		// // page or, if less than one page remains, send all.
+		// In windows, pages read from MapViewOfFile need to be aligned
+		// to the granularity of the pages in memory.
+		// In order to comply to this restriction, we divide the sending
+		// process into rounds. In each of these rounds, we either send one
+		// page or, if less than one page remains, send all.
 		temp = send(c->socket, pBuf,
-				min(multipleOfAllocationGranularity,
+				min(sysnfo.dwAllocationGranularity,
 				c->len_file - bytes_sent), 0);
 		if (temp == SOCKET_ERROR) {
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
@@ -216,7 +207,6 @@ void *thread_sender(client_args* c) {
 	#endif
 	#ifdef _WIN32
 		UnmapViewOfFile(pBuf);
-		// Without this, MapViewOfFile doesnt work for huge files
 	#endif
 	}
 	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
