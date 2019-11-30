@@ -245,10 +245,14 @@ void *thread_sender(client_args* c) {
 	/* come detto prima curl finisce la comunicazione quando legge tutto, ma noi non sappiamo quando ha finito
 	quindi faccio questo while che cerca di fare una recv, quando la recv ritorna 0 vuol dire che la curl ha chiuso 
 	la connessione e quindi ha finito di leggere il file. pertanto posso chiudere definitivamente il socket e il thread */
-	if (recv(c->socket, &buff, sizeof(buff), 0) < 0) {
-		write_log(ERROR, "recv() failed: %s", strerror(errno));
-		close_socket_kill_child(c, 0);
-	}
+	int ret;
+	do{
+		ret=recv(c->socket, &buff, sizeof(buff), 0);
+		if ( ret < 0) {
+			write_log(ERROR, "recv() failed: %s", strerror(errno));
+			close_socket_kill_child(c, 0);
+		}
+	}while( ret != 0 );
 	close(c->socket);
 #endif
 
