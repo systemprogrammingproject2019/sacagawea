@@ -378,7 +378,7 @@ char type_path(char path[PATH_MAX]) {
 
 	if (PathIsDirectoryA(path)) {
 		// write_log(INFO, "Path %s is a directory", path);
-		return '1';
+		return '7';
 	}
 
 	LPCSTR extension = PathFindExtensionA(path);
@@ -441,7 +441,7 @@ char type_path(char path[PATH_MAX]) {
 
 
 	if ((strncmp(popen_output, DIR_1, strlen(DIR_1)) == 0) || (strncmp(popen_output, GOPHER_1, strlen(GOPHER_1)) == 0)) {
-		return '1';
+		return '7';
 	}
 	if (strncmp(popen_output, MULTIPART_M, strlen(MULTIPART_M)) == 0) {
 		return 'M';

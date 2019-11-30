@@ -341,7 +341,7 @@ long unsigned int* management_function(client_args* c) {
 	type = type_path(c->path_file);
 
 	// if is a dir we check the content if match with words 
-	if (type == '1') {
+	if (type == '7') {
 		send_content_of_dir(c, &client_selector);
 	} else {
 		if (type == '3') { // if is an error send the error message
