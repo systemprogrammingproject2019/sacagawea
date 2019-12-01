@@ -33,7 +33,7 @@ se passa un path di 4096 ci sta un buffer overflow.
  */
 
 void print_client_args(client_args *client) {
-	write_log(INFO, "SOCKET = %d;  IP:port =  %s",
+	write_log(DEBUG, "SOCKET = %d;  IP:port =  %s",
 			client->socket, client->addr);
 }
 

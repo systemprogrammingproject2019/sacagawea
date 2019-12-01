@@ -13,7 +13,7 @@
 #define DEBUG   3
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL WARNING
+#define LOG_LEVEL INFO
 #endif
 
 // need these for separating higher and lower bits for "File Mapping" functions

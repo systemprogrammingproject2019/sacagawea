@@ -22,7 +22,7 @@
 void read_conf_line(const char* line, settings_t* settings) {
 	char* match = NULL;
 	char matched = false;
-	write_log(INFO, S_LINE_READ_FROM_CONF_FILE, line);
+	write_log(DEBUG, S_LINE_READ_FROM_CONF_FILE, line);
 
 	// "mode [t/p]"
 	match = do_regex(("^" S_MODE "[[:space:]]+([tp])"), line);

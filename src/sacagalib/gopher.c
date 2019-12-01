@@ -29,7 +29,7 @@
 #include "sacagalib.h"
 
 void send_content_of_dir(client_args* client_info, selector* client_selector) {
-	write_log(INFO, "%s", client_info->path_file);
+	write_log(DEBUG, "%s", client_info->path_file);
 
 	// this fuction send each file in a directory which match "words" in the
 	// gopher protocol format.
@@ -124,7 +124,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	char end[] = ".\n";
 	send(client_info->socket, end, strlen(end), 0);
 
-	write_log(INFO, "send_content_of_dir response to socket %d: SENT", client_info->socket);
+	write_log(DEBUG, "send_content_of_dir response to socket %d: SENT", client_info->socket);
 
 	closedir(folder);
 	//close(client_info->socket);
@@ -167,8 +167,8 @@ void *thread_sender(client_args* c) {
 				min(sysnfo.dwAllocationGranularity, c->len_file - bytes_sent)
 		);
 		if (pBuf == NULL) {
-			write_log(ERROR, "MapViewOfFile failed wirh error: %d",
-					GetLastError());
+			write_log(ERROR, "MapViewOfFile on %d failed wirh error: %d",
+					c->file_to_send, GetLastError());
 			return false;
 		}
 
@@ -183,6 +183,7 @@ void *thread_sender(client_args* c) {
 		if (temp == SOCKET_ERROR) {
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
 				UnmapViewOfFile(pBuf);
+				write_log(INFO, "UnmapViewOfFile on %d", c->file_to_send);
 				write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
 						c->addr, c->socket, WSAGetLastError());
 
@@ -216,6 +217,7 @@ void *thread_sender(client_args* c) {
 	#endif
 	#ifdef _WIN32
 		UnmapViewOfFile(pBuf);
+		write_log(INFO, "UnmapViewOfFile on %d", c->file_to_send);
 	#endif
 	}
 	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
@@ -441,7 +443,7 @@ char type_path(char path[PATH_MAX]) {
 	}
 	//fprintf( stdout, "%s\n", popen_output); 
 	if (strncmp(popen_output, "cannot", 6) == 0) {
-		write_log(INFO, "%s", popen_output);
+		write_log(DEBUG, "%s", popen_output);
 		while (fgets((char *) &popen_output, 32, popen_output_stream) != NULL) {
 			fprintf(stdout, "%s", popen_output); 
 		}

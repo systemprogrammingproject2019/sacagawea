@@ -246,6 +246,7 @@ int accept_wrapper(const settings_t* settings) {
 			write_log(ERROR, "ioctlsocket failed with error %d",
 					WSAGetLastError());
 			closesocket(new_s);
+			write_log(INFO, "Closed socket %lld", new_s);
 			exit(EXIT_FAILURE);
 		}
 	#else
@@ -269,7 +270,7 @@ int accept_wrapper(const settings_t* settings) {
 		}
 		// save the IP:PORT of client and socket in the client_info struct
 		snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
-		write_log(WARNING, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
+		write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
 		client_info->socket = new_s;
 
 		/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */

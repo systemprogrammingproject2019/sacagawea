@@ -67,7 +67,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	// we pass the name of the file mapping to the sender thread
 	// instead of the actual file, as the linux version does 
 	client_info->file_to_send = hMapFile;
-
+		write_log(INFO, "CreateFileMappingA on %d", client_info->file_to_send);
 	LPDWORD lpThreadId = 0;
 	HANDLE tHandle = CreateThread(
 			NULL,           // default security attributes

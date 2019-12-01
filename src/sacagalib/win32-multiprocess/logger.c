@@ -177,7 +177,7 @@ void write_to_log_file(char* pipe) {
 			NULL
 	);
 	if (hLogFile == INVALID_HANDLE_VALUE) {
-		write_log(WARNING, "CreateFileA %s failed with error: %d",
+		write_log(ERROR, "CreateFileA %s failed with error: %d",
 				SACAGAWEALOGS_PATH, GetLastError());
 		CloseHandle(hLogFile);
 		return;
@@ -191,7 +191,7 @@ void write_to_log_file(char* pipe) {
 			NULL             // no overlapped structure
 	);
 	if (!bErrorFlag) {
-		write_log(WARNING, "WriteFile %s failed with error: %d",
+		write_log(ERROR, "WriteFile %s failed with error: %d",
 				SACAGAWEALOGS_PATH, GetLastError());
 	}
 	CloseHandle(hLogFile);

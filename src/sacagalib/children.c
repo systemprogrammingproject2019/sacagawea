@@ -247,7 +247,7 @@ selector request_to_selector(char* input) {
 		}
 	}
 
-	write_log(INFO, "SELECTOR: \"%s\", %d bytes",
+	write_log(DEBUG, "SELECTOR: \"%s\", %d bytes",
 			client_selector.selector , read_bytes );
 
 	// if the client send a tab \t, it means that the selector is followed by words 
@@ -274,7 +274,7 @@ selector request_to_selector(char* input) {
 			sscanf(&input[read_bytes], "%255s", client_selector.words[i]);
 			// upgrade read_bytes for check when we finish the client input
 			read_bytes += (strlen( client_selector.words[i]));
-			write_log(INFO, "WORD %d: %s,%llu bytes", i, client_selector.words[i] , strlen(client_selector.words[i]) );
+			write_log(DEBUG, "WORD %d: %s,%llu bytes", i, client_selector.words[i] , strlen(client_selector.words[i]) );
 			// upgrade the num of words, contained in client_selector
 			client_selector.num_words = i;
 			i++;
@@ -331,7 +331,7 @@ long unsigned int* management_function(client_args* c) {
 		close_socket_kill_child(c, 0);
 	}
 	strcat(c->path_file, client_selector.selector);
-	write_log(INFO, "PATH+SELECTOR %d bytes: %s",
+	write_log(DEBUG, "PATH+SELECTOR %d bytes: %s",
 			strlen(c->path_file), c->path_file);
 
 	// avoid trasversal path
@@ -394,7 +394,7 @@ thread_t thread_management(client_args *client_info) {
 void close_socket_kill_thread(sock_t sd, int errcode) {
 #ifdef _WIN32
 	closesocket(sd);
-	write_log(WARNING, "Closed socket %lld", sd);
+	write_log(INFO, "Closed socket %lld", sd);
 	ExitThread(errcode);
 #else
 	close(sd);
