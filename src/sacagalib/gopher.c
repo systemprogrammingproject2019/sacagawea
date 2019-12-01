@@ -192,7 +192,6 @@ void *thread_sender(client_args* c) {
 							c->socket, WSAGetLastError());
 					ExitThread(0);
 				}
-				CloseHandle(c->file_to_send);
 				ExitThread(0);
 			}
 		} else {
@@ -239,8 +238,6 @@ void *thread_sender(client_args* c) {
 			ExitThread(0);
 		}
 	} while(ret != 0);
-
-	CloseHandle(c->file_to_send);
 
 #else
 	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma mi sembra veramente inteligente come cosa.

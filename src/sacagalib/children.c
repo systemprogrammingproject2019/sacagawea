@@ -63,7 +63,7 @@ int read_request(sock_t sd, char* buf, int buflen) {
 				keep_going = 1;
 			}
 		} else if (check == 0) {
-			printf("	Connection closed %I64d\n", sd);
+			write_log(DEBUG, "Connection closed %lld", sd);
 			// client close the connection so we can stop read and responce
 			return true;
 		} else {
