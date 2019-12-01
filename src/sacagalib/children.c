@@ -296,7 +296,7 @@ long unsigned int* management_function(client_args* c) {
 	WSADATA wsaData;
 	if ((WSAStartup(MAKEWORD(2, 2), &wsaData)) == SOCKET_ERROR) {
 		write_log(ERROR, "WSAStartup failed with error: %d", WSAGetLastError());
-		exit(EXIT_FAILURE);
+		close_socket_kill_child(c, 0);
 	}
 #endif
 
@@ -334,9 +334,9 @@ long unsigned int* management_function(client_args* c) {
 	write_log(INFO, "PATH+SELECTOR %d bytes: %s",
 			strlen(c->path_file), c->path_file);
 
-	// avoid trasversal path	
+	// avoid trasversal path
 	if (check_security_path(c->path_file)) {
-		write_log(INFO, "eh eh nice try where u wanna go?");
+		write_log(WARNING, "Path traversal detected!!");
 		close_socket_kill_child(c, 0);
 	}
 	type = type_path(c->path_file);
@@ -394,6 +394,7 @@ thread_t thread_management(client_args *client_info) {
 void close_socket_kill_thread(sock_t sd, int errcode) {
 #ifdef _WIN32
 	closesocket(sd);
+	write_log(WARNING, "Closed socket %lld", sd);
 	ExitThread(errcode);
 #else
 	close(sd);
@@ -411,10 +412,11 @@ void close_socket_kill_process(sock_t sd, int errcode) {
 }
 
 void close_socket_kill_child(client_args* c, int errcode) {
+	sock_t s = c->socket;
 	if ((c->settings).mode == 't') {
-		close_socket_kill_thread(c->socket, 0);
+		close_socket_kill_thread(s, 0);
 	} else {
-		close_socket_kill_process(c->socket, 0);
+		close_socket_kill_process(s, 0);
 	}
 	free(c);
 }

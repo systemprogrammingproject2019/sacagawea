@@ -21,12 +21,11 @@ void write_to_log_file(char*);
 
 int WINAPI loggerConsoleEventHandler(DWORD fdwCtrlType) {
 	// "return false" kills the process
-	switch (fdwCtrlType)
-	{
+	switch (fdwCtrlType) {
 	case CTRL_BREAK_EVENT:
 		return TRUE; // dont close the process
 	default:
-		write_log(DEBUG, "Quitting sacagawea-logger.exe!");
+		write_log(INFO, "Quitting sacagawea-logger.exe!");
 		return FALSE;
 	}
 	return FALSE;

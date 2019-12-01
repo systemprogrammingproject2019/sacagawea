@@ -66,7 +66,7 @@ sock_t open_socket(const settings_t* settings) {
 	// non-block so the application will not block waiting for requests
 	ULONG NonBlock = true;
 	if (ioctlsocket(ListenSocket, FIONBIO, &NonBlock) == SOCKET_ERROR) {
-		write_log(ERROR, "ioctlsocket failed with error %d\n", WSAGetLastError());
+		write_log(ERROR, "ioctlsocket failed with error %d", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -165,14 +165,14 @@ int listen_descriptor(const settings_t* settings) {
 	FD_SET(settings->socket, &fds_set);
 
 	// start select and check if failed
-	write_log(INFO, "Waiting on select()...");
+	write_log(DEBUG, "Waiting on select()...");
 
 	// we only need to monitor the settings->socket, so the first arg of select
 	// can just be "settings->socket + 1", which is the highest number of fd
 	// we need to monitor
 	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, 
-#ifdef _WIN32		
-			&(struct timeval){1, 0}); // 1 second timeout
+#ifdef _WIN32
+			&(struct timeval){1, 0}); // 0.1 second timeout
 #else
 			NULL);
 #endif
@@ -201,7 +201,7 @@ int listen_descriptor(const settings_t* settings) {
 	}
 
 	if (FD_ISSET(settings->socket, &fds_set)) {
-		printf("\n--------------------\nListening socket is readable\n--------------------\n\n");
+		write_log(DEBUG, "+++++++++++++++++Listening socket is readable+++++++++++++++++");
 		/*Accept all incoming connections that are queued up on the listening
 		socket before we loop back and call select again. */
 		accept_wrapper(settings);
@@ -243,7 +243,7 @@ int accept_wrapper(const settings_t* settings) {
 		// blocking so the application will be able to have blocking sends
 		unsigned long NonBlock = false;
 		if (ioctlsocket(new_s, FIONBIO, &NonBlock) == SOCKET_ERROR) {
-			write_log(ERROR, "ioctlsocket failed with error %d\n",
+			write_log(ERROR, "ioctlsocket failed with error %d",
 					WSAGetLastError());
 			closesocket(new_s);
 			exit(EXIT_FAILURE);
@@ -269,7 +269,7 @@ int accept_wrapper(const settings_t* settings) {
 		}
 		// save the IP:PORT of client and socket in the client_info struct
 		snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
-		write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
+		write_log(WARNING, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
 		client_info->socket = new_s;
 
 		/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */

@@ -150,7 +150,38 @@ void sighup_handler(int signum) {
 int main(int argc, char *argv[]) {
 
 	//become_deamon();
-	
+
+#ifdef _WIN32
+	// create a job object and include both this process and the logger process
+	// so that when we close this process, all processes in the job object are
+	// closed automatically thanks to JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE flag
+	HANDLE jobHandle;
+
+	if ((jobHandle = CreateJobObjectA(NULL, NULL)) == NULL) {
+		write_log(ERROR, "CreateJobObjectA failed: %lld", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+
+	// set JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on the job object
+	JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {0};
+	jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+	if (SetInformationJobObject(jobHandle, 
+			JobObjectExtendedLimitInformation,
+			&jeli,
+			sizeof(jeli)) == 0) {
+		write_log(ERROR, "SetInformationJobObject failed: error %lld",
+				GetLastError() );
+		exit(EXIT_FAILURE);
+	}
+
+	if (AssignProcessToJobObject(jobHandle, GetCurrentProcess()) == 0) {
+		write_log(ERROR, "AssignProcessToJobObject failed: %lld",
+				GetLastError());
+		exit(EXIT_FAILURE);
+	}
+
+#endif
+
 	//fill default settings
 	settings = calloc(1, sizeof(settings_t));
 	settings->port = DEFAULT_SERVER_PORT;
@@ -312,6 +343,12 @@ int main(int argc, char *argv[]) {
 	// If an error occurs, exit the application. 
 	if (!bLogger) {
 		write_log(ERROR, "CreateProcess failed with error: %I64d",
+				GetLastError());
+		close_all();
+	}
+
+	if (AssignProcessToJobObject(jobHandle, logProcess.hProcess) == 0) {
+		write_log(ERROR, "AssignProcessToJobObject failed: %lld",
 				GetLastError());
 		close_all();
 	}
