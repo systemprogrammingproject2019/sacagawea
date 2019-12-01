@@ -46,6 +46,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	// open dir 
 	folder = opendir(client_info->path_file);
 	if (folder == NULL) {
+		return;
 		close_socket_kill_child(client_info, 5);
 	}
 
@@ -126,7 +127,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	write_log(INFO, "send_content_of_dir response to socket %d: SENT", client_info->socket);
 
 	closedir(folder);
-	close(client_info->socket);
+	//close(client_info->socket);
 }
 
 
@@ -185,7 +186,8 @@ void *thread_sender(client_args* c) {
 				write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
 					c->addr, c->socket, WSAGetLastError());
 				shutdown(c->socket, SD_SEND);
-				close_socket_kill_child(c, 0);
+				//close_socket_kill_child(c, 0);
+				ExitThread(0);
 			}
 		} else {
 			bytes_sent += temp;
@@ -197,12 +199,14 @@ void *thread_sender(client_args* c) {
 			if (temp != EWOULDBLOCK) {
 				write_log(ERROR, "Sending file to %s, with socket %d failed: %s",
 						c->addr, c->socket, strerror(errno));
-				close_socket_kill_child(c, 0);
+				//close_socket_kill_child(c, 0);
+				pthread_exit(0);
 			}
 		} else if (temp == 0) {
 			write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
 					c->addr, c->socket);
-			close_socket_kill_child(c, 0);
+			//close_socket_kill_child(c, 0);
+			pthread_exit(0);
 		} else {
 			bytes_sent += temp;
 		}
@@ -219,25 +223,28 @@ void *thread_sender(client_args* c) {
 	if (shutdown(c->socket, SD_SEND) != 0) {
 		write_log(ERROR, "shutdown on socket failed with error: %I64d",
 				WSAGetLastError());
-		close_socket_kill_child(c, 0);
+		//close_socket_kill_child(c, 0);
+		ExitThread(0);
 	}
 
 	int ret;
 	do {
-		ret = recv(c->socket, &buff, sizeof(buff), 0);
+		ret = recv(c->socket, &buff, sizeof(buff), MSG_WAITALL);
 		if (ret < 0) {
 			write_log(ERROR, "recv() failed: %s", WSAGetLastError());
-			close_socket_kill_child(c, 0);
+			//close_socket_kill_child(c, 0);
+			ExitThread(0);
 		}
 	} while(ret != 0);
 
 	CloseHandle(c->file_to_send);
 
-	if (closesocket(c->socket) != 0) {
+	/*if (closesocket(c->socket) != 0) {
 		write_log(ERROR, "closesocket on socket failed with error: %I64d",
 				WSAGetLastError());
-		close_socket_kill_child(c, 0);
-	}
+		//close_socket_kill_child(c, 0);
+		ExitThread(0);
+	}*/
 #else
 	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma mi sembra veramente inteligente come cosa.
 	allora curl legge finche il socket è aperto. quindi quando inviavo il file anche se inviato tutto
@@ -245,20 +252,22 @@ void *thread_sender(client_args* c) {
 	dal lato server, cosi curl quando finisce di leggere i bytes inviati si blocca e chiude la comunicazione */ 
 	if (shutdown(c->socket, SHUT_WR) < 0) {
 		write_log(ERROR, "shutdown() failed: %s\n", strerror(errno));
-		close_socket_kill_child(c, 0);
+		//close_socket_kill_child(c, 0);
+		pthread_exit(0);
 	}
 	/* come detto prima curl finisce la comunicazione quando legge tutto, ma noi non sappiamo quando ha finito
 	quindi faccio questo while che cerca di fare una recv, quando la recv ritorna 0 vuol dire che la curl ha chiuso 
 	la connessione e quindi ha finito di leggere il file. pertanto posso chiudere definitivamente il socket e il thread */
 	int ret;
 	do {
-		ret = recv(c->socket, &buff, sizeof(buff), 0);
+		ret = recv(c->socket, &buff, sizeof(buff), MSG_WAITALL);
 		if (ret < 0) {
 			write_log(ERROR, "recv() failed: %s", strerror(errno));
-			close_socket_kill_child(c, 0);
+			//close_socket_kill_child(c, 0);
+			pthread_exit(0);
 		}
 	} while(ret != 0);
-	close(c->socket);
+	//close(c->socket);
 #endif
 
 	// prepare the message for the logging process

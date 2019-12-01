@@ -213,7 +213,7 @@ int listen_descriptor(const settings_t* settings) {
 int accept_wrapper(const settings_t* settings) {
 	int new_s;
 	struct sockaddr_in addr;
-
+	client_args* client_info;
 	/*Accept each incoming connection.  If accept fails with EWOULDBLOCK,
 	then we have accepted all of them.
 	Any other failure on accept will cause us to end the server.  */
@@ -221,7 +221,7 @@ int accept_wrapper(const settings_t* settings) {
 	memset(&addr, 0, (size_t) addr_len);
 
 	while (true) {
-		client_args* client_info = (client_args*) calloc(1, sizeof(client_args));
+		client_info = (client_args*) calloc(1, sizeof(client_args));
 		memcpy(&(client_info->settings), settings, sizeof(settings_t));
 		// accept the connected connection which already did 3WHS.
 		new_s = accept(settings->socket, (struct sockaddr*) &addr, &addr_len);
@@ -267,11 +267,12 @@ int accept_wrapper(const settings_t* settings) {
 			}
 		#endif
 		}
-		/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
+		// save the IP:PORT of client and socket in the client_info struct
 		snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
 		write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
 		client_info->socket = new_s;
 
+		/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
 		if (settings->mode == 't') {
 			thread_management(client_info);
 		} else {

@@ -181,6 +181,7 @@ int process_management(client_args *client_info) {
 
 	// need to close the socket here too, else it stays open in this process
 	closesocket(client_info->socket);
+	free(client_info);
 #else
 	int pid;
 	if ((pid = fork()) < 0) {
@@ -380,6 +381,7 @@ thread_t thread_management(client_args *client_info) {
 			0,               // use default creation flags 
 			lpThreadId       // returns the thread identifier 
 	);
+	free(client_info);
 	return tHandle;
 #else
 	pthread_t tid;
@@ -414,4 +416,5 @@ void close_socket_kill_child(client_args* c, int errcode) {
 	} else {
 		close_socket_kill_process(c->socket, 0);
 	}
+	free(c);
 }

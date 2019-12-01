@@ -92,12 +92,14 @@ int load_file_memory_and_send(client_args *client_info) {
 	int fd = open(client_info->path_file, O_RDONLY, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
 		write_log(ERROR, "open() failed: %s\n", strerror(errno));
+		return false;
 		exit(5);
 	}
 	// declare struct for 3th argument for fcntl and memset it to 0
 	struct flock lck;
 	if (memset(&lck, 0, sizeof(lck)) == NULL) {
 		write_log(ERROR, "memset() failed: %s\n", strerror(errno));
+		return false;
 		exit(5);
 	}
 
