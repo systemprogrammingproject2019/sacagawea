@@ -366,7 +366,7 @@ long unsigned int* management_function(client_args* c) {
 }
 
 // this function spawn thread to management the new client request 
-thread_t thread_management(client_args *client_info) {
+void thread_management(client_args *client_info) {
 #ifdef _WIN32
 	HANDLE tHandle;
 	print_client_args(client_info);
@@ -381,12 +381,15 @@ thread_t thread_management(client_args *client_info) {
 			lpThreadId       // returns the thread identifier 
 	);
 	CloseHandle(tHandle);
-	return tHandle;
+	return;
 #else
 	pthread_t tid;
 	print_client_args(client_info);
 	pthread_create(&tid, NULL, (void *) management_function, (void *) client_info);
-	return tid;
+	// we need to call pthread_detach so the thread will release its
+	// resources (memory) on exit
+	pthread_detach(tid);
+	return;
 #endif
 }
 

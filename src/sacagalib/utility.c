@@ -163,6 +163,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	pthread_t tid;
 	pthread_create(&tid, NULL, (void *) thread_sender, (void *) client_info);
 	pthread_join(tid, NULL);
+	munmap(client_info->file_to_send, (client_info->len_file + 1));
 	return true;
 #endif
 }

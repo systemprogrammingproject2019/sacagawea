@@ -274,7 +274,7 @@ void *thread_sender(client_args* c) {
 			write_log(ERROR, "malloc() failed with error: %d", GetLastError());
 			ExitThread(0);
 		#else
-			write_log(ERROR, "malloc() failed: %s\n", strerror(errno));
+			write_log(ERROR, "malloc() failed: %s", strerror(errno));
 			pthread_exit(NULL);
 		#endif
 		}
