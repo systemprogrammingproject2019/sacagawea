@@ -41,37 +41,60 @@ pthread_condattr_t cattr;
 #endif
 
 #ifndef _WIN32
-void become_deamon() {
+void become_daemon() {
 	int pid;
 	pid = fork();
 	if (pid < 0) {
 		write_log(ERROR, "System call fork() failed because of %s", strerror(errno));
-		exit(5);
+		exit(EXIT_FAILURE);
 	}
 	if (pid > 0) {
-		write_log(INFO, "Server become a deamon" );
-		exit(5);
+		exit(EXIT_SUCCESS);
 	}
 
-	if( setsid() < 0) {
+	if(setsid() < 0) {
 		write_log(ERROR, "System call setsid() failed because of %s", strerror(errno));
-		exit(5);
+		exit(EXIT_FAILURE);
+	}
+
+	// Fork again, allowing the parent process to terminate.
+	signal(SIGHUP,SIG_IGN);
+	pid = fork();
+	if (pid < 0) {
+		write_log(ERROR, "System call setsid() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if (pid > 0) {
+		write_log(INFO, "Sacagawea daemon at pid: %d", pid);
+		exit(EXIT_SUCCESS);
 	}
 
 	/* Change the current working directory */
-	if ((chdir( S_ROOT_PATH )) < 0) {
+	if ((chdir(S_ROOT_PATH)) < 0) {
 		write_log(ERROR, "System call chdir() failed because of %s", strerror(errno));
-		exit(5);
+		exit(EXIT_FAILURE);
 	}
+
+	/*resetting file Creation Mask .
+	this sets the process mode to 750 because umask needs the complement*/
+	umask(027);
 
 	/* Close out the standard file descriptors */
 	close(STDIN_FILENO);
 	close(STDOUT_FILENO);
 	close(STDERR_FILENO);
-
-	/*resettign File Creation Mask .
-	this set the process mode to 750 becouse umask need the complement*/
-	umask(027);
+	if (open("/dev/null",O_RDONLY) == -1) {
+		write_log(ERROR, "failed to reopen stdin while daemonising (errno=%d)",errno);
+		exit(EXIT_FAILURE);
+	}
+	if (open("/dev/null",O_WRONLY) == -1) {
+		write_log(ERROR, "failed to reopen stdout while daemonising (errno=%d)",errno);
+		exit(EXIT_FAILURE);
+	}
+	if (open("/dev/null",O_RDWR) == -1) {
+		write_log(ERROR, "failed to reopen stderr while daemonising (errno=%d)",errno);
+		exit(EXIT_FAILURE);
+	}
 }
 #endif
 
@@ -149,7 +172,9 @@ void sighup_handler(int signum) {
 
 int main(int argc, char *argv[]) {
 
-	//become_deamon();
+// #ifndef _WIN32
+// 	become_daemon();
+// #endif
 
 #ifdef _WIN32
 	// create a job object and include both this process and the logger process
