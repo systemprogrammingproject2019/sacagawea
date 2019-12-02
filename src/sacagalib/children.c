@@ -366,7 +366,7 @@ long unsigned int* management_function(client_args* c) {
 }
 
 // this function spawn thread to management the new client request 
-void thread_management(client_args *client_info) {
+thread_t thread_management(client_args *client_info) {
 #ifdef _WIN32
 	HANDLE tHandle;
 	print_client_args(client_info);

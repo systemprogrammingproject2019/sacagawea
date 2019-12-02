@@ -13,7 +13,7 @@
 #define DEBUG   3
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL INFO
+#define LOG_LEVEL DEBUG
 #endif
 
 // need these for separating higher and lower bits for "File Mapping" functions
@@ -46,6 +46,7 @@
 #define MAX_FILE_NAME 255 // in Linux the max file name is 255 bytes
 #define MAX_REQUEST_LEN  5000 // we can change that with logs
 
+
 #ifdef _WIN32
 // under Win32 the PATH_MAX and MAX_PATH are already defined
 // their length is 260 chars
@@ -70,6 +71,7 @@ extern settings_t* settings;
 
 fd_set fds_set;
 
+int logs_proces_pid;
 #ifndef _WIN32
 
 int max_num_s;

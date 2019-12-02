@@ -116,8 +116,9 @@ void close_all() {
 	// kill log process
 	kill(logProcess, 15);
 
-	// close write pipe.
+	// close write pipe and send SIGTERM to logs process.
 	close(pipe_conf[1]);
+	kill( logs_proces_pid, SIGTERM );
 
 	//unlink shared memory
 	shm_unlink(SHARED_MUTEX_MEM);
@@ -389,10 +390,12 @@ int main(int argc, char *argv[]) {
 		close(pipe_conf[1]);
 		// call log management
 		log_management();
+		return 0;
 	}
 	/* server process "father" */
 	// close read pipe
 	close(pipe_conf[0]);
+	logs_proces_pid = logProcess;
 #endif
 
 	// Creating sigaction for SIGHUP

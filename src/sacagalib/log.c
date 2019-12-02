@@ -31,14 +31,14 @@ void log_management() {
 	int len_string, check;
 
 	// open logs file and check if an error occured
+	FILE* log;
+	
 	while (true) {
+
 		pthread_mutex_lock(mutex);
-		// this while check if pipe is readable (contains something). if == 1 is readable else we go sleep
-		/*while (poll(&(struct pollfd){ .fd = pipe_conf[0], .events = POLLIN }, 1, 0) != 1) {
-			pthread_cond_wait(cond, mutex);
-		}*/
 		/* this while check if pipe is readable, or dont contain nothing.
 		if is empty return error EWOULDBLOCK and go again in blocked mode. */
+		
 		while (true) {
 			//fprintf(stdout, "read\n", check);
 			check = read(pipe_conf[0] , &len_string, sizeof(int));
@@ -54,6 +54,7 @@ void log_management() {
 					shm_unlink(SHARED_MUTEX_MEM);
 					shm_unlink(SHARED_COND_MEM);
 					close( pipe_conf[0] );
+					fclose(log);
 					exit(1);
 				}
 			}
@@ -62,36 +63,29 @@ void log_management() {
 				break;
 			}
 			if (check == 0) {
-				if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
-					write_log(INFO, "LOGS Process nothing");
-					pthread_cond_wait(cond, mutex);
-				} else {
-					pthread_mutex_unlock(mutex);
-					return;
-				}
-				write_log(INFO, "ATTENZIONE\nATTENZIONE\nATTENZIONE\nricorda che a volte da 0 come return di read() della pipe del processo di logs e dovevamo capire se fosse EPIPE (Broken pipe) oppure qualcosa che indica che semplicemente ha letto 0 byte. ::   %s", strerror(errno));
+				pthread_cond_wait(cond, mutex);
 			}
 		}
 
-		log_file = fopen(SACAGAWEALOGS_PATH , "a");
-		if (log_file == NULL) {
-			fprintf(stderr, S_ERROR_FOPEN, strerror(errno));
+		log = fopen(SACAGAWEALOGS_PATH , "a");
+		if (log == NULL) {
+			write_log(INFO, "ERROR open logs file: %s", strerror(errno));
 			exit(5);
 		}
-
+	
 		// read pipe and write sacagawea.log, until we got \n
 		read_line = (char*) malloc((len_string+1) * sizeof(char));
 		if (read(pipe_conf[0], read_line, len_string) < 0) {
 			fprintf(stderr, "read() fail becouse: %s\n", strerror(errno));
 			free(read_line);
-			fclose(log_file);
+			fclose(log);
 			exit(5);
 		}
 		read_line[len_string]='\0';
 		write_log(INFO, "received: %d, %s",len_string, read_line);
-		fprintf(log_file, "%s", read_line);
+		fprintf(log, "%s", read_line);
 		
-		fclose(log_file);
+		fclose(log);
 		free(read_line);
 		pthread_mutex_unlock(mutex);
 	}
