@@ -110,16 +110,15 @@ EXPORTED void print_client_args(client_args* client);
 EXPORTED int check_not_match(char d_name[PATH_MAX+1], char *word);
 
 // children_management.c
-EXPORTED selector request_to_selector( char *input );
+EXPORTED selector* request_to_selector(char *input);
 EXPORTED long unsigned int *management_function(client_args* c);
 // EXPORTED void process_fuction(client_args *client_info);
 EXPORTED thread_t thread_management(client_args *client_info);
 EXPORTED int process_management(client_args *client_info);
+EXPORTED void free_client_args(client_args*);
 
 // the name is self explanatory
 void close_socket_kill_child(client_args* c, int errcode);
-// void close_socket_kill_thread(sock_t sd, int errcode);
-// void close_socket_kill_process(sock_t sd, int errcode);
 
 // socket.c
 EXPORTED sock_t open_socket(const settings_t* settings);

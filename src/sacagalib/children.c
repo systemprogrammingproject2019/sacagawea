@@ -25,15 +25,25 @@
 
 #include "sacagalib.h"
 
-void free_selector(selector* c) {
-	int i = 0;
-	for(i = 0; i < c->num_words; ++i) {
-		free(c->words[i]);
+void free_selector(selector* sel) {
+	write_log(DEBUG, "this is sel = %x", sel);
+	write_log(DEBUG, "sel->num_words = %d", sel->num_words);
+	write_log(DEBUG, "sel->words = %x", sel->words);
+	for(int i = 0; i < sel->num_words; i++) {
+		write_log(DEBUG, "i = %d", i);
+		write_log(DEBUG, "(sel->words)[i] = %x", (sel->words)[i]);
+		free(sel->words[i]);
 	}
-	free(c->words);
-	free(c);
+	write_log(DEBUG, "sel->words = %x", sel->words);
+	free(sel->words);
+	write_log(DEBUG, "sel = %x", sel);
+	free(sel);
 }
 
+void free_client_args(client_args* c) {
+	free(c->path_file);
+	free(c);
+}
 
 int read_request(sock_t sd, char* buf, int buflen) {
 	/* Receive data on this connection until the recv \n of finish line.
@@ -191,9 +201,7 @@ int process_management(client_args *client_info) {
 		// child who have to management the connection
 		// close settings->socket
 		//close(settings->socket);
-		printf("Son spawned ready to serv\n");
 		management_function(client_info);
-		printf("Son finish to serv\n");
 		exit(1);
 	} else {
 		// this is the server
@@ -206,13 +214,13 @@ int process_management(client_args *client_info) {
 }
 
 // this fuction check if the input contain a selector or not and return it
-selector request_to_selector(char* input) {
+selector* request_to_selector(char* input) {
 	int read_bytes = 0;
-	selector client_selector;
-	memset(&client_selector, '\0', sizeof(client_selector));
-	client_selector.num_words = -1; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
+	selector* client_selector = calloc(1, sizeof(selector));
+	// memset(&client_selector, '\0', sizeof(client_selector));
+	(*client_selector).num_words = 0; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
 
-	write_log(DEBUG, "selector: \"%s\"", input);
+	write_log(DEBUG, "INPUT: \"%s\"", input);
 
 	//if path starts with "/", ignore it
 	if (input[0] == '/') {
@@ -221,7 +229,7 @@ selector request_to_selector(char* input) {
 
 	// check if input start with selector or not
 	if (input[0] == '\t') { // if not, we set selector at empty String
-		client_selector.selector[0] = '\0';
+		(*client_selector).selector[0] = '\0';
 		read_bytes = 0;
 	} else { // if contain it we take it
 		while (true) {
@@ -236,52 +244,50 @@ selector request_to_selector(char* input) {
 					break;
 				} else {
 					// if not, that means \r is in the file name.
-					client_selector.selector[read_bytes] = input[read_bytes];
+					(*client_selector).selector[read_bytes] = input[read_bytes];
 					read_bytes++;
 				}
 			} else {
 				// we save the char in the selector becouse is an accettable characters
-				client_selector.selector[read_bytes] = input[read_bytes];
+				(*client_selector).selector[read_bytes] = input[read_bytes];
 				read_bytes++;
 			}
 		}
 	}
 
 	write_log(DEBUG, "SELECTOR: \"%s\", %d bytes",
-			client_selector.selector , read_bytes );
+			(*client_selector).selector, read_bytes);
 
 	// if the client send a tab \t, it means that the selector is followed by words 
 	// ( that need to match with the name of the searched file )
 	if (input[read_bytes] == '\t') {
 		int i = 0;
-		client_selector.words = (char **) malloc( 3*sizeof( char *));
+		(*client_selector).words = (char **) malloc(3 * sizeof(char *));
+		(*client_selector).num_words = 3;
 		while ((input[read_bytes] != '\r') && (input[read_bytes] != '\n')) {
 			// put this check, becouse if the request contain 2+ consecutive \t or 2+ consecutive ' ' the scanf don't read an empty word.
 			if ((input[read_bytes] == '\t') || (input[read_bytes] == ' ')) {
-				fprintf( stdout, "CHAR -%c-\n", input[read_bytes]);
+				write_log(DEBUG, "CHAR -%c-\n", input[read_bytes]);
 				read_bytes++;
 				continue;
 			}
 			// realloc check. we do a realloc every 3 words, just for limit overhead of realloc, and don't do every word
 			// first call do a malloc(3) becouse words=NULL after do realloc( 6 ) ... 9, 12 ...
 			if ((i % 3) == 0) {
-				client_selector.words = (char **) realloc(client_selector.words, (i + 3) * sizeof(char *));
+				(*client_selector).words = (char **) realloc((*client_selector).words, (i + 3) * sizeof(char *));
 			}
 			// declare a space for word and read it, OPPURE c'è l'opzione %m che passandogli  client_selector.words[i], senza 
 			// fare prima la malloc la fa scanf in automatico della grandezza della stringa letta + 1, sarebbe piu efficente dato che 
 			// MAX_FILE_NAME è spazio sprecato per parole di piccole len_string 
-			client_selector.words[i] = (char *) malloc(((MAX_FILE_NAME+1) * sizeof(char)));
-			sscanf(&input[read_bytes], "%255s", client_selector.words[i]);
+			(*client_selector).words[i] = (char *) malloc(((MAX_FILE_NAME+1) * sizeof(char)));
+			sscanf(&input[read_bytes], "%255s", (*client_selector).words[i]);
 			// upgrade read_bytes for check when we finish the client input
-			read_bytes += (strlen( client_selector.words[i]));
-			write_log(DEBUG, "WORD %d: %s,%llu bytes", i, client_selector.words[i] , strlen(client_selector.words[i]) );
+			read_bytes += (strlen( (*client_selector).words[i]));
+			write_log(DEBUG, "WORD %d: %s,%llu bytes", i, (*client_selector).words[i] , strlen((*client_selector).words[i]) );
 			// upgrade the num of words, contained in client_selector
-			client_selector.num_words = i;
-			i++;
-
+			(*client_selector).num_words = ++i;
 		}
 	}
-
 	return client_selector;
 }
 
@@ -314,9 +320,7 @@ long unsigned int* management_function(client_args* c) {
 			input, check, &input);
 
 	// check if the input contain a selector or not
-	selector client_selector;
-	memset(&client_selector, '\0', sizeof(client_selector));
-
+	selector* client_selector;
 	client_selector = request_to_selector(input);
 	free(input); // freeing input as soon as it's not necessary anymore
 
@@ -324,31 +328,31 @@ long unsigned int* management_function(client_args* c) {
 	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
 	strcpy(c->path_file, (c->settings).homedir);
 	// security check to avoid memory corruption
-	int len_check = strlen(c->path_file) + strlen(client_selector.selector);
+	int len_check = strlen(c->path_file) + strlen((*client_selector).selector);
 	if (len_check >= PATH_MAX) {
 		write_log(ERROR, "Exceeded PATH_MAX length: requested path is %d chars long",
 				len_check);
 		close_socket_kill_child(c, 0);
 	}
-	strcat(c->path_file, client_selector.selector);
+	strcat(c->path_file, (*client_selector).selector);
 	write_log(DEBUG, "PATH+SELECTOR %d bytes: %s",
 			strlen(c->path_file), c->path_file);
 
 	// avoid trasversal path
 	if (check_security_path(c->path_file)) {
-		write_log(WARNING, "Path traversal detected!!");
+		write_log(WARNING, "Path traversal detected in client's request: %s", c->path_file);
 		close_socket_kill_child(c, 0);
 	}
 	type = type_path(c->path_file);
 
 	// if is a dir we check the content if match with words 
 	if (type == '7') {
-		send_content_of_dir(c, &client_selector);
+		send_content_of_dir(c, client_selector);
 	} else {
 		if (type == '3') { // if is an error send the error message
-			char temp[(strlen(client_selector.selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
+			char temp[(strlen((*client_selector).selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
 			strcpy(temp, "3\t");
-			strcat(temp, client_selector.selector);
+			strcat(temp, (*client_selector).selector);
 			strcat(temp, "\n.\n");
 			send(c->socket, temp, strlen(temp), 0);
 		// close socket and thread
@@ -356,6 +360,7 @@ long unsigned int* management_function(client_args* c) {
 			load_file_memory_and_send(c);
 		}
 	}
+	free_selector(client_selector);
 	close_socket_kill_child(c, 0);
 	return 0;
 }
@@ -364,24 +369,18 @@ long unsigned int* management_function(client_args* c) {
 thread_t thread_management(client_args *client_info) {
 #ifdef _WIN32
 	HANDLE tHandle;
-	client_args *tData;
 	print_client_args(client_info);
 	LPDWORD lpThreadId = 0;
-
-	tData = (client_args*) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-			sizeof(client_args));
-
-	memcpy(tData, client_info, sizeof(client_args));
 
 	tHandle = CreateThread( 
 			NULL,            // default security attributes
 			0,               // use default stack size  
 			(LPTHREAD_START_ROUTINE) management_function, // thread function name
-			tData,           // argument to thread function 
+			client_info,     // argument to thread function 
 			0,               // use default creation flags 
 			lpThreadId       // returns the thread identifier 
 	);
-	free(client_info);
+	CloseHandle(tHandle);
 	return tHandle;
 #else
 	pthread_t tid;
@@ -391,32 +390,31 @@ thread_t thread_management(client_args *client_info) {
 #endif
 }
 
-void close_socket_kill_thread(sock_t sd, int errcode) {
+void close_socket(sock_t sd) {
 #ifdef _WIN32
 	closesocket(sd);
-	write_log(INFO, "Closed socket %lld", sd);
-	ExitThread(errcode);
 #else
 	close(sd);
+#endif
+	write_log(DEBUG, "Closed socket %lld", sd);
+}
+
+void kill_thread(sock_t sd, int errcode) {
+#ifdef _WIN32
+	ExitThread(errcode);
+#else
 	pthread_exit(&errcode);
 #endif
 }
 
-void close_socket_kill_process(sock_t sd, int errcode) {
-#ifdef _WIN32
-	closesocket(sd);
-#else
-	close(sd);
-#endif
-	exit(errcode);
-}
-
 void close_socket_kill_child(client_args* c, int errcode) {
+	char mode = (c->settings).mode;
 	sock_t s = c->socket;
-	if ((c->settings).mode == 't') {
-		close_socket_kill_thread(s, 0);
+	free_client_args(c);
+	if (mode == 't') {
+		close_socket(s);
+		kill_thread(s, 0);
 	} else {
-		close_socket_kill_process(s, 0);
+		exit(0);
 	}
-	free(c);
 }

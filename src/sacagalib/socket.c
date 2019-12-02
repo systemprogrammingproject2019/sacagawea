@@ -201,7 +201,6 @@ int listen_descriptor(const settings_t* settings) {
 	}
 
 	if (FD_ISSET(settings->socket, &fds_set)) {
-		write_log(DEBUG, "+++++++++++++++++Listening socket is readable+++++++++++++++++");
 		/*Accept all incoming connections that are queued up on the listening
 		socket before we loop back and call select again. */
 		accept_wrapper(settings);
@@ -228,12 +227,12 @@ int accept_wrapper(const settings_t* settings) {
 
 	#ifdef _WIN32
 		if (new_s == INVALID_SOCKET) {
-			free(client_info);
+			free_client_args(client_info);
 			break;
 		}
 	#else
 		if (new_s == -1) {
-			free(client_info);
+			free_client_args(client_info);
 			break;
 		}
 	#endif
@@ -257,20 +256,24 @@ int accept_wrapper(const settings_t* settings) {
 		#ifdef _WIN32
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
 				write_log(ERROR, "socket accept() failed with error: %d", WSAGetLastError());
-				free(client_info);
+				free_client_args(client_info);
 				exit(5);
 			}
 		#else
 			if (errno != EWOULDBLOCK) {
 				write_log(ERROR, "socket accept() failed: %s", strerror(errno) );
-				free(client_info);
+				free_client_args(client_info);
 				exit(5);
 			}
 		#endif
 		}
 		// save the IP:PORT of client and socket in the client_info struct
 		snprintf(client_info->addr, ADDR_MAXLEN, "%s:%d", inet_ntoa(addr.sin_addr), addr.sin_port);
-		write_log(INFO, "New connection estabilished at fd - %d from %s", new_s, client_info->addr);
+		if (LOG_LEVEL <= INFO) {
+			write_log(INFO, "New connection from %s", client_info->addr);
+		} else {
+			write_log(INFO, "New connection at sock_t %d from %s", new_s, client_info->addr);
+		}
 		client_info->socket = new_s;
 
 		/* we create a t/p for management the incoming connection, call the right function with (socket , addr) as argument */
@@ -281,7 +284,7 @@ int accept_wrapper(const settings_t* settings) {
 				process_management(client_info);
 			} else {
 				write_log(ERROR, "Multithread/multiprocess mode not set correctly");
-				free(client_info);
+				free_client_args(client_info);
 				exit(5);
 			}
 		}

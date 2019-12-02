@@ -29,7 +29,7 @@
 #include "sacagalib.h"
 
 void send_content_of_dir(client_args* client_info, selector* client_selector) {
-	write_log(DEBUG, "%s", client_info->path_file);
+	write_log(DEBUG, "send_content_of_dir: %s", client_info->path_file);
 
 	// this fuction send each file in a directory which match "words" in the
 	// gopher protocol format.
@@ -47,7 +47,6 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	folder = opendir(client_info->path_file);
 	if (folder == NULL) {
 		return;
-		close_socket_kill_child(client_info, 5);
 	}
 
 	while ((subFile = readdir(folder)) != NULL) {
@@ -58,7 +57,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 		/* words are only strings and not regex, so i do that little check for take only 
 		subfile who match all words, regexes would be useless and a waste of resources */
 		// check word by word if match, if someone don't match we break the for, and don't send the gopher string of file
-		for (j = 0; j <= client_selector->num_words; j++) {
+		for (j = 0; j < client_selector->num_words; j++) {
 			no_match = false;
 			// check if not match
 			if (check_not_match(subFile->d_name, client_selector->words[j])) {
@@ -98,7 +97,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			len_response += strlen((client_info->settings).hostname) + 1;
 			// for actualy opened (client_info->settings).port
 			snprintf(port_str, 6, "%d", (client_info->settings).port);
-			len_response += strlen( port_str );
+			len_response += strlen(port_str);
 			// \n + \0
 			len_response += 4;
 			// declare and compile
@@ -115,8 +114,8 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			}
 
 			// write_log(INFO, "send_content_of_dir response to socket %d: %s", client_info->socket, response);
-			send(client_info->socket, response, strlen(response), 0);	
-			
+			send(client_info->socket, response, strlen(response), 0);
+
 			free(response);
 			free(path_of_subfile);
 		}
@@ -127,7 +126,6 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	write_log(DEBUG, "send_content_of_dir response to socket %d: SENT", client_info->socket);
 
 	closedir(folder);
-	//close(client_info->socket);
 }
 
 
@@ -148,8 +146,8 @@ void *thread_sender(client_args* c) {
 	// aligned to the page length. We have therefore chosen to use 
 	// sysnfo.dwAllocationGranularity as our buffer length because trivially
 	// it's a multiple of sysnfo.dwAllocationGranularity
-
 #endif
+
 	while (bytes_sent < c->len_file) {
 		// logic for sending the file
 	#ifdef _WIN32
@@ -183,7 +181,7 @@ void *thread_sender(client_args* c) {
 		if (temp == SOCKET_ERROR) {
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
 				UnmapViewOfFile(pBuf);
-				write_log(INFO, "UnmapViewOfFile on %d", c->file_to_send);
+				write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
 				write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
 						c->addr, c->socket, WSAGetLastError());
 
@@ -216,7 +214,7 @@ void *thread_sender(client_args* c) {
 	#endif
 	#ifdef _WIN32
 		UnmapViewOfFile(pBuf);
-		write_log(INFO, "UnmapViewOfFile on %d", c->file_to_send);
+		write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
 	#endif
 	}
 	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
@@ -269,7 +267,7 @@ void *thread_sender(client_args* c) {
 		len_logs_string += strlen(ds) + 1; // for date string + 1 space
 		len_logs_string += strlen(c->path_file) + 1;
 		len_logs_string += strlen(c->addr) + 4;
-		char *logs_string = malloc(sizeof(char) * len_logs_string);
+		char* logs_string = malloc(sizeof(char) * len_logs_string);
 
 		if (logs_string == NULL) {
 		#ifdef _WIN32
