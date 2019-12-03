@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
@@ -54,7 +55,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 		if ((strcmp(subFile->d_name , "..") == 0) || (strcmp( subFile->d_name , ".") == 0)) {
 			continue;
 		}
-		/* words are only strings and not regex, so i do that little check for take only 
+		/* words are only strings and not regex, so i did that little check for take only 
 		subfile who match all words, regexes would be useless and a waste of resources */
 		// check word by word if match, if someone don't match we break the for, and don't send the gopher string of file
 		for (j = 0; j < client_selector->num_words; j++) {
@@ -114,15 +115,21 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			}
 
 			// write_log(INFO, "send_content_of_dir response to socket %d: %s", client_info->socket, response);
+		#ifdef _WIN32
 			send(client_info->socket, response, strlen(response), 0);
-
+		#else
+			send(client_info->socket, response, strlen(response), MSG_NOSIGNAL);
+		#endif
 			free(response);
 			free(path_of_subfile);
 		}
 	}
 	char end[] = ".\n";
+#ifdef _WIN32	
 	send(client_info->socket, end, strlen(end), 0);
-
+#else
+	send(client_info->socket, end, strlen(end), MSG_NOSIGNAL);
+#endif
 	write_log(DEBUG, "send_content_of_dir response to socket %d: SENT", client_info->socket);
 
 	closedir(folder);
@@ -197,7 +204,7 @@ void *thread_sender(client_args* c) {
 		}
 	#else
 		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
-		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);
+		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), 0);
 		if (temp < 0) {
 			if (temp != EWOULDBLOCK) {
 				write_log(ERROR, "Sending file to %s, with socket %d failed: %s",
@@ -349,6 +356,7 @@ void *thread_sender(client_args* c) {
 		CloseHandle(hPipe); 
 	#else
 		// lock mutex and wake up process for logs
+		printf("pre taking mutex lock\n");
 		pthread_mutex_lock(mutex);
 		
 		if (write(pipe_conf[1], &len_logs_string, sizeof(int)) < 0) {
@@ -360,8 +368,11 @@ void *thread_sender(client_args* c) {
 	 		exit(5);
 		}
 		// unlock mutex and free
+		printf("preso lock pre mando il signal\n");
 		pthread_cond_signal(cond);
+		printf("signal mandato pre unlocko\n");
 		pthread_mutex_unlock(mutex);
+		printf("unlocko\n");
 	#endif
 		free(logs_string);
 	}
