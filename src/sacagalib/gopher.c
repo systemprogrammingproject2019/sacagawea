@@ -356,7 +356,6 @@ void *thread_sender(client_args* c) {
 		CloseHandle(hPipe); 
 	#else
 		// lock mutex and wake up process for logs
-		printf("pre taking mutex lock\n");
 		pthread_mutex_lock(mutex);
 		
 		if (write(pipe_conf[1], &len_logs_string, sizeof(int)) < 0) {
@@ -368,11 +367,8 @@ void *thread_sender(client_args* c) {
 	 		exit(5);
 		}
 		// unlock mutex and free
-		printf("preso lock pre mando il signal\n");
 		pthread_cond_signal(cond);
-		printf("signal mandato pre unlocko\n");
 		pthread_mutex_unlock(mutex);
-		printf("unlocko\n");
 	#endif
 		free(logs_string);
 	}

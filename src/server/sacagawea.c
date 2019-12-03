@@ -173,9 +173,12 @@ void sighup_handler(int signum) {
 
 int main(int argc, char *argv[]) {
 
-// #ifndef _WIN32
-// 	become_daemon();
-// #endif
+#ifndef _WIN32
+	//become_daemon();
+	// Child becomes Zombie as parent is sleeping when child process exits. 
+	// if we ignore SIGCHLD the father dont need to read "the Zombie" and it will be removed from process table.
+	signal(SIGCHLD,SIG_IGN); 
+#endif
 
 #ifdef _WIN32
 	// create a job object and include both this process and the logger process

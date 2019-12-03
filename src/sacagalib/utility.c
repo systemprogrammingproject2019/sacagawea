@@ -94,14 +94,12 @@ int load_file_memory_and_send(client_args *client_info) {
 	if (fd < 0) {
 		write_log(ERROR, "open() failed: %s\n", strerror(errno));
 		return false;
-		exit(5);
 	}
 	// declare struct for 3th argument for fcntl and memset it to 0
 	struct flock lck;
 	if (memset(&lck, 0, sizeof(lck)) == NULL) {
 		write_log(ERROR, "memset() failed: %s\n", strerror(errno));
 		return false;
-		exit(5);
 	}
 
 	// F_WRLCK mean exclusive lock and not shared lock
@@ -163,6 +161,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	pthread_t tid;
 	pthread_create(&tid, NULL, (void *) thread_sender, (void *) client_info);
 	pthread_join(tid, NULL);
+	// munmap is the free for mmap
 	munmap(client_info->file_to_send, (client_info->len_file + 1));
 	return true;
 #endif
