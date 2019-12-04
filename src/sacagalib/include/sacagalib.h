@@ -115,7 +115,7 @@ EXPORTED int check_not_match(char d_name[PATH_MAX+1], char *word);
 EXPORTED selector* request_to_selector(char *input);
 EXPORTED long unsigned int *management_function(client_args* c);
 // EXPORTED void process_fuction(client_args *client_info);
-EXPORTED thread_t thread_management(client_args *client_info);
+EXPORTED void thread_management(client_args *client_info);
 EXPORTED int process_management(client_args *client_info);
 EXPORTED void free_client_args(client_args*);
 
