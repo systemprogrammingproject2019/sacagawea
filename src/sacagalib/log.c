@@ -54,7 +54,6 @@ void log_management() {
 					shm_unlink(SHARED_MUTEX_MEM);
 					shm_unlink(SHARED_COND_MEM);
 					close( pipe_conf[0] );
-					fclose(log);
 					exit(1);
 				}
 			}
