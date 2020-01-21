@@ -130,8 +130,16 @@ int load_file_memory_and_send(client_args *client_info) {
 		return 0;
 	}
 	client_info->len_file = stat_fd.st_size;
-	client_info->file_to_send = mmap(NULL, (client_info->len_file + 1), PROT_READ, MAP_PRIVATE, fd, 0);
+	client_info->file_to_send = mmap(NULL, (client_info->len_file ), PROT_READ, MAP_PRIVATE, fd, 0);
 
+	if ( client_info->file_to_send == MAP_FAILED){
+		write_log(ERROR, "mmap() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
+		// release lock with F_UNLCK flag and close FD
+		lck.l_type = F_UNLCK;
+		fcntl(fd, F_OFD_SETLK, &lck);
+		close(fd);
+		return 0;
+	}
 	// old version with malloc
 	//FILE *fp = fdopen(fd, "r");
 	//if (fp == NULL) {

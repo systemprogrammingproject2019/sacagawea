@@ -267,7 +267,7 @@ void *thread_sender(client_args* c) {
 #endif
 
 	// prepare the message for the logging process
-	if (bytes_sent >= c->len_file) {
+	if (bytes_sent == c->len_file) {
 		// get string to write on logs file
 		long len_logs_string = 0;
 		char* ds = date_string();
