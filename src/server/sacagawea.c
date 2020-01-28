@@ -58,7 +58,10 @@ void become_daemon() {
 	}
 
 	// Fork again, allowing the parent process to terminate.
-	signal(SIGHUP,SIG_IGN);
+	if( signal(SIGHUP,SIG_IGN) == SIG_ERR ){
+		write_log(ERROR, "Signal() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	pid = fork();
 	if (pid < 0) {
 		write_log(ERROR, "System call setsid() failed because of %s", strerror(errno));
@@ -80,9 +83,20 @@ void become_daemon() {
 	umask(027);
 
 	/* Close out the standard file descriptors */
-	close(STDIN_FILENO);
-	close(STDOUT_FILENO);
-	close(STDERR_FILENO);
+	if( close(STDIN_FILENO) == -1 ){
+		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if( close(STDOUT_FILENO) == -1 ){
+		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if( close(STDERR_FILENO) == -1 ){
+		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+
 	if (open("/dev/null",O_RDONLY) == -1) {
 		write_log(ERROR, "failed to reopen stdin while daemonising (errno=%d)",errno);
 		exit(EXIT_FAILURE);
@@ -101,28 +115,56 @@ void become_daemon() {
 
 void close_all() {
 #ifdef _WIN32
-	closesocket(settings->socket);
-	TerminateThread(logProcess.hThread, 0);
-	TerminateProcess(logProcess.hProcess, 0);
-	WSACleanup();
+	if( closesocket(settings->socket) == SOCKET_ERROR ){
+		write_log(ERROR, "closesocket failed with error: %d", WSAGetLastError());
+		// exit(1); we check the error but dont close the program.
+	}
+	if( TerminateThread(logProcess.hThread, 0) == 0 ){
+		write_log(ERROR, "TerminateThread failed with error: %d", GetLastError());
+	}
+	if( TerminateProcess(logProcess.hProcess, 0) == 0 ){
+		write_log(ERROR, "TerminateThread failed with error: %d", GetLastError());
+	}
+	if( WSACleanup() == SOCKET_ERROR ){
+		write_log(ERROR, "WSACleanup failed with error: %d", WSAGetLastError());
+	}
 #else
 	// close socket
-	close(settings->socket);
-
-	// destroy the allocated attr for, condition variable
-	pthread_condattr_destroy(&cattr);
-	pthread_mutexattr_destroy(&mattr);
+	if( close(settings->socket) == -1 ){
+		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
+	}
 
 	// kill log process
-	kill(logProcess, 15);
+	if( kill(logProcess, 15) == -1 ){
+		write_log(ERROR, "System call kill() failed because of %s", strerror(errno));
+	}
+
+	// destroy the allocated attr for, condition variable
+	int ret;
+	ret = pthread_condattr_destroy(&cattr);
+	if( ( ret == EBUSY ) || ( ret == EINVAL) ){
+		write_log(ERROR, "pthread_condattr_destroy(&cattr); failed");
+	}
+	ret = pthread_mutexattr_destroy(&mattr);
+	if( ret != 0){
+		write_log(ERROR, "pthread_mutexattr_destroy(&mattr); failed");
+	}
 
 	// close write pipe and send SIGTERM to logs process.
-	close(pipe_conf[1]);
-	kill( logs_proces_pid, SIGTERM );
+	if( close(pipe_conf[1]) == -1 ){
+		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
+	}
+	if( kill( logs_proces_pid, SIGTERM ) == -1 ){
+		write_log(ERROR, "System call kill() failed because of %s", strerror(errno));
+	}
 
 	//unlink shared memory
-	shm_unlink(SHARED_MUTEX_MEM);
-	shm_unlink(SHARED_COND_MEM);
+	if( shm_unlink(SHARED_MUTEX_MEM) == -1 ){
+		write_log(ERROR, "System call shm_unlink() failed because of %s", strerror(errno));
+	}
+	if( shm_unlink(SHARED_COND_MEM) == -1 ){
+		write_log(ERROR, "System call shm_unlink() failed because of %s", strerror(errno));
+	}
 #endif
 	free(settings);
 	exit(1);
