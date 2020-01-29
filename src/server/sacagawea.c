@@ -177,7 +177,14 @@ void universal_handler() {
 		// close the old server socket --- it is still open on all children
 		// threads/processes (until they die/close it) because
 		// they were only given a copy of it.
-		close(settings->socket);
+
+		if( close(settings->socket) == -1 ){
+			#ifdef _WIN32
+			write_log(ERROR, "System call close() on %d (server socket) failed, program will continue on new socket", settings->socket );
+			#else
+			write_log(ERROR, "System call close() on %d (server socket) failed because of %s, program will continue on new socket", settings->socket, strerror(errno));
+			#endif
+		}
 
 		settings->socket = open_socket(settings);
 	}
@@ -216,10 +223,13 @@ void sighup_handler(int signum) {
 int main(int argc, char *argv[]) {
 
 #ifndef _WIN32
-	//become_daemon();
+	//	become_daemon();
 	// Child becomes Zombie as parent is sleeping when child process exits. 
 	// if we ignore SIGCHLD the father dont need to read "the Zombie" and it will be removed from process table.
-	signal(SIGCHLD,SIG_IGN); 
+	if( signal(SIGCHLD,SIG_IGN) == SIG_ERR ){
+		write_log(ERROR, "Signal() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 #endif
 
 #ifdef _WIN32
@@ -237,17 +247,16 @@ int main(int argc, char *argv[]) {
 	JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {0};
 	jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 	if (SetInformationJobObject(jobHandle, 
-			JobObjectExtendedLimitInformation,
-			&jeli,
-			sizeof(jeli)) == 0) {
-		write_log(ERROR, "SetInformationJobObject failed: error %lld",
-				GetLastError() );
+								JobObjectExtendedLimitInformation,
+								&jeli,
+								sizeof(jeli)) == 0) 
+	{
+		write_log(ERROR, "SetInformationJobObject failed: error %lld", GetLastError() );
 		exit(EXIT_FAILURE);
 	}
 
 	if (AssignProcessToJobObject(jobHandle, GetCurrentProcess()) == 0) {
-		write_log(ERROR, "AssignProcessToJobObject failed: %lld",
-				GetLastError());
+		write_log(ERROR, "AssignProcessToJobObject failed: %lld",GetLastError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -255,6 +264,10 @@ int main(int argc, char *argv[]) {
 
 	//fill default settings
 	settings = calloc(1, sizeof(settings_t));
+	if( settings == NULL ){
+		write_log(ERROR, "calloc of settings failed");
+		close_all();
+	}
 	settings->port = DEFAULT_SERVER_PORT;
 	settings->mode = 't';
 #ifdef _WIN32
@@ -275,9 +288,9 @@ int main(int argc, char *argv[]) {
 
 #ifdef _WIN32
 	if (GetComputerNameA(settings->hostname,
-			&(long unsigned int){sizeof(settings->hostname) - 1}) == 0) {
-		write_log(WARNING, "GetComputerNameA failed with error: %I64d",
-				GetLastError());
+						&(long unsigned int){sizeof(settings->hostname) - 1}) == 0) 
+	{
+		write_log(WARNING, "GetComputerNameA failed with error: %I64d",GetLastError());
 		strcpy(settings->hostname, "localhost");
 	}
 #else
@@ -365,11 +378,23 @@ int main(int argc, char *argv[]) {
 	Permits a condition variable/mutex to be operated upon by any thread that has access to the memory
 	where the condition variable/mutex is allocated; even if the condition variable/mutex is allocated in memory
 	that is shared by multiple processes.*/
-	pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
-	pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+	if( pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED) != 0){
+		write_log(ERROR, "System call pthread_condattr_setpshared() failed ");
+		exit(5);
+	}
+	if( pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED) != 0){
+		write_log(ERROR, "System call pthread_muteattr_setpshared() failed ");
+		exit(5);
+	}
 	// set and init the mutex and condition variable
-	pthread_mutex_init(mutex, &mattr);
-	pthread_cond_init(cond, &cattr);
+	if( pthread_mutex_init(mutex, &mattr) != 0){
+		write_log(ERROR, "System call pthread_mutex_init() failed ");
+		exit(5);
+	}
+	if( pthread_cond_init(cond, &cattr) != 0){
+		write_log(ERROR, "System call pthread_cond_init() failed ");
+		exit(5);
+	}
 #endif
 
 	// create the pipe for SERVER<->SACALOGS
@@ -413,14 +438,12 @@ int main(int argc, char *argv[]) {
 	);
 	// If an error occurs, exit the application. 
 	if (!bLogger) {
-		write_log(ERROR, "CreateProcess failed with error: %I64d",
-				GetLastError());
+		write_log(ERROR, "CreateProcess failed with error: %I64d",GetLastError());
 		close_all();
 	}
 
 	if (AssignProcessToJobObject(jobHandle, logProcess.hProcess) == 0) {
-		write_log(ERROR, "AssignProcessToJobObject failed: %lld",
-				GetLastError());
+		write_log(ERROR, "AssignProcessToJobObject failed: %lld",GetLastError());
 		close_all();
 	}
 
@@ -432,14 +455,20 @@ int main(int argc, char *argv[]) {
 	}
 	if (logProcess == 0) { /* child process */
 		// close write pipe
-		close(pipe_conf[1]);
+		if( close(pipe_conf[1]) == -1 ){
+		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+		}
 		// call log management
 		log_management();
 		return 0;
 	}
 	/* server process "father" */
 	// close read pipe
-	close(pipe_conf[0]);
+	if( close(pipe_conf[0]) == -1 ){
+		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
+		close_all();
+	}
 	logs_proces_pid = logProcess;
 #endif
 
@@ -448,12 +477,21 @@ int main(int argc, char *argv[]) {
 	struct sigaction new_action;
 	/* Block other SIGHUP signals while handler runs. */
 	sigset_t block_mask;
-	sigemptyset (&block_mask);
-	sigaddset (&block_mask, SIGHUP);
+	if( sigemptyset (&block_mask) == -1 ){
+		write_log(ERROR, "sigemptyset() failed" );
+		close_all();
+	}
+	if( sigaddset (&block_mask, SIGHUP) == -1 ){
+		write_log(ERROR, "sigaddset() failed" );
+		close_all();
+	}
 	/* Set up the structure to specify the new action. */
 	new_action.sa_handler = (__sighandler_t) sighup_handler;
 	new_action.sa_mask = block_mask;
-	sigemptyset (&new_action.sa_mask);
+	if( sigemptyset (&new_action.sa_mask) == -1 ){
+		write_log(ERROR, "sigemptyset() failed" );
+		close_all();
+	}
 	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 
 	is running like read/recv etc.. after the handler,
 	the system call is restarted and can give EINTR error if fail */ 
@@ -461,7 +499,7 @@ int main(int argc, char *argv[]) {
 	/* The sigaction() API change the action taken by a process on receipt of SIGHUP signal. */
 	if (sigaction (SIGHUP, &new_action, NULL) < 0) {
 		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
-		exit(5);
+		close_all();
 	}
 #endif
 
@@ -470,12 +508,21 @@ int main(int argc, char *argv[]) {
 	struct sigaction sigint_action;
 	/* Block other SIGINT signals while handler runs. */
 	sigset_t sigint_block_mask;
-	sigemptyset (&sigint_block_mask);
-	sigaddset (&sigint_block_mask, SIGINT);
+	if( sigemptyset (&sigint_block_mask) == -1 ){
+		write_log(ERROR, "sigemptyset() failed" );
+		close_all();
+	}
+	if( sigaddset (&sigint_block_mask, SIGINT) == -1 ){
+		write_log(ERROR, "sigaddset() failed" );
+		close_all();
+	}
 	/* Set up the structure to specify the new action. */
 	sigint_action.sa_handler = close_all;
 	sigint_action.sa_mask = sigint_block_mask;
-	sigemptyset (&sigint_action.sa_mask);
+	if( sigemptyset (&sigint_action.sa_mask) == -1 ){
+		write_log(ERROR, "sigemptyset() failed" );
+		close_all();
+	}
 	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 
 	is running like read/recv etc.. after the handler,
 	the system call is restarted and can give EINTR error if fail */ 
@@ -483,7 +530,7 @@ int main(int argc, char *argv[]) {
 	/* The sigaction() API change the action taken by a process on receipt of SIGINT signal. */
 	if (sigaction (SIGINT, &sigint_action, NULL) < 0) {
 		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
-		exit(5);
+		close_all();
 	}
 #endif
 
