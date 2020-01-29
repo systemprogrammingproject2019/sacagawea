@@ -48,7 +48,9 @@ sock_t open_socket(const settings_t* settings) {
 	err = getaddrinfo(NULL, port_to_string, &hints, &result);
 	if (err != 0) {
 		write_log(ERROR, "getaddrinfo failed: %d", err);
-		WSACleanup();
+		if( WSACleanup() == SOCKET_ERROR ){
+			write_log(ERROR, "WSACleanup failed with error: %d", WSAGetLastError());
+		}
 		exit(EXIT_FAILURE);
 	}
 	free(port_to_string);
@@ -58,7 +60,9 @@ sock_t open_socket(const settings_t* settings) {
 	if (ListenSocket == INVALID_SOCKET) {
 		write_log(ERROR, "socket failed with error: %d", WSAGetLastError());
 		freeaddrinfo(result);
-		WSACleanup();
+		if( WSACleanup() == SOCKET_ERROR ){
+			write_log(ERROR, "WSACleanup failed with error: %d", WSAGetLastError());
+		}
 		exit(EXIT_FAILURE);
 	}
 
@@ -72,8 +76,12 @@ sock_t open_socket(const settings_t* settings) {
 
 	if (setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &(char){true}, sizeof(int)) != 0) {
 		write_log(ERROR, "setsockopt(SO_REUSEADDR) failed with error: %d", WSAGetLastError());
-		closesocket(ListenSocket);
-		WSACleanup();
+		if( closesocket(ListenSocket) == SOCKET_ERROR ){
+			write_log(ERROR, "closesocket failed with error: %d", WSAGetLastError());
+		}
+		if( WSACleanup() == SOCKET_ERROR ){
+			write_log(ERROR, "WSACleanup failed with error: %d", WSAGetLastError());
+		}
 		exit(EXIT_FAILURE);
 	}
 
@@ -81,17 +89,24 @@ sock_t open_socket(const settings_t* settings) {
 	if ((bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen)) == SOCKET_ERROR) {
 		write_log(ERROR, "bind failed with error: %d", WSAGetLastError());
 		freeaddrinfo(result);
-		closesocket(ListenSocket);
-		WSACleanup();
+		if( closesocket(ListenSocket) == SOCKET_ERROR ){
+			write_log(ERROR, "closesocket failed with error: %d", WSAGetLastError());
+		}
+		if( WSACleanup() == SOCKET_ERROR ){
+			write_log(ERROR, "WSACleanup failed with error: %d", WSAGetLastError());
+		}
 		exit(EXIT_FAILURE);
 	}
-
 	freeaddrinfo(result);
 
 	if ((listen(ListenSocket, SOMAXCONN)) == SOCKET_ERROR) {
 		write_log(ERROR, "listen failed with error: %d\n", WSAGetLastError());
-		closesocket(ListenSocket);
-		WSACleanup();
+		if( closesocket(ListenSocket) == SOCKET_ERROR ){
+			write_log(ERROR, "closesocket failed with error: %d", WSAGetLastError());
+		}
+		if( WSACleanup() == SOCKET_ERROR ){
+			write_log(ERROR, "WSACleanup failed with error: %d", WSAGetLastError());
+		}
 		exit(EXIT_FAILURE);
 	}
 
@@ -180,7 +195,7 @@ int listen_descriptor(const settings_t* settings) {
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
 		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
-		exit(1);
+		exit(5);
 	}
 #else
 	// if select returns a number lesser than 0, an error occurred
@@ -191,7 +206,7 @@ int listen_descriptor(const settings_t* settings) {
 			return true;
 		}
 		write_log(ERROR, "select failed: %s", strerror(errno));
-		exit(1);
+		exit(5);
 	}
 #endif
 	else {
@@ -221,6 +236,10 @@ int accept_wrapper(const settings_t* settings) {
 
 	while (true) {
 		client_info = (client_args*) calloc(1, sizeof(client_args));
+		if( client_info == NULL){
+			write_log(ERROR, "calloc for client_info failed");
+			exit(5);
+		}
 		memcpy(&(client_info->settings), settings, sizeof(settings_t));
 		// accept the connected connection which already did 3WHS.
 		new_s = accept(settings->socket, (struct sockaddr*) &addr, &addr_len);
@@ -242,9 +261,10 @@ int accept_wrapper(const settings_t* settings) {
 		// blocking so the application will be able to have blocking sends
 		unsigned long NonBlock = false;
 		if (ioctlsocket(new_s, FIONBIO, &NonBlock) == SOCKET_ERROR) {
-			write_log(ERROR, "ioctlsocket failed with error %d",
-					WSAGetLastError());
-			closesocket(new_s);
+			write_log(ERROR, "ioctlsocket failed with error %d",WSAGetLastError());
+			if( closesocket(new_s) == SOCKET_ERROR ){
+				write_log(ERROR, "closesocket failed with error: %d", WSAGetLastError());
+			}
 			write_log(INFO, "Closed socket %lld", new_s);
 			exit(EXIT_FAILURE);
 		}
