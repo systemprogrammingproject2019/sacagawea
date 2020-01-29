@@ -50,28 +50,27 @@ int read_request(sock_t sd, char* buf, int buflen) {
 	If any other failure occurs, we will returt true.*/
 	int check;
 	int read_bytes = 0;
-	int keep_going = 2;
+	int keep_going = true;
 
-	while (keep_going != 0) {
+	while (keep_going) {
 		if (read_bytes >= buflen) {
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
-			write_log(ERROR, "recv() of sd - %d, failed because of wrong input. Closing the connection",
-					sd, strerror(errno));
+			write_log(ERROR, "sd - %d, failed because of wrong input. Closing the connection",sd);
 			return true;
 		}
-		check = recv(sd, &buf[read_bytes], 1, 0);
+		int i=0;
+		#ifdef _WIN32
+		check = recv(sd, &buf[read_bytes], 4096, 0);
+		#else
+		check = recv(sd, &buf[read_bytes], 4096, MSG_DONTWAIT);
+		#endif
 		if (check > 0) {
-			read_bytes += check;
-			if (keep_going == 1) {
-				if (buf[(read_bytes - 1)] == '\n') {
-					keep_going = 0;
-				} else {
-					keep_going = 2;
+			for( i=read_bytes; i<read_bytes+check; i++ ){
+				if( (buf[i]=='\r') && (buf[i+1]=='\n') ){
+					keep_going = false;
 				}
 			}
-			if (buf[(read_bytes - 1)] == '\r') {
-				keep_going = 1;
-			}
+			read_bytes += check;
 		} else if (check == 0) {
 			write_log(DEBUG, "Connection closed %lld", sd);
 			// client close the connection so we can stop read and responce
@@ -97,8 +96,6 @@ int read_request(sock_t sd, char* buf, int buflen) {
 			continue;
 		#endif
 		}
-		/* Check to see if the connection has been closed by the client, so recv return 0  */
-
 	}
 	return false;
 }
@@ -217,6 +214,10 @@ int process_management(client_args *client_info) {
 selector* request_to_selector(char* input) {
 	int read_bytes = 0;
 	selector* client_selector = calloc(1, sizeof(selector));
+	if( client_selector == NULL ){
+		write_log(ERROR, "calloc of client_selector failed");
+		exit(1);
+	}
 	// memset(&client_selector, '\0', sizeof(client_selector));
 	(*client_selector).num_words = 0; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
 
@@ -263,6 +264,10 @@ selector* request_to_selector(char* input) {
 	if (input[read_bytes] == '\t') {
 		int i = 0;
 		(*client_selector).words = (char **) malloc(3 * sizeof(char *));
+		if( (*client_selector).words == NULL ){
+			write_log(ERROR, "malloc of (*client_selector).words failed");
+			exit(1);
+		}
 		(*client_selector).num_words = 3;
 		while ((input[read_bytes] != '\r') && (input[read_bytes] != '\n')) {
 			// put this check, becouse if the request contain 2+ consecutive \t or 2+ consecutive ' ' the scanf don't read an empty word.
@@ -280,6 +285,10 @@ selector* request_to_selector(char* input) {
 			// fare prima la malloc la fa scanf in automatico della grandezza della stringa letta + 1, sarebbe piu efficente dato che 
 			// MAX_FILE_NAME è spazio sprecato per parole di piccole len_string 
 			(*client_selector).words[i] = (char *) malloc(((MAX_FILE_NAME+1) * sizeof(char)));
+			if( (*client_selector).words[i] == NULL ){
+				write_log(ERROR, "malloc of (*client_selector).words[i] failed");
+				exit(1);
+			}
 			sscanf(&input[read_bytes], "%255s", (*client_selector).words[i]);
 			// upgrade read_bytes for check when we finish the client input
 			read_bytes += (strlen( (*client_selector).words[i]));
@@ -309,7 +318,10 @@ long unsigned int* management_function(client_args* c) {
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, wE put a MAX input = 4096
 	char* input = calloc(MAX_REQUEST_LEN, sizeof(char));
-
+	if( input == NULL ){
+		write_log(ERROR, "calloc of input failed");
+		exit(1);
+	}
 	// read request from client->socket ( client socket ) and put in *input, if fail return true otherwise false
 	if ((check = read_request(c->socket, input, MAX_REQUEST_LEN))) {
 		close_socket_kill_child(c, 0);
@@ -326,6 +338,10 @@ long unsigned int* management_function(client_args* c) {
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
+	if( c->path_file == NULL ){
+		write_log(ERROR, "calloc of c->path_file failed");
+		exit(1);
+	}
 	strcpy(c->path_file, (c->settings).homedir);
 	// security check to avoid memory corruption
 	int len_check = strlen(c->path_file) + strlen((*client_selector).selector);

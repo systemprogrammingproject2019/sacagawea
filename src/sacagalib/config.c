@@ -139,6 +139,10 @@ char* do_regex(const char* pattern, const char* str) {
 #ifdef _WIN32
 	PCRE2_SIZE BUFLEN = 256;
 	char *r = calloc(BUFLEN, sizeof(char));
+	if( r == NULL ){
+		write_log(ERROR, "calloc of r failed");
+		exit(1);
+	}
 	pcre2_code *re;
 	int err, rc;
 	pcre2_match_data *match_data;
@@ -195,6 +199,10 @@ char* do_regex(const char* pattern, const char* str) {
 	}
 
 	char* r = calloc(regmatch[1].rm_eo - regmatch[1].rm_so + 1, sizeof(char));
+	if( r == NULL ){
+		write_log(ERROR, "calloc of r failed");
+		close_all();
+	}
 	memcpy(r, &str[regmatch[1].rm_so], regmatch[1].rm_eo - regmatch[1].rm_so);
 	r[regmatch[1].rm_eo - regmatch[1].rm_so] = '\0';
 	/* Free memory allocated to the pattern buffer by regcomp() */

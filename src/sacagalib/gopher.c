@@ -73,6 +73,10 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			// the file match all word we send the data
 			// write_log(INFO, "%s", subFile->d_name);
 			path_of_subfile = (char*) calloc((strlen(client_info->path_file) + strlen(subFile->d_name) + 2), sizeof(char));
+			if( path_of_subfile == NULL ){
+				write_log(ERROR, "calloc of path_of_subfile failed");
+				exit(1);
+			}
 		#ifdef _WIN32
 			if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '\\') {
 		#else
@@ -104,6 +108,10 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			// declare and compile
 
 			response = (char*) malloc(len_response*sizeof(char));
+			if( response == NULL ){
+				write_log(ERROR, "malloc of response failed");
+				exit(1);
+			}
 			if (client_selector->selector[(strlen(client_selector->selector)-1)] != '/'){
 				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\n",
 						type, subFile->d_name, client_selector->selector,

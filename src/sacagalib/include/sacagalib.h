@@ -44,7 +44,7 @@
 // + 5 char for port 65000 + 1 char for the terminating null byte
 #define ADDR_MAXLEN 22
 #define MAX_FILE_NAME 255 // in Linux the max file name is 255 bytes
-#define MAX_REQUEST_LEN  5000 // we can change that with logs
+#define MAX_REQUEST_LEN  4096 // we can change that with logs
 
 
 #ifdef _WIN32
