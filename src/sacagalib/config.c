@@ -201,7 +201,7 @@ char* do_regex(const char* pattern, const char* str) {
 	char* r = calloc(regmatch[1].rm_eo - regmatch[1].rm_so + 1, sizeof(char));
 	if( r == NULL ){
 		write_log(ERROR, "calloc of r failed");
-		close_all();
+		exit(EXIT_FAILURE);
 	}
 	memcpy(r, &str[regmatch[1].rm_so], regmatch[1].rm_eo - regmatch[1].rm_so);
 	r[regmatch[1].rm_eo - regmatch[1].rm_so] = '\0';

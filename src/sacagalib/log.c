@@ -35,7 +35,15 @@ void log_management() {
 	
 	while (true) {
 
-		pthread_mutex_lock(mutex);
+		if( pthread_mutex_lock(mutex) != 0 ){
+			write_log(ERROR, "LOGS Process fail on lock mutex");
+			pthread_mutex_destroy(mutex);
+			pthread_cond_destroy(cond);
+			shm_unlink(SHARED_MUTEX_MEM);
+			shm_unlink(SHARED_COND_MEM);
+			close( pipe_conf[0] );
+			exit(1);
+		}
 		/* this while check if pipe is readable, or dont contain nothing.
 		if is empty return error EWOULDBLOCK and go again in blocked mode. */
 		
@@ -46,7 +54,15 @@ void log_management() {
 			if (check < 0) {
 				if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
 					write_log(INFO, "LOGS Process nothing");
-					pthread_cond_wait(cond, mutex);
+					if( pthread_cond_wait(cond, mutex) != 0){
+						write_log(ERROR, "LOGS Process fail on cond_wait");
+						pthread_mutex_destroy(mutex);
+						pthread_cond_destroy(cond);
+						shm_unlink(SHARED_MUTEX_MEM);
+						shm_unlink(SHARED_COND_MEM);
+						close( pipe_conf[0] );
+						exit(1);
+					}
 				} else {
 					write_log(INFO, "LOGS Process terminate");
 					pthread_mutex_destroy(mutex);
@@ -62,7 +78,15 @@ void log_management() {
 				break;
 			}
 			if (check == 0) {
-				pthread_cond_wait(cond, mutex);
+				if( pthread_cond_wait(cond, mutex) != 0){
+					write_log(ERROR, "LOGS Process fail on cond_wait");
+					pthread_mutex_destroy(mutex);
+					pthread_cond_destroy(cond);
+					shm_unlink(SHARED_MUTEX_MEM);
+					shm_unlink(SHARED_COND_MEM);
+					close( pipe_conf[0] );
+					exit(1);
+				}
 			}
 		}
 
@@ -74,6 +98,10 @@ void log_management() {
 	
 		// read pipe and write sacagawea.log, until we got \n
 		read_line = (char*) malloc((len_string+1) * sizeof(char));
+		if( read_line == NULL ){
+			write_log(ERROR, "Malloc on logProcess failed becouse: %s", strerror(errno));
+			exit(5);
+		}
 		if (read(pipe_conf[0], read_line, len_string) < 0) {
 			fprintf(stderr, "read() fail becouse: %s\n", strerror(errno));
 			free(read_line);
@@ -86,7 +114,15 @@ void log_management() {
 		
 		fclose(log);
 		free(read_line);
-		pthread_mutex_unlock(mutex);
+		if( pthread_mutex_unlock(mutex) != 0 ){
+			write_log(ERROR, "LOGS Process fail on cond_wait");
+			pthread_mutex_destroy(mutex);
+			pthread_cond_destroy(cond);
+			shm_unlink(SHARED_MUTEX_MEM);
+			shm_unlink(SHARED_COND_MEM);
+			close( pipe_conf[0] );
+			exit(1);
+		}
 	}
 }
 #endif
@@ -97,8 +133,16 @@ void write_log(int log_lv, const char* error_string, ...) {
 	#define LOG_STR_LEN 1024
 
 	char* log_string = malloc(LOG_STR_LEN);
+	if( log_string == NULL ){
+		write_log(ERROR, "Malloc on writelog failed becouse: %s", strerror(errno));
+		exit(5);
+	}
 	char* ds = date_string();
 	char* formatted_error_string = malloc(LOG_STR_LEN - strlen(ds));
+	if( formatted_error_string == NULL ){
+		write_log(ERROR, "Malloc on writelog failed becouse: %s", strerror(errno));
+		exit(5);
+	}
 
 	vsnprintf(formatted_error_string, LOG_STR_LEN - strlen(ds),
 			error_string, args);
@@ -132,7 +176,10 @@ void write_log(int log_lv, const char* error_string, ...) {
 char* date_string() {
 	size_t len_str = 22; // for "[MMM DD YYYY hh:mm:ss]"
 	char* r = malloc(len_str+1);
-
+	if( r == NULL ){
+		write_log(ERROR, "Malloc on date_string failed becouse: %s", strerror(errno));
+		exit(5);
+	}
 	time_t rawtime;
 	struct tm* timeinfo;
 	time(&rawtime);

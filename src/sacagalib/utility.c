@@ -41,7 +41,11 @@ int load_file_memory_and_send(client_args *client_info) {
 		return false;
 	}
 
-	GetFileSizeEx(hFile, (PLARGE_INTEGER) &(client_info->len_file));
+	if( GetFileSizeEx(hFile, (PLARGE_INTEGER) &(client_info->len_file)) == 0){
+		write_log(ERROR, "Failed to GetFileSizeEx on %s, with error: %d",
+				client_info->path_file, GetLastError());
+		return false;
+	}
 	write_log(DEBUG, "Sending %lld bytes file %s", client_info->len_file, client_info->path_file);
 	// parent's security attributes, with bInheritHandle set to TRUE
 	// so the FIle Mapping gets inherited by the child process
@@ -77,15 +81,35 @@ int load_file_memory_and_send(client_args *client_info) {
 			0,              // use default creation flags 
 			lpThreadId      // returns the thread identifier 
 	);
-
+	if( tHandle == NULL ){
+		write_log(ERROR, "CreateThread sender failed wirh error: %d",
+				GetLastError());
+		return false;
+	}
 	// the file handle is not needed by the file map, so we can close it
 	// before waiting for the thread to finish. This way, the thread can
 	// write onto the log file sacagawea.log if sacagawea.log is the file
 	// that's being requested
-	CloseHandle(hFile);
-	WaitForSingleObject(tHandle, INFINITE);
-	CloseHandle(tHandle);
-	CloseHandle(hMapFile);
+	if( CloseHandle(hFile) == 0 ){
+		write_log(ERROR, "Close hFile failed wirh error: %d",
+				GetLastError());
+		return false;
+	}
+	if( WaitForSingleObject(tHandle, INFINITE) == WAIT_FAILED ){
+		write_log(ERROR, "WaitThread sender failed wirh error: %d",
+				GetLastError());
+		return false;
+	}
+	if( CloseHandle(tHandle) == 0 ){
+		write_log(ERROR, "Close tHandle failed wirh error: %d",
+				GetLastError());
+		return false;
+	}
+	if( CloseHandle(hMapFile) == 0 ){
+		write_log(ERROR, "Close hMapFile failed wirh error: %d",
+				GetLastError());
+		return false;
+	}
 
 	return true;
 #else
@@ -130,7 +154,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		return 0;
 	}
 	client_info->len_file = stat_fd.st_size;
-	client_info->file_to_send = mmap(NULL, (client_info->len_file ), PROT_READ, MAP_PRIVATE, fd, 0);
+	client_info->file_to_send = mmap(NULL, client_info->len_file, PROT_READ, MAP_PRIVATE, fd, 0);
 
 	if ( client_info->file_to_send == MAP_FAILED){
 		write_log(ERROR, "mmap() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
@@ -161,16 +185,31 @@ int load_file_memory_and_send(client_args *client_info) {
 	// release lock with F_UNLCK flag and FP FD
 	lck.l_type = F_UNLCK;
 	//fcntl(fd, F_SETLK, &lck);
-	fcntl(fd, F_OFD_SETLK, &lck);
+	if( fcntl(fd, F_OFD_SETLK, &lck) == -1 ){
+		write_log(ERROR, "fcntl failed becouse: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 
 	//fclose(fp);
-	close(fd);
+	if( close(fd) == -1 ){
+		write_log(ERROR, "close failed becouse: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	// create thread to send the file to the client
 	pthread_t tid;
-	pthread_create(&tid, NULL, (void *) thread_sender, (void *) client_info);
-	pthread_join(tid, NULL);
+	if( pthread_create(&tid, NULL, (void *) thread_sender, (void *) client_info) != 0 ){
+		write_log(ERROR, "pthread_create failed") ;
+		exit(EXIT_FAILURE);
+	}
+	if( pthread_join(tid, NULL) != 0 ){
+		write_log(ERROR, "pthread_create failed") ;
+		exit(EXIT_FAILURE);
+	}
 	// munmap is the free for mmap
-	munmap(client_info->file_to_send, (client_info->len_file + 1));
+	if( munmap(client_info->file_to_send, (client_info->len_file + 1)) == -1 ){
+		write_log(ERROR, "close failed becouse: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	return true;
 #endif
 }
