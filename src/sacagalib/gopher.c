@@ -38,6 +38,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	DIR *folder;
 	struct dirent *subFile;
 	int j = 0;
+	int check;
 	int len_response;
 	char type;
 	int no_match = false;
@@ -47,6 +48,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 	// open dir 
 	folder = opendir(client_info->path_file);
 	if (folder == NULL) {
+		write_log(ERROR, "failed open dir: %s", client_info->path_file);
 		return;
 	}
 
@@ -97,14 +99,14 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			// for name of file +\t
 			len_response += strlen(subFile->d_name) + 1; 
 			// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
-			len_response += strlen(client_selector->selector) + strlen(subFile->d_name) + 2;
+			len_response += strlen(client_selector->selector) + strlen(subFile->d_name) + 3;
 			// for IP of server +\t
-			len_response += strlen((client_info->settings).hostname) + 1;
+			len_response += strlen((client_info->settings).hostname) + 2;
 			// for actualy opened (client_info->settings).port
 			snprintf(port_str, 6, "%d", (client_info->settings).port);
 			len_response += strlen(port_str);
 			// \n + \0
-			len_response += 4;
+			len_response += 2;
 			// declare and compile
 
 			response = (char*) malloc(len_response*sizeof(char));
@@ -112,6 +114,9 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 				write_log(ERROR, "malloc of response failed");
 				exit(1);
 			}
+			// SO dont care about path with double // but we used some gopher client for test the "server"
+			// and putting all time a / at start of path, let it become more expansive, 
+			// we got a path like C:/michele/Desktop/sacagawea/bin//////////////////0ciao.txt so we decided to put this check
 			if (client_selector->selector[(strlen(client_selector->selector)-1)] != '/'){
 				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\n",
 						type, subFile->d_name, client_selector->selector,
@@ -124,23 +129,44 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 
 			// write_log(INFO, "send_content_of_dir response to socket %d: %s", client_info->socket, response);
 		#ifdef _WIN32
-			send(client_info->socket, response, strlen(response), 0);
+			check = send(client_info->socket, response, strlen(response), 0);
+			if( check == SOCKET_ERROR ){
+				write_log(ERROR, "failed send %s to %s becouse: %s",response, client_info->addr, WSAGetLastError() );
+			}
 		#else
-			send(client_info->socket, response, strlen(response), MSG_NOSIGNAL);
+		//Requests not to send SIGPIPE on errors on stream oriented sockets when the other end breaks the connection. The EPIPE error is still returned.
+			check = send(client_info->socket, response, strlen(response), MSG_NOSIGNAL);
+			if( check < 0 ){
+				if( errno == EPIPE ){
+					write_log(ERROR, "failed send %s to %s becouse: %s",response, client_info->addr, strerror(errno));
+					break;
+				}else{
+					write_log(ERROR, "failed send %s to %s becouse: %s",response, client_info->addr, strerror(errno));
+				}
+			}
 		#endif
 			free(response);
 			free(path_of_subfile);
 		}
 	}
+
 	char end[] = ".\n";
 #ifdef _WIN32	
-	send(client_info->socket, end, strlen(end), 0);
+	check = send(client_info->socket, end, strlen(end), 0);
+	if( check == SOCKET_ERROR ){
+		write_log(ERROR, "failed send end message to %s becouse: %s", client_info->addr, WSAGetLastError() );
+	}
 #else
-	send(client_info->socket, end, strlen(end), MSG_NOSIGNAL);
+	check = send(client_info->socket, end, strlen(end), MSG_NOSIGNAL);
+	if( check < 0 ){
+		write_log(ERROR, "failed send end message to %s becouse: %s", client_info->addr, strerror(errno));
+	}
 #endif
 	write_log(DEBUG, "send_content_of_dir response to socket %d: SENT", client_info->socket);
 
-	closedir(folder);
+	if ( closedir(folder) == -1 ){
+		write_log(ERROR, "failed close dir: %s", client_info->path_file);
+	}
 }
 
 
@@ -148,6 +174,19 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 void *thread_sender(client_args* c) {
 	/* this cicle send the file at client and save the number of bytes sent */
 	size_t bytes_sent = 0, temp;
+	
+	/* checker for see if socket is_blocking or not
+	int val,is_blocking;
+	if ( (val = fcntl(c->socket, F_GETFL, 0)) < 0) {
+	  // Something's wrong here, check errno to find out why 
+	} else {
+		is_blocking = !(val & O_NONBLOCK);
+	}
+	if( is_blocking)
+		fprintf(stdout, "è bloccante \n");
+	else
+		fprintf(stdout, "non è bloccante \n");
+    */
 
 #ifdef _WIN32
 	SYSTEM_INFO sysnfo;
@@ -166,11 +205,6 @@ void *thread_sender(client_args* c) {
 	while (bytes_sent < c->len_file) {
 		// logic for sending the file
 	#ifdef _WIN32
-		if (c->file_to_send == NULL) {
-			write_log(ERROR, "OpenFileMappingA failed wirh error: %d",
-					GetLastError());
-			return false;
-		}
 
 		char* pBuf = (LPTSTR) MapViewOfFile(
 				c->file_to_send,      // handle to map object
@@ -194,31 +228,26 @@ void *thread_sender(client_args* c) {
 				min(sysnfo.dwAllocationGranularity,
 				c->len_file - bytes_sent), 0);
 		if (temp == SOCKET_ERROR) {
-			if (WSAGetLastError() != WSAEWOULDBLOCK) {
-				UnmapViewOfFile(pBuf);
-				write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
+			// if (WSAGetLastError() != WSAEWOULDBLOCK) {
 				write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
 						c->addr, c->socket, WSAGetLastError());
-
-				if (shutdown(c->socket, SD_SEND) != 0) {
-					write_log(ERROR, "shutdown on socket %d failed with error: %I64d",
-							c->socket, WSAGetLastError());
-					ExitThread(0);
-				}
+				if( UnmapViewOfFile(pBuf) == 0 ){
+					write_log(ERROR, "UnmapViewOfFile failed with error: %I64d",GetLastError());
+				}else{
+					write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
+				} 
 				ExitThread(0);
-			}
+			// }
 		} else {
 			bytes_sent += temp;
 		}
 	#else
 		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
-		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), 0);
+		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);
 		if (temp < 0) {
-			if (temp != EWOULDBLOCK) {
-				write_log(ERROR, "Sending file to %s, with socket %d failed: %s",
-						c->addr, c->socket, strerror(errno));
-				pthread_exit(0);
-			}
+			write_log(ERROR, "Sending file to %s, with socket %d failed: %s",
+					c->addr, c->socket, strerror(errno));
+			pthread_exit(0);
 		} else if (temp == 0) {
 			write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
 					c->addr, c->socket);
@@ -228,8 +257,11 @@ void *thread_sender(client_args* c) {
 		}
 	#endif
 	#ifdef _WIN32
-		UnmapViewOfFile(pBuf);
-		write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
+		if( UnmapViewOfFile(pBuf) == 0 ){
+			write_log(ERROR, "UnmapViewOfFile failed with error: %I64d",GetLastError());
+		}else{
+			write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
+		}
 	#endif
 	}
 	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
@@ -253,7 +285,7 @@ void *thread_sender(client_args* c) {
 	} while(ret != 0);
 
 #else
-	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma mi sembra veramente inteligente come cosa.
+	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma sembra veramente inteligente come cosa.
 	allora curl legge finche il socket è aperto. quindi quando inviavo il file anche se inviato tutto
 	lui leggeva aspettanto altri bytes. pertanto faccio lo shutdown ovvero chiudo il socket in scrittura
 	dal lato server, cosi curl quando finisce di leggere i bytes inviati si blocca e chiude la comunicazione */ 
@@ -282,8 +314,8 @@ void *thread_sender(client_args* c) {
 		len_logs_string += strlen(ds) + 1; // for date string + 1 space
 		len_logs_string += strlen(c->path_file) + 1;
 		len_logs_string += strlen(c->addr) + 4;
+		
 		char* logs_string = malloc(sizeof(char) * len_logs_string);
-
 		if (logs_string == NULL) {
 		#ifdef _WIN32
 			write_log(ERROR, "malloc() failed with error: %d", GetLastError());
@@ -293,6 +325,7 @@ void *thread_sender(client_args* c) {
 			pthread_exit(NULL);
 		#endif
 		}
+
 		if (snprintf(logs_string, len_logs_string, "%s %s %s\n", ds,
 				c->path_file, c->addr) < 0) {
 		#ifdef _WIN32
@@ -325,8 +358,7 @@ void *thread_sender(client_args* c) {
 		);
 		// Break if the pipe handle is valid.
 		if (hPipe == INVALID_HANDLE_VALUE && GetLastError() != ERROR_PIPE_BUSY) {
-			write_log(ERROR, "Could not open pipe. CreateFile failed with error: %ld\n",
-					GetLastError());
+			write_log(ERROR, "Could not open pipe. CreateFile failed with error: %ld\n",GetLastError());
 			ExitThread(0);
 		}
 
@@ -361,22 +393,32 @@ void *thread_sender(client_args* c) {
 			ExitThread(0);
 		}
 
-		CloseHandle(hPipe); 
+		if( CloseHandle(hPipe) == 0 ){
+			write_log(ERROR, "Close hPipe failed wirh error: %d", GetLastError());
+		}
 	#else
 		// lock mutex and wake up process for logs
-		pthread_mutex_lock(mutex);
-		
+		if( pthread_mutex_lock(mutex) != 0 ){
+			write_log(ERROR, "pthread_mutex_lock(mutex) fail on thread_sender, dont saved on logs");
+			free(logs_string);
+			pthread_exit(NULL);
+		}
+
 		if (write(pipe_conf[1], &len_logs_string, sizeof(int)) < 0) {
 			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
-	 		exit(5);
+	 		pthread_exit(NULL);
 		}	
 		if (write(pipe_conf[1], logs_string, len_logs_string) < 0) {
 			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
-	 		exit(5);
+	 		pthread_exit(NULL);
 		}
 		// unlock mutex and free
-		pthread_cond_signal(cond);
-		pthread_mutex_unlock(mutex);
+		if( pthread_cond_signal(cond) != 0 ){
+			write_log(ERROR, "pthread_cond_signal(cond) fail on thread_sender");
+		}
+		if( pthread_mutex_unlock(mutex) != 0 ){
+			write_log(ERROR, "pthread_mutex_unlock(mutex) fail on thread_sender"); // but thread will be closed so the mutex released
+		}
 	#endif
 		free(logs_string);
 	}

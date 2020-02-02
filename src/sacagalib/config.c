@@ -93,7 +93,10 @@ int check_if_port_change(const char* line, settings_t* settings) {
 		matched = true;
 		// if line is "port XXX" with XXX a port number
 		long int val = strtol(match, NULL, 10);
-
+		if( val == 0 ){
+			write_log(ERROR, "strtoll val in check_if_port_change, Failed with an error");
+			exit(1);
+		}
 		if ((val != 0) && (val != settings->port) && (val < 65536)) {
 			write_log(DEBUG, "check_if_port_change: new port: '%d'", val);
 			settings->port = val;

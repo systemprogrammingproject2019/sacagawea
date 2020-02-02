@@ -179,32 +179,42 @@ int process_management(client_args *client_info) {
 		// Some applications might keep these handles to monitor the status
 		// of the child process, for example. 
 
-		CloseHandle(piProcInfo.hProcess);
-		CloseHandle(piProcInfo.hThread);
+		if( CloseHandle(piProcInfo.hProcess) == 0 ){
+			write_log(ERROR, "Close piProcInfo.hProcess failed wirh error: %d",GetLastError());
+		}
+		if( CloseHandle(piProcInfo.hThread) == 0 ){
+			write_log(ERROR, "Close piProcInfo.hThread failed wirh error: %d",GetLastError());
+		}
 	}
 
-	UnmapViewOfFile(pBuf);
-	CloseHandle(hMapFile);
-
+	if( UnmapViewOfFile(pBuf) == 0 ){
+		write_log(ERROR, "UnmapViewOfFile failed with error: %I64d",GetLastError());
+	}
+	if( CloseHandle(hMapFile) == 0 ){
+		write_log(ERROR, "Close hMapFile failed wirh error: %d",GetLastError());
+	}
 	// need to close the socket here too, else it stays open in this process
 	closesocket(client_info->socket);
 	free(client_info);
 #else
 	int pid;
-	if ((pid = fork()) < 0) {
+	pid = fork();
+	if (pid < 0) {
 		// failed fork on server
-	}
-	if (pid == 0) {
-		// child who have to management the connection
-		// close settings->socket
-		//close(settings->socket);
-		management_function(client_info);
-		exit(1);
-	} else {
-		// this is the server
-		// close connection and deallocate resourses
-		close(client_info->socket);
-		free(client_info);
+		write_log(ERROR, "fork for management the connection failed");
+	}else{
+		if (pid == 0) {
+			// child who have to management the connection
+			// close settings->socket
+			//close(settings->socket);
+			management_function(client_info);
+			exit(1);
+		} else {
+			// this is the server
+			// close connection and deallocate resourses
+			close(client_info->socket);
+			free(client_info);
+		}
 	}
 #endif
 	return false;
@@ -223,10 +233,6 @@ selector* request_to_selector(char* input) {
 
 	write_log(DEBUG, "INPUT: \"%s\"", input);
 
-	//if path starts with "/", ignore it
-	if (input[0] == '/') {
-		input++;
-	}
 
 	// check if input start with selector or not
 	if (input[0] == '\t') { // if not, we set selector at empty String
@@ -268,8 +274,9 @@ selector* request_to_selector(char* input) {
 			write_log(ERROR, "malloc of (*client_selector).words failed");
 			exit(1);
 		}
+
 		(*client_selector).num_words = 3;
-		while ((input[read_bytes] != '\r') && (input[read_bytes] != '\n')) {
+		while ( !( (input[read_bytes] == '\r') && (input[read_bytes+1] == '\n') ) ) {
 			// put this check, becouse if the request contain 2+ consecutive \t or 2+ consecutive ' ' the scanf don't read an empty word.
 			if ((input[read_bytes] == '\t') || (input[read_bytes] == ' ')) {
 				write_log(DEBUG, "CHAR -%c-\n", input[read_bytes]);
@@ -289,7 +296,11 @@ selector* request_to_selector(char* input) {
 				write_log(ERROR, "malloc of (*client_selector).words[i] failed");
 				exit(1);
 			}
-			sscanf(&input[read_bytes], "%255s", (*client_selector).words[i]);
+			if( sscanf(&input[read_bytes], "%255s", (*client_selector).words[i]) < 0 ){
+				write_log(ERROR, "sscanf of 1 word failed");
+				exit(1);
+			}
+
 			// upgrade read_bytes for check when we finish the client input
 			read_bytes += (strlen( (*client_selector).words[i]));
 			write_log(DEBUG, "WORD %d: %s,%llu bytes", i, (*client_selector).words[i] , strlen((*client_selector).words[i]) );
@@ -370,7 +381,17 @@ long unsigned int* management_function(client_args* c) {
 			strcpy(temp, "3\t");
 			strcat(temp, (*client_selector).selector);
 			strcat(temp, "\n.\n");
-			send(c->socket, temp, strlen(temp), 0);
+	#ifdef _WIN32	
+			check = send(c->socket, temp, strlen(temp), 0);
+			if( check == SOCKET_ERROR ){
+				write_log(ERROR, "failed send ERROR message to %s becouse: %s", c->addr, WSAGetLastError());
+			}
+	#else
+			check = send(c->socket, temp, strlen(temp), MSG_NOSIGNAL);
+			if( check < 0 ){
+				write_log(ERROR, "failed send ERROR message to %s becouse: %s", c->addr, strerror(errno));
+			}
+	#endif
 		// close socket and thread
 		} else { // if is only a file
 			load_file_memory_and_send(c);
@@ -396,14 +417,21 @@ void thread_management(client_args *client_info) {
 			0,               // use default creation flags 
 			lpThreadId       // returns the thread identifier 
 	);
-	CloseHandle(tHandle);
+	
+	if( CloseHandle(tHandle) == 0 ){
+		write_log(ERROR, "Close tHandle in thread_managmente failed wirh error: %d",GetLastError());
+	}
 #else
 	pthread_t tid;
 	print_client_args(client_info);
-	pthread_create(&tid, NULL, (void *) management_function, (void *) client_info);
+	if( pthread_create(&tid, NULL, (void *) management_function, (void *) client_info) != 0 ){
+		write_log(ERROR, "pthread_create( management_function ) failed ");
+	}
 	// we need to call pthread_detach so the thread will release its
 	// resources (memory) on exit
-	pthread_detach(tid);
+	if( pthread_detach(tid) != 0 ){
+		write_log(ERROR, "pthread_detach( %d ) failed ", tid);
+	}
 #endif
 }
 
@@ -429,7 +457,7 @@ void close_socket_kill_child(client_args* c, int errcode) {
 	sock_t s = c->socket;
 	free_client_args(c);
 	if (mode == 't') {
-		close_socket(s);
+		close_socket( s );
 		kill_thread(s, 0);
 	} else {
 		exit(0);

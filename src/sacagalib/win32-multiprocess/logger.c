@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
 void disconnect_and_reconnect(DWORD i) {
 	// Disconnect the pipe instance.
 	if (!DisconnectNamedPipe(Pipe[i].hPipe)) {
-		write_log(ERROR, "DisconnectNamedPipe failed with %ld.\n", GetLastError());
+		write_log(ERROR, "DisconnectNamedPipe Pipe[%d] failed with %ld.\n",i, GetLastError());
 	}
 	// Call a subroutine to connect to the new client.
 	connect_to_new_client(Pipe[i].hPipe, &Pipe[i].oOverlap);
@@ -179,7 +179,9 @@ void write_to_log_file(char* pipe) {
 	if (hLogFile == INVALID_HANDLE_VALUE) {
 		write_log(ERROR, "CreateFileA %s failed with error: %d",
 				SACAGAWEALOGS_PATH, GetLastError());
-		CloseHandle(hLogFile);
+		if( CloseHandle(hLogFile) == 0 ){
+			write_log(ERROR, "Close hLogFile failed wirh error: %d",GetLastError());
+		}
 		return;
 	}
 
@@ -194,8 +196,10 @@ void write_to_log_file(char* pipe) {
 		write_log(ERROR, "WriteFile %s failed with error: %d",
 				SACAGAWEALOGS_PATH, GetLastError());
 	}
-	CloseHandle(hLogFile);
-
+	
+	if( CloseHandle(hLogFile) == 0 ){
+		write_log(ERROR, "Close hLogFile failed wirh error: %d",GetLastError());
+	}
 	// clean the pipe's buffer
 	ZeroMemory(request, WIN32_PIPE_BUFSIZE);
 }

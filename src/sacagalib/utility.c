@@ -164,23 +164,6 @@ int load_file_memory_and_send(client_args *client_info) {
 		close(fd);
 		return 0;
 	}
-	// old version with malloc
-	//FILE *fp = fdopen(fd, "r");
-	//if (fp == NULL) {
-	//	write_log(ERROR, "fdopen() failed: %s\n", strerror(errno));
-	//	exit(5);
-	//}
-	//fseek(fp, 0, SEEK_END);
-	//client_info->len_file = ftell(fp);
-	//fseek(fp, 0, SEEK_SET);
-
-	// client_info->file_to_send = malloc((client_info->len_file + 1));
-	// if ( fread(client_info->file_to_send, 1, client_info->len_file, fp) < client_info->len_file ) {
-	//	write_log(ERROR, "fread() failed: %s\n", strerror(errno));
-	//	exit(5);
-	//}
-	//client_info->file_to_send[client_info->len_file] = '\0';
-
 
 	// release lock with F_UNLCK flag and FP FD
 	lck.l_type = F_UNLCK;
@@ -210,6 +193,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		write_log(ERROR, "close failed becouse: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+	
 	return true;
 #endif
 }
