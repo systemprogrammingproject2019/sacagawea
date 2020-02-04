@@ -101,7 +101,7 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 
 			response = (char*) malloc(len_response*sizeof(char));
 			if( response == NULL ){
-				write_log(ERROR, "malloc of response failed");
+				write_log(ERROR, "malloc of response failed with error %s", strerror(errno));
 				exit(1);
 			}
 			// SO dont care about path with double // but we used some gopher client for test the "server"
@@ -121,17 +121,17 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 		#ifdef _WIN32
 			check = send(client_info->socket, response, strlen(response), 0);
 			if( check == SOCKET_ERROR ){
-				write_log(ERROR, "failed send %s to %s becouse: %s",response, client_info->addr, WSAGetLastError() );
+				write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, WSAGetLastError() );
 			}
 		#else
 		//Requests not to send SIGPIPE on errors on stream oriented sockets when the other end breaks the connection. The EPIPE error is still returned.
 			check = send(client_info->socket, response, strlen(response), MSG_NOSIGNAL);
 			if( check < 0 ){
 				if( errno == EPIPE ){
-					write_log(ERROR, "failed send %s to %s becouse: %s",response, client_info->addr, strerror(errno));
+					write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
 					break;
 				}else{
-					write_log(ERROR, "failed send %s to %s becouse: %s",response, client_info->addr, strerror(errno));
+					write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
 				}
 			}
 		#endif
@@ -144,12 +144,12 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 #ifdef _WIN32	
 	check = send(client_info->socket, end, strlen(end), 0);
 	if( check == SOCKET_ERROR ){
-		write_log(ERROR, "failed send end message to %s becouse: %s", client_info->addr, WSAGetLastError() );
+		write_log(ERROR, "failed send end message to %s because: %s", client_info->addr, WSAGetLastError() );
 	}
 #else
 	check = send(client_info->socket, end, strlen(end), MSG_NOSIGNAL);
 	if( check < 0 ){
-		write_log(ERROR, "failed send end message to %s becouse: %s", client_info->addr, strerror(errno));
+		write_log(ERROR, "failed send end message to %s because: %s", client_info->addr, strerror(errno));
 	}
 #endif
 	write_log(DEBUG, "send_content_of_dir response to socket %d: SENT", client_info->socket);

@@ -26,18 +26,15 @@
 #include "sacagalib.h"
 
 
-
 void free_client_args(client_args* c) {
 	free(c->path_file);
 	free(c);
 }
 
-
-
 int read_request(sock_t sd, char* buf, int buflen) {
 	/* Receive data on this connection until the recv \n of finish line.
-	If any other failure occurs, we will returt true.*/
-	int check;
+	If any other failure occurs, we will returt false.*/
+	int check, total_recv = 0;
 	int read_bytes = 0;
 	int keep_going = true;
 
@@ -45,59 +42,73 @@ int read_request(sock_t sd, char* buf, int buflen) {
 		if (read_bytes >= buflen) {
 			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
 			write_log(ERROR, "sd - %d, failed because of wrong input. Closing the connection",sd);
-			return true;
+			return -1;
 		}
-		int i=0;
-		#ifdef _WIN32
-		check = recv(sd, &buf[read_bytes], buflen, 0);
-		#else
-		check = recv(sd, &buf[read_bytes], buflen, MSG_DONTWAIT);
-		#endif
+	#ifdef _WIN32
+		check = recv(sd, &buf[read_bytes], buflen - read_bytes, 0);
+	#else
+		check = recv(sd, &buf[read_bytes], buflen - read_bytes, MSG_DONTWAIT);
+	#endif
+
+		for (int j = 0; j < check; j++) {
+			printf ("0x%x ", buf[read_bytes+j]);
+		}
+
 		if (check > 0) {
-			for( i=read_bytes; i<read_bytes+check; i++ ){
-				// the standard of gopher request is "the end of message is /r/n"
-				// so, all the message after /r/n will be discarded.
-				if( (buf[i]=='\r') && (buf[i+1]=='\n') ){
+			total_recv += check;
+			for (; read_bytes < total_recv; ++read_bytes) {
+				write_log(WARNING, "read_bytes = %d", read_bytes);
+				// the standard of gopher request is "the end of message is \r\n"
+				// so, all the message after \r\n will be discarded.
+				if (	(read_bytes - 1) >= 0
+						&& (buf[read_bytes-1] == '\r')
+						&& (buf[read_bytes] == '\n')) {
 					keep_going = false;
-					// memset give a warning, but is a fake warning becouse (read_bytes+check-i) 
-					// cant never be negative. look the upper for.
-					memset( &buf[i] , '\0' , (read_bytes+check-i) );
-					check = i; // we take until /n
+					// truncate the recved bytes fron \r\n included, onward
+					buf[read_bytes-1] = '\0';
+					break;
 				}
 			}
-			read_bytes += check;
 		} else if (check == 0) {
 			write_log(DEBUG, "Connection closed %lld", sd);
-			// client close the connection so we can stop read and responce
-			return true;
+			// client close the connection so we can stop read and reply
+			return -1;
 		} else {
 		#ifdef _WIN32
 			if (WSAGetLastError() != WSAEWOULDBLOCK) {
 				// if recv fail the error can be server side or client side so we close the connection and go on 
 				write_log(ERROR, "recv() of sd - %d, failed with error: %d. Closing the connection.",
 						sd, WSAGetLastError());
-				return true;
+				return -1;
 			}
 			// write_log(WARNING, "recv() of sd - %d WSAEWOULDBLOCK", sd);
-			continue;
 		#else
 			if (errno != EWOULDBLOCK) {
 				// if recv fail the error can be server side or client side so we close the connection and go on 
 				write_log(ERROR, "recv() of sd - %d, failed with error: %s. Closing the connection.",
 						sd, strerror(errno));
-				return true;
+				return -1;
 			}
 			// write_log(WARNING, "recv() of sd - %d EWOULDBLOCK", sd );
-			continue;
 		#endif
+			continue;
 		}
 	}
-	buf = realloc( buf , (read_bytes+1) );
-	if( buf == NULL){
-		write_log(ERROR, "realloc failed on reading input, close connection");
-		return true;
+
+	buf = realloc(buf, read_bytes);
+	if (buf == NULL) {
+		// if recv fail the error can be server side or client side so we close the connection and go on 
+	#ifdef _WIN32
+		write_log(ERROR, "read_request(): realloc failed with error: %d. Closing connection.", GetLastError());
+	#else
+		write_log(ERROR, "read_request(): realloc failed with error: %s. Closing connection.", strerror(errno));
+	#endif
+		return -1;
 	}
-	return false;
+	
+	write_log(WARNING, "buf = %s", buf);
+
+	return read_bytes;
 }
 
 // this function spawn process to management the new client request 
@@ -187,10 +198,10 @@ int process_management(client_args *client_info) {
 		}
 	}
 
-	if( UnmapViewOfFile(pBuf) == 0 ){
-		write_log(ERROR, "UnmapViewOfFile failed with error: %I64d",GetLastError());
+	if (UnmapViewOfFile(pBuf) == 0) {
+		write_log(ERROR, "UnmapViewOfFile failed with error: %d",GetLastError());
 	}
-	if( CloseHandle(hMapFile) == 0 ){
+	if (CloseHandle(hMapFile) == 0) {
 		write_log(ERROR, "Close hMapFile failed wirh error: %d",GetLastError());
 	}
 	// need to close the socket here too, else it stays open in this process
@@ -220,7 +231,7 @@ int process_management(client_args *client_info) {
 	return false;
 }
 
-// this fuction is the real management of the client responce with thread as son
+// this fuction is the real management of the client response with thread as son
 // needs to be "long unsigned int *" because win32 wants that, whereas
 // linux has no preference (only needs a "void *")
 long unsigned int* management_function(client_args* c) {
@@ -235,28 +246,37 @@ long unsigned int* management_function(client_args* c) {
 	}
 #endif
 
-	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
+	// because the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, we put a MAX input = 4096
 	char* input = calloc(MAX_REQUEST_LEN, sizeof(char));
-	if( input == NULL ){
-		write_log(ERROR, "calloc of input failed");
+	if (input == NULL) {
+	#ifdef _WIN32
+		write_log(ERROR, "calloc of input failed with error: %d", GetLastError());
+	#else
+		write_log(ERROR, "calloc of input failed with error: %s", strerror(errno));
+	#endif
 		exit(1);
 	}
 	// read request from client->socket ( client socket ) and put in *input, 
 	// if fail will returned true otherwise false,
 	// the selctor is append to root directory so root+selector < MAX_REQUEST_LEN 
-	if ((check = read_request(c->socket, input, (MAX_REQUEST_LEN-strlen((c->settings).homedir)) ))) {
+	check = read_request(c->socket, input, (MAX_REQUEST_LEN - strlen((c->settings).homedir)));
+	if (check == -1) {
 		close_socket_kill_child(c, 0);
 	}
 
 	// if we are there, print that message
-	write_log(DEBUG, "RECEIVED: \"%s\"\n%d bytes at %p\n",
-			input, check, &input);
+	write_log(DEBUG, "RECEIVED: \"%s\"\n at %p\n",
+			input, &input);
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
-	if( c->path_file == NULL ){
-		write_log(ERROR, "calloc of c->path_file failed");
+	if (c->path_file == NULL) {
+	#ifdef _WIN32
+		write_log(ERROR, "calloc of c->path_file failed with error: %d", GetLastError());
+	#else
+		write_log(ERROR, "calloc of c->path_file failed with error: %s", strerror(errno));
+	#endif
 		exit(1);
 	}
 	strcpy(c->path_file, (c->settings).homedir);
@@ -288,15 +308,15 @@ long unsigned int* management_function(client_args* c) {
 			strcpy(temp, "3\t");
 			strcat(temp, input);
 			strcat(temp, "\n.\n");
-	#ifdef _WIN32	
+	#ifdef _WIN32
 			check = send(c->socket, temp, strlen(temp), 0);
-			if( check == SOCKET_ERROR ){
-				write_log(ERROR, "failed send ERROR message to %s becouse: %s", c->addr, WSAGetLastError());
+			if (check == SOCKET_ERROR) {
+				write_log(ERROR, "failed send ERROR message to %s because: %s", c->addr, WSAGetLastError());
 			}
 	#else
 			check = send(c->socket, temp, strlen(temp), MSG_NOSIGNAL);
 			if( check < 0 ){
-				write_log(ERROR, "failed send ERROR message to %s becouse: %s", c->addr, strerror(errno));
+				write_log(ERROR, "failed send ERROR message to %s because: %s", c->addr, strerror(errno));
 			}
 	#endif
 		// close socket and thread

@@ -379,20 +379,20 @@ int main(int argc, char *argv[]) {
 	where the condition variable/mutex is allocated; even if the condition variable/mutex is allocated in memory
 	that is shared by multiple processes.*/
 	if( pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED) != 0){
-		write_log(ERROR, "System call pthread_condattr_setpshared() failed ");
+		write_log(ERROR, "pthread_condattr_setpshared() failed ");
 		exit(5);
 	}
 	if( pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED) != 0){
-		write_log(ERROR, "System call pthread_muteattr_setpshared() failed ");
+		write_log(ERROR, "pthread_muteattr_setpshared() failed ");
 		exit(5);
 	}
 	// set and init the mutex and condition variable
 	if( pthread_mutex_init(mutex, &mattr) != 0){
-		write_log(ERROR, "System call pthread_mutex_init() failed ");
+		write_log(ERROR, "pthread_mutex_init() failed ");
 		exit(5);
 	}
 	if( pthread_cond_init(cond, &cattr) != 0){
-		write_log(ERROR, "System call pthread_cond_init() failed ");
+		write_log(ERROR, "pthread_cond_init() failed ");
 		exit(5);
 	}
 #endif
