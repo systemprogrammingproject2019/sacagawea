@@ -49,11 +49,9 @@ int read_request(sock_t sd, char* buf, int buflen) {
 	#else
 		check = recv(sd, &buf[read_bytes], buflen - read_bytes, MSG_DONTWAIT);
 	#endif
-
 		if (check > 0) {
 			total_recv += check;
 			for (; read_bytes < total_recv; ++read_bytes) {
-				write_log(WARNING, "read_bytes = %d", read_bytes);
 				// the standard of gopher request is "the end of message is \r\n"
 				// so, all the message after \r\n will be discarded.
 				if (	(read_bytes - 1) >= 0
@@ -101,8 +99,6 @@ int read_request(sock_t sd, char* buf, int buflen) {
 	#endif
 		return -1;
 	}
-	
-	write_log(WARNING, "buf = %s", buf);
 
 	return read_bytes;
 }
