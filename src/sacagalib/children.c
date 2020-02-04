@@ -25,25 +25,14 @@
 
 #include "sacagalib.h"
 
-void free_selector(selector* sel) {
-	write_log(DEBUG, "this is sel = %x", sel);
-	write_log(DEBUG, "sel->num_words = %d", sel->num_words);
-	write_log(DEBUG, "sel->words = %x", sel->words);
-	for(int i = 0; i < sel->num_words; i++) {
-		write_log(DEBUG, "i = %d", i);
-		write_log(DEBUG, "(sel->words)[i] = %x", (sel->words)[i]);
-		free(sel->words[i]);
-	}
-	write_log(DEBUG, "sel->words = %x", sel->words);
-	free(sel->words);
-	write_log(DEBUG, "sel = %x", sel);
-	free(sel);
-}
+
 
 void free_client_args(client_args* c) {
 	free(c->path_file);
 	free(c);
 }
+
+
 
 int read_request(sock_t sd, char* buf, int buflen) {
 	/* Receive data on this connection until the recv \n of finish line.
@@ -60,14 +49,20 @@ int read_request(sock_t sd, char* buf, int buflen) {
 		}
 		int i=0;
 		#ifdef _WIN32
-		check = recv(sd, &buf[read_bytes], 4096, 0);
+		check = recv(sd, &buf[read_bytes], buflen, 0);
 		#else
-		check = recv(sd, &buf[read_bytes], 4096, MSG_DONTWAIT);
+		check = recv(sd, &buf[read_bytes], buflen, MSG_DONTWAIT);
 		#endif
 		if (check > 0) {
 			for( i=read_bytes; i<read_bytes+check; i++ ){
+				// the standard of gopher request is "the end of message is /r/n"
+				// so, all the message after /r/n will be discarded.
 				if( (buf[i]=='\r') && (buf[i+1]=='\n') ){
 					keep_going = false;
+					// memset give a warning, but is a fake warning becouse (read_bytes+check-i) 
+					// cant never be negative. look the upper for.
+					memset( &buf[i] , '\0' , (read_bytes+check-i) );
+					check = i; // we take until /n
 				}
 			}
 			read_bytes += check;
@@ -96,6 +91,11 @@ int read_request(sock_t sd, char* buf, int buflen) {
 			continue;
 		#endif
 		}
+	}
+	buf = realloc( buf , (read_bytes+1) );
+	if( buf == NULL){
+		write_log(ERROR, "realloc failed on reading input, close connection");
+		return true;
 	}
 	return false;
 }
@@ -220,97 +220,6 @@ int process_management(client_args *client_info) {
 	return false;
 }
 
-// this fuction check if the input contain a selector or not and return it
-selector* request_to_selector(char* input) {
-	int read_bytes = 0;
-	selector* client_selector = calloc(1, sizeof(selector));
-	if( client_selector == NULL ){
-		write_log(ERROR, "calloc of client_selector failed");
-		exit(1);
-	}
-	// memset(&client_selector, '\0', sizeof(client_selector));
-	(*client_selector).num_words = 0; // -1 mean 0 words, 0=1word .... n=(n-1)words. Like array index
-
-	write_log(DEBUG, "INPUT: \"%s\"", input);
-
-
-	// check if input start with selector or not
-	if (input[0] == '\t') { // if not, we set selector at empty String
-		(*client_selector).selector[0] = '\0';
-		read_bytes = 0;
-	} else { // if contain it we take it
-		while (true) {
-			// if we arrive at \t we have finished the selector.	
-			if (input[read_bytes] == '\t') {
-				break;
-			}
-			if (input[read_bytes] == '\r') {
-				// if we got \r we check if is followed by \n.
-				if (input[read_bytes+1] == '\n') {
-					// if yes, the input is finished
-					break;
-				} else {
-					// if not, that means \r is in the file name.
-					(*client_selector).selector[read_bytes] = input[read_bytes];
-					read_bytes++;
-				}
-			} else {
-				// we save the char in the selector becouse is an accettable characters
-				(*client_selector).selector[read_bytes] = input[read_bytes];
-				read_bytes++;
-			}
-		}
-	}
-
-	write_log(DEBUG, "SELECTOR: \"%s\", %d bytes",
-			(*client_selector).selector, read_bytes);
-
-	// if the client send a tab \t, it means that the selector is followed by words 
-	// ( that need to match with the name of the searched file )
-	if (input[read_bytes] == '\t') {
-		int i = 0;
-		(*client_selector).words = (char **) malloc(3 * sizeof(char *));
-		if( (*client_selector).words == NULL ){
-			write_log(ERROR, "malloc of (*client_selector).words failed");
-			exit(1);
-		}
-
-		(*client_selector).num_words = 3;
-		while ( !( (input[read_bytes] == '\r') && (input[read_bytes+1] == '\n') ) ) {
-			// put this check, becouse if the request contain 2+ consecutive \t or 2+ consecutive ' ' the scanf don't read an empty word.
-			if ((input[read_bytes] == '\t') || (input[read_bytes] == ' ')) {
-				write_log(DEBUG, "CHAR -%c-\n", input[read_bytes]);
-				read_bytes++;
-				continue;
-			}
-			// realloc check. we do a realloc every 3 words, just for limit overhead of realloc, and don't do every word
-			// first call do a malloc(3) becouse words=NULL after do realloc( 6 ) ... 9, 12 ...
-			if ((i % 3) == 0) {
-				(*client_selector).words = (char **) realloc((*client_selector).words, (i + 3) * sizeof(char *));
-			}
-			// declare a space for word and read it, OPPURE c'è l'opzione %m che passandogli  client_selector.words[i], senza 
-			// fare prima la malloc la fa scanf in automatico della grandezza della stringa letta + 1, sarebbe piu efficente dato che 
-			// MAX_FILE_NAME è spazio sprecato per parole di piccole len_string 
-			(*client_selector).words[i] = (char *) malloc(((MAX_FILE_NAME+1) * sizeof(char)));
-			if( (*client_selector).words[i] == NULL ){
-				write_log(ERROR, "malloc of (*client_selector).words[i] failed");
-				exit(1);
-			}
-			if( sscanf(&input[read_bytes], "%255s", (*client_selector).words[i]) < 0 ){
-				write_log(ERROR, "sscanf of 1 word failed");
-				exit(1);
-			}
-
-			// upgrade read_bytes for check when we finish the client input
-			read_bytes += (strlen( (*client_selector).words[i]));
-			write_log(DEBUG, "WORD %d: %s,%llu bytes", i, (*client_selector).words[i] , strlen((*client_selector).words[i]) );
-			// upgrade the num of words, contained in client_selector
-			(*client_selector).num_words = ++i;
-		}
-	}
-	return client_selector;
-}
-
 // this fuction is the real management of the client responce with thread as son
 // needs to be "long unsigned int *" because win32 wants that, whereas
 // linux has no preference (only needs a "void *")
@@ -327,25 +236,22 @@ long unsigned int* management_function(client_args* c) {
 #endif
 
 	// becouse the request is a path (SELECTOR) and the max path is 4096, plus
-	// eventualy some words which have to match with file name, wE put a MAX input = 4096
+	// eventualy some words which have to match with file name, we put a MAX input = 4096
 	char* input = calloc(MAX_REQUEST_LEN, sizeof(char));
 	if( input == NULL ){
 		write_log(ERROR, "calloc of input failed");
 		exit(1);
 	}
-	// read request from client->socket ( client socket ) and put in *input, if fail return true otherwise false
-	if ((check = read_request(c->socket, input, MAX_REQUEST_LEN))) {
+	// read request from client->socket ( client socket ) and put in *input, 
+	// if fail will returned true otherwise false,
+	// the selctor is append to root directory so root+selector < MAX_REQUEST_LEN 
+	if ((check = read_request(c->socket, input, (MAX_REQUEST_LEN-strlen((c->settings).homedir)) ))) {
 		close_socket_kill_child(c, 0);
 	}
 
 	// if we are there, print that message
 	write_log(DEBUG, "RECEIVED: \"%s\"\n%d bytes at %p\n",
 			input, check, &input);
-
-	// check if the input contain a selector or not
-	selector* client_selector;
-	client_selector = request_to_selector(input);
-	free(input); // freeing input as soon as it's not necessary anymore
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
@@ -355,13 +261,14 @@ long unsigned int* management_function(client_args* c) {
 	}
 	strcpy(c->path_file, (c->settings).homedir);
 	// security check to avoid memory corruption
-	int len_check = strlen(c->path_file) + strlen((*client_selector).selector);
+	
+	int len_check = strlen(c->path_file) + strlen(input);
 	if (len_check >= PATH_MAX) {
 		write_log(ERROR, "Exceeded PATH_MAX length: requested path is %d chars long",
 				len_check);
 		close_socket_kill_child(c, 0);
 	}
-	strcat(c->path_file, (*client_selector).selector);
+	strcat(c->path_file, input);
 	write_log(DEBUG, "PATH+SELECTOR %d bytes: %s",
 			strlen(c->path_file), c->path_file);
 
@@ -373,13 +280,13 @@ long unsigned int* management_function(client_args* c) {
 	type = type_path(c->path_file);
 
 	// if is a dir we check the content if match with words 
-	if (type == '7') {
-		send_content_of_dir(c, client_selector);
+	if (type == '1') {
+		send_content_of_dir(c, input);
 	} else {
 		if (type == '3') { // if is an error send the error message
-			char temp[(strlen((*client_selector).selector) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
+			char temp[(strlen(input) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
 			strcpy(temp, "3\t");
-			strcat(temp, (*client_selector).selector);
+			strcat(temp, input);
 			strcat(temp, "\n.\n");
 	#ifdef _WIN32	
 			check = send(c->socket, temp, strlen(temp), 0);
@@ -397,7 +304,7 @@ long unsigned int* management_function(client_args* c) {
 			load_file_memory_and_send(c);
 		}
 	}
-	free_selector(client_selector);
+	free(input);
 	close_socket_kill_child(c, 0);
 	return 0;
 }

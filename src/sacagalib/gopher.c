@@ -29,7 +29,7 @@
 
 #include "sacagalib.h"
 
-void send_content_of_dir(client_args* client_info, selector* client_selector) {
+void send_content_of_dir(client_args* client_info, char* client_selector) {
 	write_log(DEBUG, "send_content_of_dir: %s", client_info->path_file);
 
 	// this fuction send each file in a directory which match "words" in the
@@ -37,7 +37,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 
 	DIR *folder;
 	struct dirent *subFile;
-	int j = 0;
+	//int j = 0;
 	int check;
 	int len_response;
 	char type;
@@ -57,17 +57,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 		if ((strcmp(subFile->d_name , "..") == 0) || (strcmp( subFile->d_name , ".") == 0)) {
 			continue;
 		}
-		/* words are only strings and not regex, so i did that little check for take only 
-		subfile who match all words, regexes would be useless and a waste of resources */
-		// check word by word if match, if someone don't match we break the for, and don't send the gopher string of file
-		for (j = 0; j < client_selector->num_words; j++) {
-			no_match = false;
-			// check if not match
-			if (check_not_match(subFile->d_name, client_selector->words[j])) {
-				no_match = true;
-				break;
-			}
-		}
+		
 
 		if (no_match) { // file don't match something, continue with next subfile
 			continue;
@@ -99,7 +89,7 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			// for name of file +\t
 			len_response += strlen(subFile->d_name) + 1; 
 			// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
-			len_response += strlen(client_selector->selector) + strlen(subFile->d_name) + 3;
+			len_response += strlen(client_selector) + strlen(subFile->d_name) + 3;
 			// for IP of server +\t
 			len_response += strlen((client_info->settings).hostname) + 2;
 			// for actualy opened (client_info->settings).port
@@ -117,13 +107,13 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 			// SO dont care about path with double // but we used some gopher client for test the "server"
 			// and putting all time a / at start of path, let it become more expansive, 
 			// we got a path like C:/michele/Desktop/sacagawea/bin//////////////////0ciao.txt so we decided to put this check
-			if (client_selector->selector[(strlen(client_selector->selector)-1)] != '/'){
+			if (client_selector[(strlen(client_selector)-1)] != '/'){
 				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\n",
-						type, subFile->d_name, client_selector->selector,
+						type, subFile->d_name, client_selector,
 						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 			} else {
 				snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\n",
-						type, subFile->d_name, client_selector->selector,
+						type, subFile->d_name, client_selector,
 						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 			}
 
@@ -174,19 +164,6 @@ void send_content_of_dir(client_args* client_info, selector* client_selector) {
 void *thread_sender(client_args* c) {
 	/* this cicle send the file at client and save the number of bytes sent */
 	size_t bytes_sent = 0, temp;
-	
-	/* checker for see if socket is_blocking or not
-	int val,is_blocking;
-	if ( (val = fcntl(c->socket, F_GETFL, 0)) < 0) {
-	  // Something's wrong here, check errno to find out why 
-	} else {
-		is_blocking = !(val & O_NONBLOCK);
-	}
-	if( is_blocking)
-		fprintf(stdout, "è bloccante \n");
-	else
-		fprintf(stdout, "non è bloccante \n");
-    */
 
 #ifdef _WIN32
 	SYSTEM_INFO sysnfo;
@@ -228,16 +205,14 @@ void *thread_sender(client_args* c) {
 				min(sysnfo.dwAllocationGranularity,
 				c->len_file - bytes_sent), 0);
 		if (temp == SOCKET_ERROR) {
-			// if (WSAGetLastError() != WSAEWOULDBLOCK) {
-				write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
-						c->addr, c->socket, WSAGetLastError());
-				if( UnmapViewOfFile(pBuf) == 0 ){
-					write_log(ERROR, "UnmapViewOfFile failed with error: %I64d",GetLastError());
-				}else{
-					write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
-				} 
-				ExitThread(0);
-			// }
+			write_log(ERROR, "Sending file to %s, with socket %d failed with error: %d",
+					c->addr, c->socket, WSAGetLastError());
+			if( UnmapViewOfFile(pBuf) == 0 ){
+				write_log(ERROR, "UnmapViewOfFile failed with error: %I64d",GetLastError());
+			}else{
+				write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
+			} 
+			ExitThread(0);
 		} else {
 			bytes_sent += temp;
 		}
@@ -442,7 +417,7 @@ char type_path(char path[PATH_MAX]) {
 
 	if (PathIsDirectoryA(path)) {
 		// write_log(INFO, "Path %s is a directory", path);
-		return '7';
+		return '1';
 	}
 
 	LPCSTR extension = PathFindExtensionA(path);
@@ -504,31 +479,34 @@ char type_path(char path[PATH_MAX]) {
 	pclose(popen_output_stream);
 
 
-	if ((strncmp(popen_output, DIR_1, strlen(DIR_1)) == 0) || (strncmp(popen_output, GOPHER_1, strlen(GOPHER_1)) == 0)) {
+	if( strncmp(popen_output, DIR_1, strlen(DIR_1)) == 0 ) {
+		return '1';
+	}
+	if( strncmp(popen_output, GOPHER_1, strlen(GOPHER_1)) == 0 ) {
 		return '7';
 	}
-	if (strncmp(popen_output, MULTIPART_M, strlen(MULTIPART_M)) == 0) {
+	if( strncmp(popen_output, MULTIPART_M, strlen(MULTIPART_M)) == 0) {
 		return 'M';
 	}
-	if (strncmp(popen_output, APPLICATION_9, strlen(APPLICATION_9)) == 0) {
+	if( strncmp(popen_output, APPLICATION_9, strlen(APPLICATION_9)) == 0) {
 		return '9';
 	}
-	if (strncmp(popen_output, AUDIO_s, strlen(AUDIO_s)) == 0 ) {
+	if( strncmp(popen_output, AUDIO_s, strlen(AUDIO_s)) == 0 ) {
 		return 's';
 	}
-	if (strncmp(popen_output, HTML_h, strlen(HTML_h)) == 0 ) {
+	if( strncmp(popen_output, HTML_h, strlen(HTML_h)) == 0 ) {
 		return 'h';
 	}
-	if ((strncmp(popen_output, TEXT_0, strlen(TEXT_0)) == 0) || (strncmp(popen_output, EMPTY_0, strlen(EMPTY_0)) == 0)) {
+	if( (strncmp(popen_output, TEXT_0, strlen(TEXT_0)) == 0) || (strncmp(popen_output, EMPTY_0, strlen(EMPTY_0)) == 0)) {
 		return '0';
 	}
-	if (strncmp(popen_output, GIF_g, strlen(GIF_g)) == 0) {
+	if( strncmp(popen_output, GIF_g, strlen(GIF_g)) == 0) {
 		return 'g';
 	}
-	if (strncmp(popen_output, IMAGE_I, strlen(IMAGE_I)) == 0) {
+	if( strncmp(popen_output, IMAGE_I, strlen(IMAGE_I)) == 0) {
 		return 'I';
 	}
-	if (strncmp(popen_output, MAC_4, strlen(MAC_4)) == 0) {
+	if( strncmp(popen_output, MAC_4, strlen(MAC_4)) == 0) {
 		return '4';
 	}
 	return '3';

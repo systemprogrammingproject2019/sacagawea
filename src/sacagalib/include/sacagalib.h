@@ -99,20 +99,11 @@ struct struct_client_args{
 
 typedef struct struct_client_args client_args;
 
-struct struct_selector{
-	char selector[PATH_MAX];
-	int num_words;
-	char **words;
-};
-
-typedef struct struct_selector selector;
 
 // sacagalib.c
 EXPORTED void print_client_args(client_args* client);
-EXPORTED int check_not_match(char d_name[PATH_MAX+1], char *word);
 
 // children_management.c
-EXPORTED selector* request_to_selector(char *input);
 EXPORTED long unsigned int *management_function(client_args* c);
 // EXPORTED void process_fuction(client_args *client_info);
 EXPORTED void thread_management(client_args *client_info);
@@ -141,7 +132,7 @@ EXPORTED int read_and_check_conf(settings_t*, int);
 // gopher.c
 EXPORTED char type_path(char path[PATH_MAX]);
 EXPORTED void *thread_sender(client_args* c);
-EXPORTED void send_content_of_dir(client_args *client_info, selector *client_selector);
+EXPORTED void send_content_of_dir(client_args *client_info, char *client_selector);
 
 // log.c
 EXPORTED void log_management();
