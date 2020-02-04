@@ -287,6 +287,7 @@ long unsigned int* management_function(client_args* c) {
 	// avoid trasversal path
 	if (check_security_path(c->path_file)) {
 		write_log(WARNING, "Path traversal detected in client's request: %s", c->path_file);
+		free(input);
 		close_socket_kill_child(c, 0);
 	}
 	type = type_path(c->path_file);
@@ -296,10 +297,10 @@ long unsigned int* management_function(client_args* c) {
 		send_content_of_dir(c, input);
 	} else {
 		if (type == '3') { // if is an error send the error message
-			char temp[(strlen(input) + 6)]; // 3 is for lenght of "3\t" + 1 per \n + 2 for last line + 1 \0
+			char temp[(strlen(input) + 8)]; // 2 is for length of "3\t" + 2 for \r\n + 1 for last line + 2 for \r\n + 1 for \0
 			strcpy(temp, "3\t");
 			strcat(temp, input);
-			strcat(temp, "\n.\n");
+			strcat(temp, "\r\n.\r\n");
 	#ifdef _WIN32
 			check = send(c->socket, temp, strlen(temp), 0);
 			if (check == SOCKET_ERROR) {

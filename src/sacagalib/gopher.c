@@ -44,7 +44,7 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 	int no_match = false;
 	char* response;
 	char *path_of_subfile;
-	char port_str[6]; // max ex "65000\0"
+	char port_str[6]; // max ex "65535\0"
 	// open dir 
 	folder = opendir(client_info->path_file);
 	if (folder == NULL) {
@@ -452,9 +452,9 @@ char type_path(char path[PATH_MAX]) {
 	// we check the tipe or file with file bash command
 	char command[(strlen(path) + 10)];  // 9 for "file -bi " + 1 for \0 at end
 	// file with -b option: 
-	strcpy(command, "file -bi \"");
+	strcpy(command, "file -bi '");
 	strcat(command, path);
-	strcat(command, "\"");
+	strcat(command, "'");
 	FILE* popen_output_stream = popen(command , "r");
 	if (popen_output_stream == NULL) { 
 		write_log(ERROR,"popen() failed: %s\n", strerror(errno));
