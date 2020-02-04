@@ -108,11 +108,11 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 			// and putting all time a / at start of path, let it become more expansive, 
 			// we got a path like C:/michele/Desktop/sacagawea/bin//////////////////0ciao.txt so we decided to put this check
 			if (client_selector[(strlen(client_selector)-1)] != '/'){
-				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\n",
+				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\r\n",
 						type, subFile->d_name, client_selector,
 						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 			} else {
-				snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\n",
+				snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\r\n",
 						type, subFile->d_name, client_selector,
 						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 			}
@@ -140,7 +140,7 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 		}
 	}
 
-	char end[] = ".\n";
+	char end[] = ".\r\n";
 #ifdef _WIN32	
 	check = send(client_info->socket, end, strlen(end), 0);
 	if( check == SOCKET_ERROR ){

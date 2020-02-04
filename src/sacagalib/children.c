@@ -258,7 +258,7 @@ long unsigned int* management_function(client_args* c) {
 	}
 
 	// if we are there, print that message
-	write_log(DEBUG, "RECEIVED: \"%s\"\n at %p\n",
+	write_log(DEBUG, "RECEIVED: \"%s\" at addr %p\n",
 			input, &input);
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
