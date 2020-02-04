@@ -50,10 +50,6 @@ int read_request(sock_t sd, char* buf, int buflen) {
 		check = recv(sd, &buf[read_bytes], buflen - read_bytes, MSG_DONTWAIT);
 	#endif
 
-		for (int j = 0; j < check; j++) {
-			printf ("0x%x ", buf[read_bytes+j]);
-		}
-
 		if (check > 0) {
 			total_recv += check;
 			for (; read_bytes < total_recv; ++read_bytes) {
