@@ -177,13 +177,13 @@ void universal_handler() {
 		// close the old server socket --- it is still open on all children
 		// threads/processes (until they die/close it) because
 		// they were only given a copy of it.
-
-		if( close(settings->socket) == -1 ){
-			#ifdef _WIN32
-			write_log(ERROR, "System call close() on %d (server socket) failed, program will continue on new socket", settings->socket );
-			#else
-			write_log(ERROR, "System call close() on %d (server socket) failed because of %s, program will continue on new socket", settings->socket, strerror(errno));
-			#endif
+	#ifdef _WIN32
+		if (closesocket(settings->socket) == -1) {
+			write_log(ERROR, "System call close() on %d (server socket) failed with error: %d. Socket change failed.", settings->socket, WSAGetLastError());
+	#else
+		if (close(settings->socket) == -1) {
+			write_log(ERROR, "System call close() on %d (server socket) failed with error: %s. Socket change failed.", settings->socket, strerror(errno));
+	#endif
 		}
 
 		settings->socket = open_socket(settings);
