@@ -464,9 +464,9 @@ char type_path(char* path) {
 		write_log(ERROR,"popen() failed: %s\n", strerror(errno));
 	 	exit(5);
 	}
-	char popen_output[32]; // is useless read all output, i need only the first section and the max is "application/gopher"
+	char popen_output[64]; // is useless read all output, i need only the first section and the max is "application/gopher"
 
-	if (fgets((char *) &popen_output, 32, popen_output_stream) == NULL) {
+	if (fgets((char *) &popen_output, 64, popen_output_stream) == NULL) {
 		if (!feof(popen_output_stream)) {
 			write_log(ERROR, S_ERROR_FGETS, strerror(errno));
 			exit(5);
@@ -475,7 +475,7 @@ char type_path(char* path) {
 	//fprintf( stdout, "%s\n", popen_output); 
 	if (strncmp(popen_output, "cannot", 6) == 0) {
 		write_log(DEBUG, "%s", popen_output);
-		while (fgets((char *) &popen_output, 32, popen_output_stream) != NULL) {
+		while (fgets((char *) &popen_output, 64, popen_output_stream) != NULL) {
 			write_log(DEBUG, "%s", popen_output); 
 		}
 	}
@@ -517,12 +517,17 @@ char type_path(char* path) {
 }
 
 #ifndef _WIN32
-// In this function we replace every singe ' with '\''
+// In this function we replace every single ' with '\''
 char* sanitize_path(const char* input) {
+	int count = 0;
+	// count how many ' are in the input
+	for(const char* p = input; *p; count += (*p++ == '\''));
+
 	int pathlen = strlen(input);
-	// len is pathlen*4+1 because the worst case scenario is a string
-	// composed only with ', +1 for the nil char at the end
-	char* ret = calloc(pathlen * 4 + 1, sizeof(char));
+	// final len is pathlen + (count*3) + 1 because for each ' 
+	// in the input we are adding another 3 chars, plus 1 char for
+	// the final nil char
+	char* ret = calloc(pathlen + (count*3) + 1, sizeof(char));
 	int ret_index = 0;
 	for (int i = 0; i < pathlen; i++) {
 		if (input[i] == '\'') {
@@ -536,9 +541,7 @@ char* sanitize_path(const char* input) {
 			ret_index += 1;
 		}
 	}
-	int newlen = strlen(ret);
-	ret = realloc(ret, newlen+1); // +1 is needed for the \0 char
-	write_log(DEBUG, "SANITIZED = %s", ret);
+	// write_log(DEBUG, "SANITIZED = %s", ret);
 	return ret;
 }
 #endif
