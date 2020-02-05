@@ -178,7 +178,7 @@ void universal_handler() {
 		// threads/processes (until they die/close it) because
 		// they were only given a copy of it.
 	#ifdef _WIN32
-		if (closesocket(settings->socket) == -1) {
+		if (closesocket(settings->socket) != 0) {
 			write_log(ERROR, "System call close() on %d (server socket) failed with error: %d. Socket change failed.", settings->socket, WSAGetLastError());
 	#else
 		if (close(settings->socket) == -1) {
