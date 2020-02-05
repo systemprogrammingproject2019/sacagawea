@@ -328,7 +328,7 @@ int main(int argc, char *argv[]) {
 			
 		#ifndef _WIN32
 			case 'd':
-				write_log(INFO, "debug mode (AKA \"dont become a daemon\" mode) is on: 't'");
+				write_log(INFO, "debug mode (AKA \"dont become a daemon\" mode) is on");
 				debug_mode = true;
 				break;
 		#endif
