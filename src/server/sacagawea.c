@@ -334,7 +334,11 @@ int main(int argc, char *argv[]) {
 		#endif
 
 			case '?':
-				write_log(INFO, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to process 1 client connection]" );
+			#ifdef _WIN32
+				write_log(INFO, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to handle client connections]" );
+			#else
+				write_log(INFO, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to handle client connections][-d enable debug mode (don't become a daemon)]" );
+			#endif
 				exit(20);
 				break;
 		}
