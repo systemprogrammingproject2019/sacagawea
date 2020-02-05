@@ -528,6 +528,10 @@ char* sanitize_path(const char* input) {
 	// in the input we are adding another 3 chars, plus 1 char for
 	// the final nil char
 	char* ret = calloc(pathlen + (count*3) + 1, sizeof(char));
+	if( ret == NULL ) {
+		write_log(ERROR,"calloc() failed: %s\n", strerror(errno));
+	 	exit(5);
+	}
 	int ret_index = 0;
 	for (int i = 0; i < pathlen; i++) {
 		if (input[i] == '\'') {
