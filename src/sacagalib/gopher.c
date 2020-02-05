@@ -29,6 +29,7 @@
 
 #include "sacagalib.h"
 
+
 void send_content_of_dir(client_args* client_info, char* client_selector) {
 	write_log(DEBUG, "send_content_of_dir: %s", client_info->path_file);
 
@@ -406,7 +407,7 @@ void *thread_sender(client_args* c) {
 
 // this function take a path as argument and return the gopher char associated.
 // in the Gopher.md u can see all gopher char and the translate
-char type_path(char path[PATH_MAX]) {
+char type_path(char* path) {
 
 #ifdef _WIN32
 	DWORD f;
@@ -449,11 +450,14 @@ char type_path(char path[PATH_MAX]) {
 	// write_log(INFO, "Path %s is a file", path);
 	return '0';
 #else
+	char* sanitized_path = sanitize_path(path);
+
 	// we check the tipe or file with file bash command
-	char command[(strlen(path) + 10)];  // 9 for "file -bi " + 1 for \0 at end
+	char command[(strlen(sanitized_path) + 12)];  // 10 for "file -bi '" + 2 for "'\0"
 	// file with -b option: 
 	strcpy(command, "file -bi '");
-	strcat(command, path);
+	strcat(command, sanitized_path);
+	free(sanitized_path); // free as soon as we dont need it anymore
 	strcat(command, "'");
 	FILE* popen_output_stream = popen(command , "r");
 	if (popen_output_stream == NULL) { 
@@ -472,9 +476,8 @@ char type_path(char path[PATH_MAX]) {
 	if (strncmp(popen_output, "cannot", 6) == 0) {
 		write_log(DEBUG, "%s", popen_output);
 		while (fgets((char *) &popen_output, 32, popen_output_stream) != NULL) {
-			fprintf(stdout, "%s", popen_output); 
+			write_log(DEBUG, "%s", popen_output); 
 		}
-		fprintf(stdout, "\n"); 
 	}
 	pclose(popen_output_stream);
 
@@ -512,3 +515,30 @@ char type_path(char path[PATH_MAX]) {
 	return '3';
 #endif
 }
+
+#ifndef _WIN32
+// In this function we replace every singe ' with '\''
+char* sanitize_path(const char* input) {
+	int pathlen = strlen(input);
+	// len is pathlen*4+1 because the worst case scenario is a string
+	// composed only with ', +1 for the nil char at the end
+	char* ret = calloc(pathlen * 4 + 1, sizeof(char));
+	int ret_index = 0;
+	for (int i = 0; i < pathlen; i++) {
+		if (input[i] == '\'') {
+			ret[ret_index+0] = '\'';
+			ret[ret_index+1] = '\\';
+			ret[ret_index+2] = '\'';
+			ret[ret_index+3] = '\'';
+			ret_index += 4;
+		} else {
+			ret[ret_index] = input[i];
+			ret_index += 1;
+		}
+	}
+	int newlen = strlen(ret);
+	ret = realloc(ret, newlen+1); // +1 is needed for the \0 char
+	write_log(DEBUG, "SANITIZED = %s", ret);
+	return ret;
+}
+#endif

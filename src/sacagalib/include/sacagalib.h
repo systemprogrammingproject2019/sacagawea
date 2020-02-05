@@ -130,9 +130,12 @@ EXPORTED char* do_regex(const char* pattern, const char* str);
 EXPORTED int read_and_check_conf(settings_t*, int);
 
 // gopher.c
-EXPORTED char type_path(char path[PATH_MAX]);
+EXPORTED char type_path(char* path);
 EXPORTED void *thread_sender(client_args* c);
 EXPORTED void send_content_of_dir(client_args *client_info, char *client_selector);
+#ifndef _WIN32
+EXPORTED char* sanitize_path(const char* input);
+#endif
 
 // log.c
 EXPORTED void log_management();
