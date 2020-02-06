@@ -292,7 +292,7 @@ void *thread_sender(client_args* c) {
 		// 18.446.744.073.709.551.616 is the max lenght of size_t ( win/ unix) 64 bit
 		// we just allocate 21 bytes for the max case plus 3 for unit of measure
 		len_logs_string += 24;
-		len_logs_string += strlen(c->addr) + 1;
+		len_logs_string += strlen(c->addr) + 2;
 		
 		char* logs_string = malloc(sizeof(char) * len_logs_string);
 		if (logs_string == NULL) {
