@@ -306,7 +306,7 @@ void *thread_sender(client_args* c) {
 		}
 
 		#ifdef _WIN32
-		if (snprintf(logs_string, len_logs_string, "%s %s %l64u B %s\n", ds,
+		if (snprintf(logs_string, len_logs_string, "%s %s %I64u B %s\n", ds,
 				c->path_file, c->len_file, c->addr) < 0) {
 			write_log(ERROR, "snprintf() failed with error: %d", GetLastError());
 			ExitThread(0);
