@@ -114,6 +114,7 @@ void become_daemon() {
 
 
 void close_all() {
+	write_log(INFO, "Gracefully closing the server...");
 #ifdef _WIN32
 	if( closesocket(settings->socket) == SOCKET_ERROR ){
 		write_log(ERROR, "closesocket failed with error: %d", WSAGetLastError());
@@ -305,7 +306,10 @@ int main(int argc, char *argv[]) {
 	// check if some variable are setted by command line
 	int c;
 	opterr = 0;
-	while ((c = getopt(argc, argv, "ptP:")) != -1) {
+#ifndef _WIN32
+	int debug_mode = false;
+#endif
+	while ((c = getopt(argc, argv, "ptdP:")) != -1) {
 		switch (c) {
 			case 'p':
 				settings->mode = 'p';
@@ -321,14 +325,29 @@ int main(int argc, char *argv[]) {
 				settings->mode = 't';
 				write_log(INFO, "mode change: 't'");
 				break;
+			
+		#ifndef _WIN32
+			case 'd':
+				write_log(INFO, "debug mode (AKA \"dont become a daemon\" mode) is on");
+				debug_mode = true;
+				break;
+		#endif
 
 			case '?':
-				write_log(INFO, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to process 1 client connection]" );
+			#ifdef _WIN32
+				write_log(INFO, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to handle client connections]" );
+			#else
+				write_log(INFO, "Usage: sacagawea [-P number_of_port][-p/-t for use subprocess/threads to handle client connections][-d enable debug mode (don't become a daemon)]" );
+			#endif
 				exit(20);
 				break;
 		}
 	}
-
+#ifndef _WIN32
+	if (debug_mode == false) {
+		become_daemon();
+	}
+#endif
 	write_log(INFO, "Server port: %d, mode: %s",
 			settings->port, (settings->mode == 'p')?"multiprocess":"multithreaded");
 
@@ -477,21 +496,17 @@ int main(int argc, char *argv[]) {
 	struct sigaction new_action;
 	/* Block other SIGHUP signals while handler runs. */
 	sigset_t block_mask;
-	if( sigemptyset (&block_mask) == -1 ){
+	if (sigemptyset (&block_mask) == -1) {
 		write_log(ERROR, "sigemptyset() failed" );
 		close_all();
 	}
-	if( sigaddset (&block_mask, SIGHUP) == -1 ){
-		write_log(ERROR, "sigaddset() failed" );
+	if (sigaddset (&block_mask, SIGHUP) == -1) {
+		write_log(ERROR, "sigaddset() for SIGHUP failed" );
 		close_all();
 	}
 	/* Set up the structure to specify the new action. */
 	new_action.sa_handler = (__sighandler_t) sighup_handler;
 	new_action.sa_mask = block_mask;
-	if( sigemptyset (&new_action.sa_mask) == -1 ){
-		write_log(ERROR, "sigemptyset() failed" );
-		close_all();
-	}
 	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 
 	is running like read/recv etc.. after the handler,
 	the system call is restarted and can give EINTR error if fail */ 
@@ -503,32 +518,73 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
-	// Creating sigaction for SIGINT
+	// Creating sigaction for all signals that would terminate
+	// the process by default
 #ifndef _WIN32
-	struct sigaction sigint_action;
-	/* Block other SIGINT signals while handler runs. */
-	sigset_t sigint_block_mask;
-	if( sigemptyset (&sigint_block_mask) == -1 ){
+	struct sigaction term_signal_action;
+	/* Block other signals while handler runs. */
+	sigset_t term_signal_block_mask;
+	if (sigemptyset (&term_signal_block_mask) == -1) {
 		write_log(ERROR, "sigemptyset() failed" );
 		close_all();
 	}
-	if( sigaddset (&sigint_block_mask, SIGINT) == -1 ){
+	if (sigaddset (&term_signal_block_mask, SIGHUP) == -1) {
+		write_log(ERROR, "sigaddset() for SIGHUP failed" );
+		close_all();
+	}
+	if( sigaddset (&term_signal_block_mask, SIGINT) == -1) {
 		write_log(ERROR, "sigaddset() failed" );
 		close_all();
 	}
-	/* Set up the structure to specify the new action. */
-	sigint_action.sa_handler = close_all;
-	sigint_action.sa_mask = sigint_block_mask;
-	if( sigemptyset (&sigint_action.sa_mask) == -1 ){
-		write_log(ERROR, "sigemptyset() failed" );
+	if (sigaddset (&term_signal_block_mask, SIGTERM) == -1) {
+		write_log(ERROR, "sigaddset() for SIGTERM failed" );
 		close_all();
 	}
+	if (sigaddset (&term_signal_block_mask, SIGPIPE) == -1) {
+		write_log(ERROR, "sigaddset() for SIGPIPE failed" );
+		close_all();
+	}
+	if (sigaddset (&term_signal_block_mask, SIGALRM) == -1) {
+		write_log(ERROR, "sigaddset() for SIGALRM failed" );
+		close_all();
+	}
+	if (sigaddset (&term_signal_block_mask, SIGUSR1) == -1) {
+		write_log(ERROR, "sigaddset() for SIGUSR1 failed" );
+		close_all();
+	}
+	if (sigaddset (&term_signal_block_mask, SIGUSR2) == -1) {
+		write_log(ERROR, "sigaddset() for SIGUSR2 failed" );
+		close_all();
+	}
+	/* Set up the structure to specify the new action. */
+	term_signal_action.sa_handler = close_all;
+	term_signal_action.sa_mask = term_signal_block_mask;
 	/* set SA_RESTART flag, so If a signal handler is invoked while a system call 
 	is running like read/recv etc.. after the handler,
 	the system call is restarted and can give EINTR error if fail */ 
-	sigint_action.sa_flags = SA_RESTART;
-	/* The sigaction() API change the action taken by a process on receipt of SIGINT signal. */
-	if (sigaction (SIGINT, &sigint_action, NULL) < 0) {
+	term_signal_action.sa_flags = SA_RESTART;
+	/* The sigaction() API change the action taken by a process on receipt of these signals */
+	if (sigaction (SIGINT, &term_signal_action, NULL) < 0) {
+		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
+		close_all();
+	}
+	if (sigaction (SIGTERM, &term_signal_action, NULL) < 0) {
+		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
+		close_all();
+	}
+	if (sigaction (SIGPIPE, &term_signal_action, NULL) < 0) {
+		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
+		close_all();
+	}
+	if (sigaction (SIGALRM, &term_signal_action, NULL) < 0) {
+		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
+		close_all();
+	}
+	if (sigaction (SIGUSR1, &term_signal_action, NULL) < 0) {
+		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
+		close_all();
+	}
+	if (sigaction (SIGUSR2, &term_signal_action, NULL) < 0) {
 		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
 		close_all();
 	}
