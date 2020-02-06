@@ -289,6 +289,9 @@ void *thread_sender(client_args* c) {
 		char* ds = date_string();
 		len_logs_string += strlen(ds) + 1; // for date string + 1 space
 		len_logs_string += strlen(c->path_file) + 1;
+		// 18.446.744.073.709.551.616 is the max lenght of size_t ( win/ unix) 64 bit
+		// we just allocate 21 bytes for the max case plus 3 for unit of measure
+		len_logs_string += 24;
 		len_logs_string += strlen(c->addr) + 4;
 		
 		char* logs_string = malloc(sizeof(char) * len_logs_string);
@@ -302,12 +305,14 @@ void *thread_sender(client_args* c) {
 		#endif
 		}
 
-		if (snprintf(logs_string, len_logs_string, "%s %s %s\n", ds,
-				c->path_file, c->addr) < 0) {
 		#ifdef _WIN32
+		if (snprintf(logs_string, len_logs_string, "%s %s %l64u B %s\n", ds,
+				c->path_file, c->len_file, c->addr) < 0) {
 			write_log(ERROR, "snprintf() failed with error: %d", GetLastError());
 			ExitThread(0);
 		#else
+		if (snprintf(logs_string, len_logs_string, "%s %s %zu B %s\n", ds,
+				c->path_file, c->len_file, c->addr) < 0) {
 			write_log(ERROR, "snprintf() failed: %s", strerror(errno));
 			pthread_exit(NULL);
 		#endif
