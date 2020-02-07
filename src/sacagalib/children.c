@@ -31,7 +31,7 @@ void free_client_args(client_args* c) {
 	free(c);
 }
 
-int read_request(sock_t sd, char* buf, int buflen) {
+int read_request(sock_t sd, char** buf, int buflen) {
 	/* Receive data on this connection until the recv \n of finish line.
 	If any other failure occurs, we will returt false.*/
 	int check, total_recv = 0;
@@ -45,9 +45,9 @@ int read_request(sock_t sd, char* buf, int buflen) {
 			return -1;
 		}
 	#ifdef _WIN32
-		check = recv(sd, &buf[read_bytes], buflen - read_bytes, 0);
+		check = recv(sd, buf[read_bytes], buflen - read_bytes, 0);
 	#else
-		check = recv(sd, &buf[read_bytes], buflen - read_bytes, MSG_DONTWAIT);
+		check = recv(sd, buf[read_bytes], buflen - read_bytes, MSG_DONTWAIT);
 	#endif
 		if (check > 0) {
 			total_recv += check;
@@ -55,11 +55,11 @@ int read_request(sock_t sd, char* buf, int buflen) {
 				// the standard of gopher request is "the end of message is \r\n"
 				// so, all the message after \r\n will be discarded.
 				if (	(read_bytes - 1) >= 0
-						&& (buf[read_bytes-1] == '\r')
-						&& (buf[read_bytes] == '\n')) {
+						&& ((*buf)[read_bytes-1] == '\r')
+						&& ((*buf)[read_bytes] == '\n')) {
 					keep_going = false;
 					// truncate the recved bytes fron \r\n included, onward
-					buf[read_bytes-1] = '\0';
+					(*buf)[read_bytes-1] = '\0';
 					break;
 				}
 			}
@@ -89,7 +89,7 @@ int read_request(sock_t sd, char* buf, int buflen) {
 		}
 	}
 
-	char* newbuf = realloc(buf, read_bytes);
+	char* newbuf = realloc((*buf), read_bytes);
 	if (newbuf == NULL) {
 		// if recv fail the error can be server side or client side so we close the connection and go on 
 	#ifdef _WIN32
@@ -99,7 +99,7 @@ int read_request(sock_t sd, char* buf, int buflen) {
 	#endif
 		return -1;
 	}
-	buf = newbuf;
+	(*buf) = newbuf;
 
 	return read_bytes;
 }
@@ -242,18 +242,11 @@ long unsigned int* management_function(client_args* c) {
 	// because the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, we put a MAX input = 4096
 	char* input = calloc(MAX_REQUEST_LEN, sizeof(char));
-	if (input == NULL) {
-	#ifdef _WIN32
-		write_log(ERROR, "calloc of input failed with error: %d", GetLastError());
-	#else
-		write_log(ERROR, "calloc of input failed with error: %s", strerror(errno));
-	#endif
-		exit(1);
-	}
+
 	// read request from client->socket ( client socket ) and put in *input, 
 	// if fail will returned true otherwise false,
 	// the selctor is append to root directory so root+selector < MAX_REQUEST_LEN 
-	check = read_request(c->socket, input, (MAX_REQUEST_LEN - strlen((c->settings).homedir)));
+	check = read_request(c->socket, &input, (MAX_REQUEST_LEN - strlen((c->settings).homedir)));
 	if (check == -1) {
 		close_socket_kill_child(c, 0);
 	}
