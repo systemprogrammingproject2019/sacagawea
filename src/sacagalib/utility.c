@@ -114,7 +114,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	return true;
 #else
 	// open get file descriptor associated to file
-	int fd = open(client_info->path_file, O_RDONLY);
+	int fd = open(client_info->path_file, O_RDWR);
 	if (fd < 0) {
 		write_log(ERROR, "open() failed: %s\n", strerror(errno));
 		return false;
@@ -140,7 +140,7 @@ int load_file_memory_and_send(client_args *client_info) {
 	/* this version use SETLKW with associed lock at couple [i-node,process], so threads share the lock
 	but forked process nope. */
 	//fcntl(fd, F_SETLKW, &lck);
-	if( fcntl(fd, F_OFD_SETLKW, &lck) < 0 ){
+	if( fcntl(fd, F_OFD_SETLKW, &lck) == -1 ){
 		write_log(ERROR, "fcntl() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
 		return 0;
 	}
@@ -152,7 +152,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		write_log(ERROR, "fstat() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
 		// release lock with F_UNLCK flag and close FD
 		lck.l_type = F_UNLCK;
-		if( fcntl(fd, F_OFD_SETLK, &lck) < 0 ){
+		if( fcntl(fd, F_OFD_SETLK, &lck) == -1  ){
 			write_log(ERROR, "fcntl() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
 		}
 		close(fd);
@@ -165,7 +165,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		write_log(ERROR, "mmap() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
 		// release lock with F_UNLCK flag and close FD
 		lck.l_type = F_UNLCK;
-		if( fcntl(fd, F_OFD_SETLK, &lck) < 0 ){
+		if( fcntl(fd, F_OFD_SETLK, &lck) == -1  ){
 			write_log(ERROR, "fcntl() failed on %s request, becouse: %s\n", client_info->addr, strerror(errno));
 		}
 		close(fd);
