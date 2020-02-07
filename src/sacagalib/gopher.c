@@ -163,7 +163,7 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 // This fuction management the thread which have to send the FILE at client
 void *thread_sender(client_args* c) {
 	/* this cicle send the file at client and save the number of bytes sent */
-	size_t bytes_sent = 0, temp;
+	ssize_t bytes_sent = 0, temp;
 
 #ifdef _WIN32
 	SYSTEM_INFO sysnfo;

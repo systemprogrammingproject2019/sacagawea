@@ -32,7 +32,7 @@ void free_client_args(client_args* c) {
 }
 
 int read_request(sock_t sd, char** buf, int buflen) {
-	/* Receive data on this connection until the recv \n of finish line.
+	/* Receive data on this connection until the recv \r\n of finish line.
 	If any other failure occurs, we will returt false.*/
 	int check, total_recv = 0;
 	int read_bytes = 0;
@@ -40,7 +40,7 @@ int read_request(sock_t sd, char** buf, int buflen) {
 
 	while (keep_going) {
 		if (read_bytes >= buflen) {
-			// the client send a wrong input, or the lenght is > PATH_MAX, without a \n at end or send more bytes after \n
+			// the client send a wrong input, or the lenght is > PATH_MAX, without a \r\n at end or send more bytes after \r\n
 			write_log(ERROR, "sd - %d, failed because of wrong input. Closing the connection",sd);
 			return -1;
 		}
@@ -241,7 +241,7 @@ long unsigned int* management_function(client_args* c) {
 
 	// because the request is a path (SELECTOR) and the max path is 4096, plus
 	// eventualy some words which have to match with file name, we put a MAX input = 4096
-	char* input = calloc(MAX_REQUEST_LEN, sizeof(char));
+	char* input = calloc((MAX_REQUEST_LEN - strlen((c->settings).homedir)), sizeof(char));
 
 	// read request from client->socket ( client socket ) and put in *input, 
 	// if fail will returned true otherwise false,

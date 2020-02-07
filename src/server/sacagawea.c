@@ -540,10 +540,6 @@ int main(int argc, char *argv[]) {
 		write_log(ERROR, "sigaddset() for SIGTERM failed" );
 		close_all();
 	}
-	if (sigaddset (&term_signal_block_mask, SIGPIPE) == -1) {
-		write_log(ERROR, "sigaddset() for SIGPIPE failed" );
-		close_all();
-	}
 	if (sigaddset (&term_signal_block_mask, SIGALRM) == -1) {
 		write_log(ERROR, "sigaddset() for SIGALRM failed" );
 		close_all();
@@ -569,10 +565,6 @@ int main(int argc, char *argv[]) {
 		close_all();
 	}
 	if (sigaction (SIGTERM, &term_signal_action, NULL) < 0) {
-		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
-		close_all();
-	}
-	if (sigaction (SIGPIPE, &term_signal_action, NULL) < 0) {
 		write_log(ERROR, "System call sigaction() failed because of %s", strerror(errno));
 		close_all();
 	}
