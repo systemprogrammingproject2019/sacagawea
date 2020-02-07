@@ -89,8 +89,8 @@ int read_request(sock_t sd, char* buf, int buflen) {
 		}
 	}
 
-	buf = realloc(buf, read_bytes);
-	if (buf == NULL) {
+	char* newbuf = realloc(buf, read_bytes);
+	if (newbuf == NULL) {
 		// if recv fail the error can be server side or client side so we close the connection and go on 
 	#ifdef _WIN32
 		write_log(ERROR, "read_request(): realloc failed with error: %d. Closing connection.", GetLastError());
@@ -99,6 +99,7 @@ int read_request(sock_t sd, char* buf, int buflen) {
 	#endif
 		return -1;
 	}
+	buf = newbuf;
 
 	return read_bytes;
 }
@@ -258,8 +259,7 @@ long unsigned int* management_function(client_args* c) {
 	}
 
 	// if we are there, print that message
-	write_log(DEBUG, "RECEIVED: \"%s\" at addr %p\n",
-			input, &input);
+	write_log(DEBUG, "RECEIVED: \"%s\" at addr %p\n", input, &input);
 
 	// we have to add the path of gopher ROOT, else the client can access at all dir of server.
 	c->path_file = (char*) calloc(PATH_MAX + 1, sizeof(char));
@@ -284,7 +284,7 @@ long unsigned int* management_function(client_args* c) {
 	write_log(DEBUG, "PATH+SELECTOR %d bytes: %s",
 			strlen(c->path_file), c->path_file);
 
-	// avoid trasversal path
+	// avoid path traversal
 	if (check_security_path(c->path_file)) {
 		write_log(WARNING, "Path traversal detected in client's request: %s", c->path_file);
 		free(input);
