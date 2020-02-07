@@ -11,6 +11,8 @@
 #include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
+#include <signal.h>
 #endif
 
 #include "sacagalib.h"
@@ -32,7 +34,10 @@ void log_management() {
 
 	// open logs file and check if an error occured
 	FILE* log;
-	
+
+	// receive SIGTERM when parent process dies.
+	prctl(PR_SET_PDEATHSIG, SIGTERM);
+
 	while (true) {
 
 		if( pthread_mutex_lock(mutex) != 0 ){
