@@ -58,7 +58,6 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 		if ((strcmp(subFile->d_name , "..") == 0) || (strcmp( subFile->d_name , ".") == 0)) {
 			continue;
 		}
-		
 
 		if (no_match) { // file don't match something, continue with next subfile
 			continue;
