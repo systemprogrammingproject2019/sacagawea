@@ -52,6 +52,7 @@ void read_conf_line(const char* line, settings_t* settings) {
 			write_log(ERROR, "Cant find home-directory: %s", match);
 			exit(1);
 		}
+		free(folder);
 		strncpy(settings->homedir, match, 259);
 	#ifdef _WIN32
 		if (settings->homedir[strlen(settings->homedir) - 1] != '\\') {
