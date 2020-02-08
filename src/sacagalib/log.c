@@ -25,6 +25,7 @@ FILE* log_file;
 
 const char log_lv_name[][10] = {"ERROR", "WARNING", "INFO", "DEBUG"};
 
+/*
 #ifndef _WIN32
 void log_management() {
 	write_log(INFO, "Process for sacagawea.log created");
@@ -49,8 +50,8 @@ void log_management() {
 			close( pipe_conf[0] );
 			exit(1);
 		}
-		/* this while check if pipe is readable, or dont contain nothing.
-		if is empty return error EWOULDBLOCK and go again in blocked mode. */
+		// this while check if pipe is readable, or dont contain nothing.
+		// if is empty return error EWOULDBLOCK and go again in blocked mode.
 		
 		while (true) {
 			//fprintf(stdout, "read\n", check);
@@ -131,6 +132,102 @@ void log_management() {
 	}
 }
 #endif
+*/
+
+#ifndef _WIN32
+void log_management() {
+	write_log(INFO, "Process for sacagawea.log created");
+
+	char *read_line;
+	int len_string, check;
+
+	// open logs file and check if an error occured
+	FILE* log;
+
+	// receive SIGTERM when parent process dies.
+	prctl(PR_SET_PDEATHSIG, SIGTERM);
+
+	while (true) {
+
+		if( pthread_mutex_lock(mutex) != 0 ){
+			write_log(ERROR, "LOGS Process fail on lock mutex");
+			pthread_mutex_destroy(mutex);
+			pthread_cond_destroy(cond);
+			shm_unlink(SHARED_MUTEX_MEM);
+			shm_unlink(SHARED_COND_MEM);
+			close( pipe_conf[0] );
+			exit(1);
+		}
+		/* this while check if pipe is readable, or dont contain nothing.
+		if is empty return error EWOULDBLOCK and go again in blocked mode. */
+		
+		while (true) {
+			if( pthread_cond_wait(cond, mutex) != 0){
+				write_log(ERROR, "LOGS Process fail on cond_wait");
+				pthread_mutex_destroy(mutex);
+				pthread_cond_destroy(cond);
+				shm_unlink(SHARED_MUTEX_MEM);
+				shm_unlink(SHARED_COND_MEM);
+				close( pipe_conf[0] );
+				exit(1);
+			}
+			check = read(pipe_conf[0] , &len_string, sizeof(int));
+			write_log(INFO, "Log file received %d bytes", len_string);
+			if (check < 0) {
+				if ( errno == EAGAIN ) {
+					write_log(INFO, "LOGS Process nothing");
+				} else {
+					write_log(ERROR, "read on log process failed becouse %s",strerror(errno));
+					pthread_mutex_destroy(mutex);
+					pthread_cond_destroy(cond);
+					shm_unlink(SHARED_MUTEX_MEM);
+					shm_unlink(SHARED_COND_MEM);
+					close( pipe_conf[0] );
+					exit(1);
+				}
+			}
+			if (check > 0) {
+				break;
+			}
+		}
+
+		log = fopen(SACAGAWEALOGS_PATH , "a");
+		if (log == NULL) {
+			write_log(INFO, "ERROR open logs file: %s", strerror(errno));
+			exit(5);
+		}
+	
+		// read pipe and write sacagawea.log, until we got \n
+		read_line = (char*) malloc((len_string+1) * sizeof(char));
+		if( read_line == NULL ){
+			write_log(ERROR, "Malloc on logProcess failed becouse: %s", strerror(errno));
+			exit(5);
+		}
+		if (read(pipe_conf[0], read_line, len_string) < 0) {
+			fprintf(stderr, "read() fail becouse: %s\n", strerror(errno));
+			free(read_line);
+			fclose(log);
+			exit(5);
+		}
+		read_line[len_string]='\0';
+		write_log(INFO, "received: %d, %s",len_string, read_line);
+		fprintf(log, "%s", read_line);
+		
+		fclose(log);
+		free(read_line);
+		if( pthread_mutex_unlock(mutex) != 0 ){
+			write_log(ERROR, "LOGS Process fail on cond_wait");
+			pthread_mutex_destroy(mutex);
+			pthread_cond_destroy(cond);
+			shm_unlink(SHARED_MUTEX_MEM);
+			shm_unlink(SHARED_COND_MEM);
+			close( pipe_conf[0] );
+			exit(1);
+		}
+	}
+}
+#endif
+
 
 void write_log(int log_lv, const char* error_string, ...) {
 	va_list args;

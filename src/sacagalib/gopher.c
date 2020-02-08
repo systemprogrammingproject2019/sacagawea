@@ -162,8 +162,9 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 
 // This fuction management the thread which have to send the FILE at client
 void *thread_sender(client_args* c) {
-	/* this cicle send the file at client and save the number of bytes sent */
-	ssize_t bytes_sent = 0, temp;
+	// this cicle send the file at client and save the number of bytes sent 
+	size_t bytes_sent = 0;
+	ssize_t temp;
 
 #ifdef _WIN32
 	SYSTEM_INFO sysnfo;
@@ -238,9 +239,9 @@ void *thread_sender(client_args* c) {
 			write_log(DEBUG, "UnmapViewOfFile on %d", c->file_to_send);
 		}
 	#endif
+		write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
 	}
-	write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
-
+	
 	char buff;
 	// close the sockets gracefully
 #ifdef _WIN32
