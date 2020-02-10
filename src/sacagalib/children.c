@@ -245,7 +245,7 @@ long unsigned int* management_function(client_args* c) {
 	// read request from client->socket ( client socket ) and put in *input, 
 	// if fail will returned true otherwise false,
 	// the selctor is append to root directory so root+selector < MAX_REQUEST_LEN 
-	check = read_request(c->socket, &input, (MAX_REQUEST_LEN - strlen((c->settings).homedir)));
+	check = read_request(c->socket, input, (MAX_REQUEST_LEN - strlen((c->settings).homedir)));
 	if (check == -1) {
 		close_socket_kill_child(c, 0);
 	}

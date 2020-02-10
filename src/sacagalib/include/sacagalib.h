@@ -76,9 +76,19 @@ int logs_proces_pid;
 
 int max_num_s;
 
-int pipe_conf[2];
-pthread_cond_t *cond;
-pthread_mutex_t *mutex;
+// struct used for management "Condition variable"
+typedef struct struct_conditionVariable{
+	int pipe_conf[2];
+	pthread_cond_t cond;
+	pthread_mutex_t mutex;
+	int cont; // if log process wakes up and finds the associated mutex is still not available,
+	// it sleeps again. So he lose 1 signal, for that we cont the number of signal, so that
+	// when is waked up from another signal, the log process remedies the previously lost signal.
+} conditionVariable;
+
+conditionVariable* condVar;
+
+
 #endif
 
 struct struct_client_args{
@@ -147,8 +157,7 @@ EXPORTED int load_file_memory_and_send(client_args *client_info);
 EXPORTED int check_security_path(char path[PATH_MAX]);
 
 
-#define SHARED_MUTEX_MEM "/shared_memory_for_mutex"
-#define SHARED_COND_MEM "/shared_memory_for_cond"
+#define SHARED_COND_VARIABLE_MEM "/shared_memory_for_conditionVariable"
 
 /* Universal strings */
 #define S_LINE_READ_FROM_CONF_FILE "Line read from conf file: %s"

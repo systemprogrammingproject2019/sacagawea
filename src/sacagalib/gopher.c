@@ -379,25 +379,27 @@ void *thread_sender(client_args* c) {
 		}
 	#else
 		// lock mutex and wake up process for logs
-		if( pthread_mutex_lock(mutex) != 0 ){
+		if( pthread_mutex_lock( &(condVar->mutex) ) != 0 ){
 			write_log(ERROR, "pthread_mutex_lock(mutex) fail on thread_sender, dont saved on logs");
 			free(logs_string);
 			pthread_exit(NULL);
 		}
+		// upgrate signal cont
+		condVar->cont++;
 
-		if (write(pipe_conf[1], &len_logs_string, sizeof(int)) < 0) {
+		if (write(condVar->pipe_conf[1], &len_logs_string, sizeof(int)) < 0) {
 			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
 	 		pthread_exit(NULL);
 		}	
-		if (write(pipe_conf[1], logs_string, len_logs_string) < 0) {
+		if (write(condVar->pipe_conf[1], logs_string, len_logs_string) < 0) {
 			write_log(ERROR, "System call write() failed because of %s", strerror(errno));
 	 		pthread_exit(NULL);
 		}
 		// unlock mutex and free
-		if( pthread_cond_signal(cond) != 0 ){
+		if( pthread_cond_signal( &(condVar->cond) ) != 0 ){
 			write_log(ERROR, "pthread_cond_signal(cond) fail on thread_sender");
 		}
-		if( pthread_mutex_unlock(mutex) != 0 ){
+		if( pthread_mutex_unlock( &(condVar->mutex) ) != 0 ){
 			write_log(ERROR, "pthread_mutex_unlock(mutex) fail on thread_sender"); // but thread will be closed so the mutex released
 		}
 	#endif

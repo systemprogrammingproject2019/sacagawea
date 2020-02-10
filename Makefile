@@ -141,7 +141,7 @@ $(BIN)/sacagawea-logger.exe: $(LIB_SRC)/win32-multiprocess/logger.c
 .PHONY: clean lrun wrun linux win32 linuxserver win32server linuxlib win32lib win32mp win32logger
 
 lrun:
-	cd bin && ./sacagawea.out -P6969
+	cd bin && ./sacagawea.out -P6969 -d
 
 wrun:
 	cd bin && wine ./sacagawea.exe -P6969

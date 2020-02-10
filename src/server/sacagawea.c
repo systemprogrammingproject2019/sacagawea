@@ -140,30 +140,15 @@ void close_all() {
 		write_log(ERROR, "System call kill() failed because of %s", strerror(errno));
 	}
 
-	// destroy the allocated attr for, condition variable
-	int ret;
-	ret = pthread_condattr_destroy(&cattr);
-	if( ( ret == EBUSY ) || ( ret == EINVAL) ){
-		write_log(ERROR, "pthread_condattr_destroy(&cattr); failed");
-	}
-	ret = pthread_mutexattr_destroy(&mattr);
-	if( ret != 0){
-		write_log(ERROR, "pthread_mutexattr_destroy(&mattr); failed");
-	}
-
 	// close write pipe and send SIGTERM to logs process.
-	if( close(pipe_conf[1]) == -1 ){
+	if( close(condVar->pipe_conf[1]) == -1 ){
 		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
 	}
 	if( kill( logs_proces_pid, SIGTERM ) == -1 ){
 		write_log(ERROR, "System call kill() failed because of %s", strerror(errno));
 	}
-
 	//unlink shared memory
-	if( shm_unlink(SHARED_MUTEX_MEM) == -1 ){
-		write_log(ERROR, "System call shm_unlink() failed because of %s", strerror(errno));
-	}
-	if( shm_unlink(SHARED_COND_MEM) == -1 ){
+	if( shm_unlink(SHARED_COND_VARIABLE_MEM) == -1 ){
 		write_log(ERROR, "System call shm_unlink() failed because of %s", strerror(errno));
 	}
 #endif
@@ -356,44 +341,29 @@ int main(int argc, char *argv[]) {
 	addressing for the child, so the global/local variable are not shared like threads.
 	we have to create a shared memory for the 2 process and put on that the mutex and condition variable
 	now these can be used by both process. */
-	int mutex_d, cond_d;
+	int condVar_descriptor;
 	int mode = S_IRWXU | S_IRWXG;
-	/* non ho capito perche se con shm_open di una SHARED_MEM qualsiasi gli davo dimensione con ftruncate
-	pari a un mutex e un cond, quando facevo i 2 mmap non funzionavano. non erano sharati ( non da errore
-	semplicemente funzionava come se il mutex fosse sharato ma non la cond), con 2 open diversi funziona.
-	non eliminare devo chiederlo al prof so curioso. non ho trovato nulla al riguardo su internet o sul man */
-	/* shm_open open the SHARED_MUTEX_MEM or create it like a file, indeed mutex_d is a descriptor */
-	mutex_d = shm_open( SHARED_MUTEX_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
-	if (mutex_d < 0) {
+	
+	// we create a SHARED memory section for the conditionVariable struct
+	condVar_descriptor = shm_open( SHARED_COND_VARIABLE_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
+	if (condVar_descriptor < 0) {
 		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
 		exit(5);
 	}
-	if (ftruncate(mutex_d, sizeof(pthread_mutex_t)) != 0) {
+	if (ftruncate(condVar_descriptor, sizeof(conditionVariable)) != 0) {
 		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
 		exit(5);
 	}
-	mutex = (pthread_mutex_t *) mmap(NULL, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE, MAP_SHARED, mutex_d, 0);
-	if (mutex == MAP_FAILED) {
-		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
-		exit(5);
-	} 
-	/* shm_open open the SHARED_COND_MEM or create it like a file, indeed cond_d is a descriptor */
-	cond_d = shm_open(SHARED_COND_MEM , O_CREAT | O_RDWR | O_TRUNC, mode);
-	if (cond_d < 0) {
-		write_log(ERROR, "System call shm_open() failed because of %s", strerror(errno));
-		exit(5);
-	}
-	if (ftruncate(cond_d, sizeof(pthread_mutex_t)) != 0) {
-		write_log(ERROR, "System call ftruncate() failed because of %s", strerror(errno));
-		exit(5);
-	}
-	cond = (pthread_cond_t *) mmap(NULL, sizeof(pthread_cond_t), PROT_READ | PROT_WRITE, MAP_SHARED, cond_d, 0);
-	if (cond == MAP_FAILED) {
+	condVar = (conditionVariable *) mmap(NULL, sizeof(conditionVariable), PROT_READ | PROT_WRITE, MAP_SHARED, condVar_descriptor, 0);
+	if (condVar == MAP_FAILED) {
 		write_log(ERROR, "System call mmap() failed because of %s", strerror(errno));
 		exit(5);
 	}
+	// initialize cont = 0;
+	condVar->cont=0;
 
-	/* PTHREAD_PROCESS_SHARED
+	/* initialize mutex and cond variable
+	PTHREAD_PROCESS_SHARED
 	Permits a condition variable/mutex to be operated upon by any thread that has access to the memory
 	where the condition variable/mutex is allocated; even if the condition variable/mutex is allocated in memory
 	that is shared by multiple processes.*/
@@ -406,28 +376,33 @@ int main(int argc, char *argv[]) {
 		exit(5);
 	}
 	// set and init the mutex and condition variable
-	if( pthread_mutex_init(mutex, &mattr) != 0){
+	if( pthread_mutex_init( &(condVar->mutex) , &mattr) != 0){
 		write_log(ERROR, "pthread_mutex_init() failed ");
 		exit(5);
 	}
-	if( pthread_cond_init(cond, &cattr) != 0){
+	if( pthread_cond_init( &(condVar->cond) , &cattr) != 0){
 		write_log(ERROR, "pthread_cond_init() failed ");
 		exit(5);
+	}
+	// destroy the allocated attr for, condition variable
+	int ret;
+	ret = pthread_condattr_destroy(&cattr);
+	if( ( ret == EBUSY ) || ( ret == EINVAL) ){
+		write_log(ERROR, "pthread_condattr_destroy(&cattr); failed becouse %d", ret);
+	}
+	ret = pthread_mutexattr_destroy(&mattr);
+	if( ret != 0){
+		write_log(ERROR, "pthread_mutexattr_destroy(&mattr); failed becouse %d", ret);
 	}
 #endif
 
 	// create the pipe for SERVER<->SACALOGS
 #ifndef _WIN32
-	if (pipe(pipe_conf) != 0) { 
+	if (pipe(condVar->pipe_conf) != 0) { 
 		write_log(ERROR, "System call pipe() failed because of %s", strerror(errno));
 		exit(5);
 	}
-	/* set NON-BLOCKING read pipe, becouse sacalogs don't have to go in blocked mode
-	while try read pipe */
-	if (fcntl(pipe_conf[0], F_SETFL, O_NONBLOCK) != 0) {
-		write_log(ERROR, "System call fcntl() failed because of %s", strerror(errno));
-		exit(5);
-	}
+	
 #endif
 	// now create the process
 #ifdef _WIN32
@@ -474,7 +449,7 @@ int main(int argc, char *argv[]) {
 	}
 	if (logProcess == 0) { /* child process */
 		// close write pipe
-		if( close(pipe_conf[1]) == -1 ){
+		if( close(condVar->pipe_conf[1]) == -1 ){
 		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
 		exit(EXIT_FAILURE);
 		}
@@ -484,7 +459,7 @@ int main(int argc, char *argv[]) {
 	}
 	/* server process "father" */
 	// close read pipe
-	if( close(pipe_conf[0]) == -1 ){
+	if( close(condVar->pipe_conf[0]) == -1 ){
 		write_log(ERROR, "System call close() failed because of %s", strerror(errno));
 		close_all();
 	}
