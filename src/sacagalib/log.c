@@ -110,7 +110,7 @@ void log_management_exit(int exitCode) {
 	if( pthread_mutex_unlock(&(condVar->mutex)) != 0 ){
 		write_log(ERROR, "LOGS Process fail unlock mutex");
 	}
-	pthread_mutex_destroy(&(condVar->mutex));
+	pthread_mutex_destroy( &(condVar->mutex) );
 	pthread_cond_destroy( &(condVar->cond) );
 	shm_unlink(SHARED_COND_VARIABLE_MEM);
 	close( condVar->pipe_conf[0] );

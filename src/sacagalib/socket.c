@@ -127,13 +127,13 @@ sock_t open_socket(const settings_t* settings) {
 	if (setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
 		write_log(ERROR, "setsockopt(SO_REUSEADDR) failed: %s", strerror(errno));
 	}
-
+/*
 #ifdef SO_REUSEPORT
 	if (setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int)) < 0) {
 		write_log(ERROR, "setsockopt(SO_REUSEPORT) failed: %s", strerror(errno));
 	}
 #endif
-
+*/
 	/*The ioctl() API allows the local address to be reused when the server is restarted 
 	before the required wait time expires. In this case, it sets the socket to be nonblocking. 
 	All of the sockets for the incoming connections are also nonblocking because they inherit that state from the listening socket. */
@@ -162,7 +162,7 @@ sock_t open_socket(const settings_t* settings) {
 	}
 
 	/* listen allows the server to accept incoming client connection  */
-	if ((listen(ListenSocket, 32)) < 0) {
+	if ((listen(ListenSocket, 100)) < 0) {
 		write_log(ERROR, "listen failed: %s\n", strerror(errno));
 		exit(5);
 	}
@@ -185,9 +185,10 @@ int listen_descriptor(const settings_t* settings) {
 	// we only need to monitor the settings->socket, so the first arg of select
 	// can just be "settings->socket + 1", which is the highest number of fd
 	// we need to monitor
-	num_fd_ready = select(settings->socket + 1, &fds_set, NULL, NULL, 
+	num_fd_ready = select( (settings->socket + 1) , &fds_set, NULL, NULL, 
 #ifdef _WIN32
-			&(struct timeval){1, 0}); // 0.1 second timeout
+			//&(struct timeval){1, 0}); // 0.1 second timeout
+			NULL);
 #else
 			NULL);
 #endif
@@ -195,13 +196,20 @@ int listen_descriptor(const settings_t* settings) {
 #ifdef _WIN32
 	if (num_fd_ready == SOCKET_ERROR) {
 		write_log(ERROR, "select failed with error: %d", WSAGetLastError());
+		// when ctrl+break close the listening socket, select will return with error ESAENOTSOCK
+		// this error can't happening in other way in this program, just becouse FD_SET contain
+		// only the listen socket that is returned from socket(), so we just restart the 
+		// listen function.
+		if( WSAGetLastError() == WSAENOTSOCK ){
+			return true;
+		}
 		exit(5);
 	}
 #else
 	// if select returns a number lesser than 0, an error occurred
 	if (num_fd_ready < 0) {
 		/* if errno == EINTR the select is interrupted becouse of sigaction 
-		so we have to repeat select, not exit(5) */
+		so we have to repeat select */
 		if (errno == EINTR) {
 			return true;
 		}

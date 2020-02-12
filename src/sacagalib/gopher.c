@@ -35,14 +35,11 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 
 	// this fuction send each file in a directory which match "words" in the
 	// gopher protocol format.
-
 	DIR *folder;
 	struct dirent *subFile;
-	//int j = 0;
 	int check;
 	int len_response;
 	char type;
-	int no_match = false;
 	char* response;
 	char *path_of_subfile;
 	char port_str[6]; // max ex "65535\0"
@@ -58,86 +55,81 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 		if ((strcmp(subFile->d_name , "..") == 0) || (strcmp( subFile->d_name , ".") == 0)) {
 			continue;
 		}
-
-		if (no_match) { // file don't match something, continue with next subfile
-			continue;
-		} else {
-			// the file match all word we send the data
-			// write_log(INFO, "%s", subFile->d_name);
-			path_of_subfile = (char*) calloc((strlen(client_info->path_file) + strlen(subFile->d_name) + 2), sizeof(char));
-			if( path_of_subfile == NULL ){
-				write_log(ERROR, "calloc of path_of_subfile failed");
-				exit(1);
-			}
-		#ifdef _WIN32
-			if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '\\') {
-		#else
-			if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '/') {
-		#endif
-				snprintf(path_of_subfile,
-						(strlen(client_info->path_file) + strlen(subFile->d_name) + 1),
-						"%s%s", client_info->path_file, subFile->d_name);
-			} else {
-				snprintf(path_of_subfile,
-						(strlen(client_info->path_file) + strlen(subFile->d_name) + 2),
-						"%s/%s", client_info->path_file, subFile->d_name);
-			}
-
-			type = type_path(path_of_subfile);
-			// calculate lenght of response. first 2 are for type char + \t
-			len_response = 2; 
-			// for name of file +\t
-			len_response += strlen(subFile->d_name) + 1; 
-			// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
-			len_response += strlen(client_selector) + strlen(subFile->d_name) + 3;
-			// for IP of server +\t
-			len_response += strlen((client_info->settings).hostname) + 2;
-			// for actualy opened (client_info->settings).port
-			snprintf(port_str, 6, "%d", (client_info->settings).port);
-			len_response += strlen(port_str);
-			// \n + \0
-			len_response += 2;
-			// declare and compile
-
-			response = (char*) malloc(len_response*sizeof(char));
-			if( response == NULL ){
-				write_log(ERROR, "malloc of response failed with error %s", strerror(errno));
-				exit(1);
-			}
-			// SO dont care about path with double // but we used some gopher client for test the "server"
-			// and putting all time a / at start of path, let it become more expansive, 
-			// we got a path like C:/michele/Desktop/sacagawea/bin//////////////////0ciao.txt so we decided to put this check
-			if (client_selector[(strlen(client_selector)-1)] != '/'){
-				snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\r\n",
-						type, subFile->d_name, client_selector,
-						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
-			} else {
-				snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\r\n",
-						type, subFile->d_name, client_selector,
-						subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
-			}
-
-			// write_log(INFO, "send_content_of_dir response to socket %d: %s", client_info->socket, response);
-		#ifdef _WIN32
-			check = send(client_info->socket, response, strlen(response), 0);
-			if( check == SOCKET_ERROR ){
-				write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, WSAGetLastError() );
-			}
-		#else
-		//Requests not to send SIGPIPE on errors on stream oriented sockets when the other end breaks the connection. The EPIPE error is still returned.
-			check = send(client_info->socket, response, strlen(response), MSG_NOSIGNAL);
-			if( check < 0 ){
-				if( errno == EPIPE ){
-					write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
-					break;
-				}else{
-					write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
-				}
-			}
-		#endif
-			free(response);
-			free(path_of_subfile);
+		// write_log(INFO, "%s", subFile->d_name);
+		path_of_subfile = (char*) calloc( (strlen(client_info->path_file) + strlen(subFile->d_name) + 2), sizeof(char));
+		if( path_of_subfile == NULL ){
+			write_log(ERROR, "calloc of path_of_subfile failed");
+			exit(1);
 		}
+	#ifdef _WIN32
+		if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '\\') {
+	#else
+		if (client_info->path_file[(strlen(client_info->path_file) - 1)] == '/') {
+	#endif
+			snprintf(path_of_subfile,
+					(strlen(client_info->path_file) + strlen(subFile->d_name) + 1),
+					"%s%s", client_info->path_file, subFile->d_name);
+		} else {
+			snprintf(path_of_subfile,
+					(strlen(client_info->path_file) + strlen(subFile->d_name) + 2),
+					"%s/%s", client_info->path_file, subFile->d_name);
+		}
+
+		type = type_path(path_of_subfile);
+		// calculate lenght of response. first 2 are for type char + \t
+		len_response = 2; 
+		// for name of file +\t
+		len_response += strlen(subFile->d_name) + 1; 
+		// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
+		len_response += strlen(client_selector) + strlen(subFile->d_name) + 3;
+		// for IP of server +\t
+		len_response += strlen((client_info->settings).hostname) + 2;
+		// for actualy opened (client_info->settings).port
+		snprintf(port_str, 6, "%d", (client_info->settings).port);
+		len_response += strlen(port_str);
+		// \n + \0
+		len_response += 2;
+		// declare and compile
+
+		response = (char*) malloc(len_response*sizeof(char));
+		if( response == NULL ){
+			write_log(ERROR, "malloc of response failed with error %s", strerror(errno));
+			exit(1);
+		}
+		// SO dont care about path with double // but we used some gopher client for test the "server"
+		// and putting all time a / at start of path, let it become more expansive, 
+		// we got a path like C:/michele/Desktop/sacagawea/bin//////////////////0ciao
+		// so we decided to put this check
+		if (client_selector[(strlen(client_selector)-1)] != '/'){
+			snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\r\n",
+					type, subFile->d_name, client_selector,
+					subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
+		} else {
+			snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\r\n",
+					type, subFile->d_name, client_selector,
+					subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
+		}
+
+		// write_log(INFO, "send_content_of_dir response to socket %d: %s", client_info->socket, response);
+	#ifdef _WIN32
+		check = send(client_info->socket, response, strlen(response), 0);
+		if( check == SOCKET_ERROR ){
+			write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, WSAGetLastError() );
+		}
+	#else
+		//Requests not to send SIGPIPE on errors on stream oriented sockets when the other end breaks the connection. The EPIPE error is still returned.
+		check = send(client_info->socket, response, strlen(response), MSG_NOSIGNAL);
+		if( check < 0 ){
+			if( errno == EPIPE ){
+				write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
+				break;
+			}else{
+				write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
+			}
+		}
+	#endif
+		free(response);
+		free(path_of_subfile);
 	}
 
 	char end[] = ".\r\n";
@@ -164,6 +156,7 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 void *thread_sender(client_args* c) {
 	// this cicle send the file at client and save the number of bytes sent 
 	size_t bytes_sent = 0;
+	// ssize_t is used for the range [-1, SSIZE_MAX], to return a size in bytes or a negative error
 	ssize_t temp;
 
 #ifdef _WIN32
@@ -219,17 +212,19 @@ void *thread_sender(client_args* c) {
 		}
 	#else
 		// MSG_NOSIGNAL means, if the socket be broken dont send SIGPIPE at process
-		temp = send(c->socket, c->file_to_send, (c->len_file - bytes_sent), MSG_NOSIGNAL);
+		temp = send(c->socket, &(c->file_to_send[bytes_sent]) , (c->len_file - bytes_sent), MSG_NOSIGNAL);
 		if (temp < 0) {
 			write_log(ERROR, "Sending file to %s, with socket %d failed: %s",
 					c->addr, c->socket, strerror(errno));
 			pthread_exit(0);
-		} else if (temp == 0) {
-			write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
-					c->addr, c->socket);
-			pthread_exit(0);
-		} else {
-			bytes_sent += temp;
+		} else { 
+			if (temp == 0) { // this if can be deleted
+				write_log(ERROR, "Client %s, with socket %d close the connection meanwhile sending file\n",
+						c->addr, c->socket);
+				pthread_exit(0);
+			} else {
+				bytes_sent += temp;
+			}
 		}
 	#endif
 	#ifdef _WIN32

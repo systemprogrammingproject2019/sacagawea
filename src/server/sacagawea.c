@@ -164,14 +164,14 @@ void universal_handler() {
 		// threads/processes (until they die/close it) because
 		// they were only given a copy of it.
 	#ifdef _WIN32
-		if (closesocket(settings->socket) != 0) {
+		write_log(INFO, "arrivo alla chiusura socket");
+		if (closesocket(settings->socket) == SOCKET_ERROR) {
 			write_log(ERROR, "System call close() on %d (server socket) failed with error: %d. Socket change failed.", settings->socket, WSAGetLastError());
 	#else
 		if (close(settings->socket) == -1) {
 			write_log(ERROR, "System call close() on %d (server socket) failed with error: %s. Socket change failed.", settings->socket, strerror(errno));
 	#endif
 		}
-
 		settings->socket = open_socket(settings);
 	}
 }
@@ -209,7 +209,6 @@ void sighup_handler(int signum) {
 int main(int argc, char *argv[]) {
 
 #ifndef _WIN32
-	//	become_daemon();
 	// Child becomes Zombie as parent is sleeping when child process exits. 
 	// if we ignore SIGCHLD the father dont need to read "the Zombie" and it will be removed from process table.
 	if( signal(SIGCHLD,SIG_IGN) == SIG_ERR ){
