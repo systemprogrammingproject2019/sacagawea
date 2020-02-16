@@ -2,7 +2,6 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
-#include <getopt.h>
 #include <time.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -171,7 +170,14 @@ void *thread_sender(client_args* c) {
 	// aligned to the page length. We have therefore chosen to use 
 	// sysnfo.dwAllocationGranularity as our buffer length because trivially
 	// it's a multiple of sysnfo.dwAllocationGranularity
+#else
+	// stop the SIGHUP
+	if( signal(SIGHUP,SIG_IGN) == SIG_ERR ){
+		write_log(ERROR, "Signal() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 #endif
+	
 
 	while (bytes_sent < c->len_file) {
 		// logic for sending the file

@@ -2,7 +2,6 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
-#include <getopt.h>
 #include <time.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -25,6 +24,7 @@
 
 #include "sacagalib.h"
 
+void start_thread_management(client_args *client_info);
 
 void free_client_args(client_args* c) {
 	free(c->path_file);
@@ -346,7 +346,7 @@ void thread_management(client_args *client_info) {
 	pthread_t tid;
 	print_client_args(client_info);
 	
-	if( pthread_create(&tid, NULL, (void *) management_function, (void *) client_info) != 0 ){
+	if( pthread_create(&tid, NULL, (void *) start_thread_management, (void *) client_info) != 0 ){
 		write_log(ERROR, "pthread_create( management_function ) failed ");
 	}
 	// we need to call pthread_detach so the thread will release its
@@ -356,6 +356,17 @@ void thread_management(client_args *client_info) {
 	}
 #endif
 }
+#ifndef _WIN32
+// this function spawn thread to management the new client request 
+void start_thread_management(client_args *client_info) {
+	// stop the SIGHUP
+	if( signal(SIGHUP,SIG_IGN) == SIG_ERR ){
+		write_log(ERROR, "Signal() failed because of %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	management_function( client_info );
+}
+#endif
 
 void close_socket(sock_t sd) {
 #ifdef _WIN32
