@@ -32,16 +32,17 @@
 void send_content_of_dir(client_args* client_info, char* client_selector) {
 	write_log(DEBUG, "send_content_of_dir: %s", client_info->path_file);
 
-	// this fuction send each file in a directory which match "words" in the
-	// gopher protocol format.
 	DIR *folder;
 	struct dirent *subFile;
 	int check;
-	int len_response;
+	int len_responce;
 	char type;
-	char* response;
-	char *path_of_subfile;
+	char* response_line;
+	char* response = NULL;
+	char* path_of_subfile;
 	char port_str[6]; // max ex "65535\0"
+
+
 	// open dir 
 	folder = opendir(client_info->path_file);
 	if (folder == NULL) {
@@ -54,10 +55,11 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 		if ((strcmp(subFile->d_name , "..") == 0) || (strcmp( subFile->d_name , ".") == 0)) {
 			continue;
 		}
+		
 		// write_log(INFO, "%s", subFile->d_name);
-		path_of_subfile = (char*) calloc( (strlen(client_info->path_file) + strlen(subFile->d_name) + 2), sizeof(char));
+		path_of_subfile = malloc( (strlen(client_info->path_file) + strlen(subFile->d_name) + 2)*sizeof(char) );
 		if( path_of_subfile == NULL ){
-			write_log(ERROR, "calloc of path_of_subfile failed");
+			write_log(ERROR, "malloc of path_of_subfile failed");
 			exit(1);
 		}
 	#ifdef _WIN32
@@ -75,41 +77,73 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 		}
 
 		type = type_path(path_of_subfile);
-		// calculate lenght of response. first 2 are for type char + \t
-		len_response = 2; 
+
+		// calculate lenght of response_line. first 2 are for type char + \t
+		len_responce = 2; 
 		// for name of file +\t
-		len_response += strlen(subFile->d_name) + 1; 
+		len_responce += strlen(subFile->d_name) + 1; 
 		// for selector, used for serch file in gopher server +\t, ( selector + '/' + file_name + '\t' )
-		len_response += strlen(client_selector) + strlen(subFile->d_name) + 3;
+		len_responce += strlen(client_selector) + strlen(subFile->d_name) + 2;
 		// for IP of server +\t
-		len_response += strlen((client_info->settings).hostname) + 2;
+		len_responce += strlen((client_info->settings).hostname) + 1;
 		// for actualy opened (client_info->settings).port
 		snprintf(port_str, 6, "%d", (client_info->settings).port);
-		len_response += strlen(port_str);
-		// \n + \0
-		len_response += 2;
+		len_responce += strlen(port_str);
+		// \r\n + \0
+		len_responce += 3;
 		// declare and compile
 
-		response = (char*) malloc(len_response*sizeof(char));
-		if( response == NULL ){
-			write_log(ERROR, "malloc of response failed with error %s", strerror(errno));
+		response_line = (char*) malloc(len_responce*sizeof(char));
+		if( response_line == NULL ){
+			write_log(ERROR, "malloc of response_line failed with error");
 			exit(1);
 		}
+		
 		// SO dont care about path with double // but we used some gopher client for test the "server"
 		// and putting all time a / at start of path, let it become more expansive, 
 		// we got a path like C:/michele/Desktop/sacagawea/bin//////////////////0ciao
 		// so we decided to put this check
 		if (client_selector[(strlen(client_selector)-1)] != '/'){
-			snprintf(response, len_response, "%c%s\t%s/%s\t%s\t%d\r\n",
+			snprintf(response_line, len_responce, "%c%s\t%s/%s\t%s\t%d\r\n",
 					type, subFile->d_name, client_selector,
 					subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 		} else {
-			snprintf(response, len_response, "%c%s\t%s%s\t%s\t%d\r\n",
+			snprintf(response_line, len_responce, "%c%s\t%s%s\t%s\t%d\r\n",
 					type, subFile->d_name, client_selector,
 					subFile->d_name, (client_info->settings).hostname, (client_info->settings).port);
 		}
+		if(response == NULL){
+			len_responce = strlen(response_line)+1;
+			response = (char * ) realloc( response, len_responce  );
+			if( response == NULL ){
+				write_log(ERROR, "malloc of response_line failed with error");
+				exit(1);
+			}
+			strcpy( response, response_line);
 
-		// write_log(INFO, "send_content_of_dir response to socket %d: %s", client_info->socket, response);
+		}else{
+			len_responce = strlen(response)+strlen(response_line)+1;
+			response = (char * ) realloc( response, len_responce  );
+			if( response == NULL ){
+				write_log(ERROR, "malloc of response_line failed with error");
+				exit(1);
+			}
+			strcat( response, response_line );
+		}
+		
+		free(response_line);
+		free(path_of_subfile);
+	}
+
+	len_responce = strlen(response)+4;
+	response = (char * ) realloc( response, len_responce  );
+	if( response == NULL ){
+		write_log(ERROR, "malloc of response_line failed with error");
+		exit(1);
+	}
+	char end[] = ".\r\n";
+	strcat( response, end );
+		// write_log(INFO, "send_content_of_dir response_line to socket %d: %s", client_info->socket, response_line);
 	#ifdef _WIN32
 		check = send(client_info->socket, response, strlen(response), 0);
 		if( check == SOCKET_ERROR ){
@@ -119,31 +153,12 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 		//Requests not to send SIGPIPE on errors on stream oriented sockets when the other end breaks the connection. The EPIPE error is still returned.
 		check = send(client_info->socket, response, strlen(response), MSG_NOSIGNAL);
 		if( check < 0 ){
-			if( errno == EPIPE ){
-				write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
-				break;
-			}else{
-				write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
-			}
+			write_log(ERROR, "failed send %s to %s because: %s",response, client_info->addr, strerror(errno));
 		}
 	#endif
-		free(response);
-		free(path_of_subfile);
-	}
 
-	char end[] = ".\r\n";
-#ifdef _WIN32	
-	check = send(client_info->socket, end, strlen(end), 0);
-	if( check == SOCKET_ERROR ){
-		write_log(ERROR, "failed send end message to %s because: %s", client_info->addr, WSAGetLastError() );
-	}
-#else
-	check = send(client_info->socket, end, strlen(end), MSG_NOSIGNAL);
-	if( check < 0 ){
-		write_log(ERROR, "failed send end message to %s because: %s", client_info->addr, strerror(errno));
-	}
-#endif
-	write_log(DEBUG, "send_content_of_dir response to socket %d: SENT", client_info->socket);
+	free(response);
+	write_log(DEBUG, "send_content_of_dir response_line to socket %d: SENT", client_info->socket);
 
 	if ( closedir(folder) == -1 ){
 		write_log(ERROR, "failed close dir: %s", client_info->path_file);
@@ -301,7 +316,7 @@ void *thread_sender(client_args* c) {
 			write_log(ERROR, "malloc() failed with error: %d", GetLastError());
 			ExitThread(0);
 		#else
-			write_log(ERROR, "malloc() failed: %s", strerror(errno));
+			write_log(ERROR, "300) malloc() failed: %s", strerror(errno));
 			pthread_exit(NULL);
 		#endif
 		}
