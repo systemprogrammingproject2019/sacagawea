@@ -316,6 +316,7 @@ long unsigned int* management_function(client_args* c) {
 	#endif
 		} else { // if is only a file
 			load_file_memory_and_send(c);
+			write_log(DEBUG, "finito invio \n");
 		}
 	}
 	free(input);
@@ -377,7 +378,7 @@ void close_socket(sock_t sd) {
 	write_log(DEBUG, "Closed socket %lld", sd);
 }
 
-void kill_thread(sock_t sd, int errcode) {
+void kill_thread( int errcode ) {
 #ifdef _WIN32
 	ExitThread(errcode);
 #else
@@ -391,8 +392,8 @@ void close_socket_kill_child(client_args* c, int errcode) {
 	free_client_args(c);
 	if (mode == 't') {
 		close_socket( s );
-		kill_thread(s, 0);
+		kill_thread( errcode );
 	} else {
-		exit(0);
+		exit( errcode );
 	}
 }

@@ -168,7 +168,7 @@ void send_content_of_dir(client_args* client_info, char* client_selector) {
 
 // This fuction management the thread which have to send the FILE at client
 void *thread_sender(client_args* c) {
-	// this cicle send the file at client and save the number of bytes sent 
+	
 	size_t bytes_sent = 0;
 	// ssize_t is used for the range [-1, SSIZE_MAX], to return a size in bytes or a negative error
 	ssize_t temp;
@@ -258,7 +258,7 @@ void *thread_sender(client_args* c) {
 		write_log(DEBUG, "sent %lld/%lld bytes\n", bytes_sent, c->len_file);
 	}
 	
-	char buff;
+	char buff[512];
 	// close the sockets gracefully
 #ifdef _WIN32
 	if (shutdown(c->socket, SD_SEND) != 0) {
@@ -266,15 +266,18 @@ void *thread_sender(client_args* c) {
 				WSAGetLastError());
 		ExitThread(0);
 	}
-
 	int ret;
 	do {
-		ret = recv(c->socket, &buff, sizeof(buff), MSG_WAITALL);
-		if (ret < 0) {
-			write_log(ERROR, "recv() failed: %s", WSAGetLastError());
-			ExitThread(0);
+		ret = recv(c->socket, buff, 512, 0);
+		if( ret > 0 ){
+			write_log(DEBUG, "%s %d	\n", buff, ret);
+		}else {
+			if (ret < 0) {
+				write_log(ERROR, "recv() failed: %d", WSAGetLastError());
+				ExitThread(0);
+			}
 		}
-	} while(ret != 0);
+	} while(ret > 0);
 
 #else
 	/* allora qua sicuramente c'è una soluzione migliore, questa l'ho inventata io ma sembra veramente inteligente come cosa.
@@ -316,7 +319,7 @@ void *thread_sender(client_args* c) {
 			write_log(ERROR, "malloc() failed with error: %d", GetLastError());
 			ExitThread(0);
 		#else
-			write_log(ERROR, "300) malloc() failed: %s", strerror(errno));
+			write_log(ERROR, "malloc() failed: %s", strerror(errno));
 			pthread_exit(NULL);
 		#endif
 		}

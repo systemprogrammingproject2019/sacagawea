@@ -196,7 +196,7 @@ int load_file_memory_and_send(client_args *client_info) {
 		exit(EXIT_FAILURE);
 	}
 	// munmap is the free for mmap
-	if( munmap(client_info->file_to_send, (client_info->len_file + 1)) == -1 ){
+	if( munmap(client_info->file_to_send, client_info->len_file ) == -1 ){
 		write_log(ERROR, "close failed becouse: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
